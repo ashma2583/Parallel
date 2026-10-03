@@ -1,0 +1,7 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+spacetimedb/node_modules/
+spacetimedb/.spacetime/
+spacetimedb/dist/
