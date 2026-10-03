@@ -55,6 +55,7 @@ const SCENARIOS: Scenario[] = [
 const STRATEGY_LABEL: Record<string, string> = {
   tiered: 'Priority tiers',
   residential: 'Protect residential',
+  academic: 'Protect classes',
   people: 'Most people per kW',
   even: 'Ration evenly',
 }
@@ -130,7 +131,7 @@ export function DisruptRail({ sim }: { sim: Sim }) {
             )
           })}
         </div>
-        <p className="mt-2.5 text-xs text-faint">The energy agent sheds load in this order. Branch the timeline to compare all four before choosing.</p>
+        <p className="mt-2.5 text-xs text-faint">The energy agent sheds load in this order. Branch the timeline to compare them all before choosing.</p>
       </section>
 
       <section className="mt-auto">

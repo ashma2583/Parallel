@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSpacetimeDB, useTable } from 'spacetimedb/react'
 import { BACKEND_URL } from '../config'
 import { tables } from '../module_bindings'
+import type { Briefing } from './api'
 import { PLACES, ZONES } from './places'
 
 export interface SimNode {
@@ -87,6 +88,8 @@ export interface Sim {
   summary: SimSummary | undefined
   activity: string[]
   strategy: string
+  /** Plain-language answers for the current outage. Null until the engine replies. */
+  briefing: Briefing | null
   /** Pull engine state now instead of waiting for the next poll. */
   refresh: () => void
 }
@@ -108,6 +111,7 @@ export function useSim(): Sim {
   const [engineUp, setEngineUp] = useState(false)
   const [activity, setActivity] = useState<string[]>([])
   const [strategy, setStrategy] = useState('tiered')
+  const [briefing, setBriefing] = useState<Briefing | null>(null)
 
   const stdbLiveRef = useRef(stdbLive)
   useEffect(() => {
@@ -117,9 +121,13 @@ export function useSim(): Sim {
   const pull = useCallback(async () => {
     try {
       // With SpacetimeDB live only the agent feed comes over REST.
-      const res = await fetch(`${BACKEND_URL}${stdbLiveRef.current ? '/activity' : '/state'}`)
+      const [res, brief] = await Promise.all([
+        fetch(`${BACKEND_URL}${stdbLiveRef.current ? '/activity' : '/state'}`),
+        fetch(`${BACKEND_URL}/briefing`),
+      ])
       if (!res.ok) throw new Error(String(res.status))
       const data = await res.json()
+      if (brief.ok) setBriefing(await brief.json())
       setEngineUp(true)
       setStrategy(data.strategy ?? 'tiered')
       if (stdbLiveRef.current) {
@@ -162,14 +170,15 @@ export function useSim(): Sim {
         summary: s && { tick: Number(s.tick), supply: s.supply, demand: s.demand, deficit: s.deficit },
         activity,
         strategy,
+        briefing,
         refresh: pull,
       }
     }
     if (engineUp && engine) {
-      return { source: 'engine', ...engine, nodes: [...engine.nodes].sort(byId), activity, strategy, refresh: pull }
+      return { source: 'engine', ...engine, nodes: [...engine.nodes].sort(byId), activity, strategy, briefing, refresh: pull }
     }
-    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, strategy, refresh: pull }
-  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, strategy, pull])
+    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, strategy, briefing, refresh: pull }
+  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, strategy, briefing, pull])
 }
 
 export const isSupplier = (n: SimNode) => n.type === 'substation'

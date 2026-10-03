@@ -77,6 +77,29 @@ export async function runBranches(ticks = 6): Promise<BranchResult> {
   }
 }
 
+export interface Briefing {
+  preference: string
+  disrupted: boolean
+  displaced: number
+  priority: {
+    answer: string
+    dorms_dark: number
+    classrooms_dark: number
+    dorms_lit: number
+    classrooms_lit: number
+  }
+  buses: {
+    answer: string
+    reroute: { id: string; name: string; agency: string; skip: string[]; keep: string[] }[]
+  }
+  cooling: {
+    answer: string
+    open: boolean
+    places: { id: string; name: string; occupancy: number }[]
+  }
+  systems: { system: string; status: 'up' | 'down'; detail: string }[]
+}
+
 export interface Policy {
   action: string
   node_ids: string[]
