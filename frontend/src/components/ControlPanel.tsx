@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { Node as NodeRow } from '../module_bindings/types'
-import { disrupt, resetSim } from '../lib/api'
+import { disrupt, resetSim, type Briefing, type PriorityMode } from '../lib/api'
 import { STATUS_COLOR, fmtKw } from '../lib/status'
+import { BriefingPanel } from './BriefingPanel'
 import { VoicePanel } from './VoicePanel'
 
 interface Scenario {
@@ -21,9 +22,11 @@ interface Props {
   nodes: readonly NodeRow[]
   selected: NodeRow | undefined
   activity: readonly string[]
+  briefing: Briefing | null
+  onPriority: (mode: PriorityMode) => void
 }
 
-export function ControlPanel({ nodes, selected, activity }: Props) {
+export function ControlPanel({ nodes, selected, activity, briefing, onPriority }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,6 +46,8 @@ export function ControlPanel({ nodes, selected, activity }: Props) {
 
   return (
     <aside className="flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-l border-slate-800 bg-slate-950/80 p-4 text-sm backdrop-blur">
+      <BriefingPanel briefing={briefing} onChoose={onPriority} />
+
       <VoicePanel />
 
       <section>

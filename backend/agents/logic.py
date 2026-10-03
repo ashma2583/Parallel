@@ -53,10 +53,22 @@ ALIASES: dict[str, str] = {
 }
 
 
-def apply_energy(graph: CampusGraph) -> list[str]:
+def _shed_key(node, preference: str):
+    """Lower sorts first, and those buildings are shed first. Critical is excluded by the caller."""
+    if preference == "dorms" and node.type == NodeType.DORM:
+        group = 1
+    elif preference == "academic" and node.type in (NodeType.ACADEMIC, NodeType.LIBRARY):
+        group = 1
+    else:
+        group = 0
+    return (group, -node.priority.value, -node.demand, node.id)
+
+
+def apply_energy(graph: CampusGraph, preference: str = "balanced") -> list[str]:
     """
     Per feeder: shed lowest priority first and never touch Critical.
-    A deficit on north campus does not shed central campus.
+    preference "dorms" cuts classrooms before residence halls.
+    preference "academic" cuts residence halls before classrooms.
     """
     before = {n.id: round(n.load_shed, 4) for n in graph.nodes.values()}
     plan: dict[str, float] = {n.id: 0.0 for n in graph.nodes.values()}
@@ -72,7 +84,7 @@ def apply_energy(graph: CampusGraph) -> list[str]:
         deficit = max(0.0, sum(n.demand for n in consumers) - supply)
         order = sorted(
             (n for n in consumers if n.priority != Priority.CRITICAL),
-            key=lambda n: (-n.priority.value, -n.demand, n.id),
+            key=lambda n: _shed_key(n, preference),
         )
         remaining = deficit
         for node in order:

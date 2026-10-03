@@ -44,6 +44,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from agents import runtime
+import briefing
 from agents.logic import apply_policy
 from agents.serve import start_in_thread
 from graph import CampusGraph
@@ -117,6 +118,10 @@ class DisruptRequest(BaseModel):
     reason: str | None = Field(None, examples=["Ice storm knocked out the south substation"])
 
 
+class PriorityRequest(BaseModel):
+    mode: Literal["balanced", "dorms", "academic"]
+
+
 class CommandRequest(BaseModel):
     text: str = Field(..., min_length=1, examples=["The south substation just failed"])
 
@@ -172,6 +177,28 @@ def get_state() -> dict:
 @app.get("/activity")
 def get_activity() -> dict:
     return runtime.snapshot()
+
+
+@app.get("/bus-routes")
+def get_bus_routes() -> dict:
+    return briefing.route_collection()
+
+
+@app.get("/briefing")
+def get_briefing() -> dict:
+    with runtime.lock:
+        return briefing.build_briefing(graph, runtime.preference)
+
+
+@app.post("/priority")
+async def post_priority(req: PriorityRequest) -> dict:
+    """Change who is shed first, then recompute power and where people go."""
+    with runtime.lock:
+        runtime.preference = req.mode
+        runtime.run_cycle(graph, force=True)
+        body = briefing.build_briefing(graph, runtime.preference)
+    await publisher.publish(graph)
+    return body
 
 
 @app.post("/tick")

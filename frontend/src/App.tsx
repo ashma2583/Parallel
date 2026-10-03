@@ -5,7 +5,7 @@ import { CampusMap } from './components/CampusMap'
 import { GeoMap } from './components/GeoMap'
 import { StatusBar } from './components/StatusBar'
 import { ControlPanel } from './components/ControlPanel'
-import { fetchActivity } from './lib/api'
+import { fetchActivity, fetchBriefing, setPriority, type Briefing, type PriorityMode } from './lib/api'
 
 export default function App() {
   const { isActive, connectionError } = useSpacetimeDB()
@@ -19,14 +19,23 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
   const [activity, setActivity] = useState<string[]>([])
+  const [briefing, setBriefing] = useState<Briefing | null>(null)
   const [view, setView] = useState<'graph' | 'map'>('graph')
+  const coolingIds = briefing?.cooling.open ? briefing.cooling.places.map((place) => place.id) : []
+
+  async function onPriority(mode: PriorityMode) {
+    const next = await setPriority(mode)
+    setBriefing(next)
+  }
 
   useEffect(() => {
     let stop = false
     const pull = async () => {
       try {
-        const lines = await fetchActivity()
-        if (!stop) setActivity(lines)
+        const [lines, nextBriefing] = await Promise.all([fetchActivity(), fetchBriefing()])
+        if (stop) return
+        setActivity(lines)
+        setBriefing(nextBriefing)
       } catch {
         // The map still updates from SpacetimeDB if the REST poll misses a beat.
       }
@@ -65,9 +74,15 @@ export default function App() {
           </div>
           {nodesReady && nodes.length > 0 ? (
             view === 'map' ? (
-              <GeoMap nodes={sortedNodes} onNodeClick={(n) => setSelectedId(n.id)} />
+              <GeoMap
+                nodes={sortedNodes}
+                edges={edges}
+                coolingIds={coolingIds}
+                reroutes={briefing?.buses.reroute ?? []}
+                onNodeClick={(n) => setSelectedId(n.id)}
+              />
             ) : (
-              <CampusMap nodes={sortedNodes} edges={edges} onNodeClick={(n) => setSelectedId(n.id)} />
+              <CampusMap nodes={sortedNodes} edges={edges} coolingIds={coolingIds} onNodeClick={(n) => setSelectedId(n.id)} />
             )
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">
@@ -80,7 +95,13 @@ export default function App() {
           )}
         </main>
 
-        <ControlPanel nodes={sortedNodes} selected={selected} activity={activity} />
+        <ControlPanel
+          nodes={sortedNodes}
+          selected={selected}
+          activity={activity}
+          briefing={briefing}
+          onPriority={(mode) => void onPriority(mode)}
+        />
       </div>
     </div>
   )

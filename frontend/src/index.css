@@ -19,7 +19,7 @@ body,
 .react-flow {
   background: #0b1020;
 }
-.maplibregl-canvas {
+.map-raster .maplibregl-canvas {
   filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.95);
 }
 

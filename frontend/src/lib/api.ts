@@ -59,6 +59,41 @@ export async function sendVoice(blob: Blob): Promise<CommandResult> {
   return data as CommandResult
 }
 
+export type PriorityMode = 'balanced' | 'dorms' | 'academic'
+
+export interface Briefing {
+  preference: PriorityMode
+  disrupted: boolean
+  displaced: number
+  priority: {
+    answer: string
+    dorms_dark: number
+    classrooms_dark: number
+    dorms_lit: number
+    classrooms_lit: number
+  }
+  buses: {
+    answer: string
+    reroute: { id: string; name: string; agency: string; skip: string[]; keep: string[] }[]
+  }
+  cooling: {
+    answer: string
+    open: boolean
+    places: { id: string; name: string; occupancy: number }[]
+  }
+  systems: { system: string; status: 'up' | 'down'; detail: string }[]
+}
+
+export async function fetchBriefing(): Promise<Briefing | null> {
+  const res = await fetch(`${BACKEND_URL}/briefing`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function setPriority(mode: PriorityMode): Promise<Briefing> {
+  return post('/priority', { mode }) as Promise<Briefing>
+}
+
 export async function fetchActivity(): Promise<string[]> {
   const res = await fetch(`${BACKEND_URL}/activity`)
   if (!res.ok) return []

@@ -26,6 +26,8 @@ last_cycle = 0.0
 main_loop: asyncio.AbstractEventLoop | None = None
 graph: CampusGraph | None = None
 agent_status: dict[str, Any] = {"running": False, "address": {}}
+# balanced | dorms | academic. Dorms and academic change who is shed first.
+preference = "balanced"
 
 policy_queue: deque = deque()
 
@@ -44,7 +46,7 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
     if not force and now - last_cycle < TICK_SECONDS * 0.85:
         return []
     notes: list[str] = []
-    notes.extend(apply_energy(sim))
+    notes.extend(apply_energy(sim, preference))
     sim.tick()
     notes.extend(apply_transit(sim))
     if notes:

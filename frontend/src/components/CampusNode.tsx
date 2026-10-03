@@ -3,7 +3,7 @@ import { Handle, Position, type Node as FlowNode, type NodeProps } from '@xyflow
 import type { Node as NodeRow } from '../module_bindings/types'
 import { PRIORITY_LABEL, TYPE_GLYPH, TYPE_LABEL, fmtKw, statusColor } from '../lib/status'
 
-export type CampusFlowNode = FlowNode<{ row: NodeRow }, 'campus'>
+export type CampusFlowNode = FlowNode<{ row: NodeRow; cooling?: boolean }, 'campus'>
 
 /** Invisible centre handles so edges draw centre-to-centre. */
 const hiddenHandle: React.CSSProperties = {
@@ -41,6 +41,9 @@ function CampusNodeImpl({ data, selected }: NodeProps<CampusFlowNode>) {
       <Handle type="target" position={Position.Top} style={hiddenHandle} isConnectable={false} />
       <Handle type="source" position={Position.Bottom} style={hiddenHandle} isConnectable={false} />
 
+      {data.cooling && (
+        <div className="mb-1 text-[9px] font-bold tracking-wider text-cyan-300">COOLING CENTER</div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-slate-400">
           <span style={{ color }}>{TYPE_GLYPH[row.type] ?? '•'}</span>

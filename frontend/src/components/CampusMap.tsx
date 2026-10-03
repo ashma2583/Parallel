@@ -17,10 +17,11 @@ const nodeTypes: NodeTypes = { campus: CampusNode }
 interface Props {
   nodes: readonly NodeRow[]
   edges: readonly EdgeRow[]
+  coolingIds?: readonly string[]
   onNodeClick?: (node: NodeRow) => void
 }
 
-export function CampusMap({ nodes, edges, onNodeClick }: Props) {
+export function CampusMap({ nodes, edges, coolingIds = [], onNodeClick }: Props) {
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
 
   const flowNodes = useMemo<CampusFlowNode[]>(
@@ -29,11 +30,11 @@ export function CampusMap({ nodes, edges, onNodeClick }: Props) {
         id: row.id,
         type: 'campus',
         position: { x: row.x, y: row.y },
-        data: { row },
+        data: { row, cooling: coolingIds.includes(row.id) },
         draggable: false,
         connectable: false,
       })),
-    [nodes],
+    [nodes, coolingIds],
   )
 
   const flowEdges = useMemo<FlowEdge[]>(
