@@ -7,6 +7,8 @@ interface Props {
   nodes: readonly SimNode[]
   edges: readonly SimEdge[]
   selectedId?: string | null
+  /** Buildings the briefing says to open as cooling centers. */
+  coolingIds?: readonly string[]
   onNodeClick?: (node: SimNode) => void
   /** Small, label-free rendering for Branch Timeline columns. */
   mini?: boolean
@@ -16,7 +18,7 @@ interface Props {
  * The campus as a one-line diagram. Engine layout coordinates are stretched to
  * fill the container, so text and node sizes stay in real pixels at any size.
  */
-export function Schematic({ nodes, edges, selectedId, onNodeClick, mini = false }: Props) {
+export function Schematic({ nodes, edges, selectedId, coolingIds = [], onNodeClick, mini = false }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
 
@@ -79,7 +81,7 @@ export function Schematic({ nodes, edges, selectedId, onNodeClick, mini = false 
           if (!p) return null
           return (
             <NodeMark key={n.id} node={n} x={p.x} y={p.y} mini={mini}
-              selected={n.id === selectedId} onClick={onNodeClick} />
+              selected={n.id === selectedId} cooling={coolingIds.includes(n.id)} onClick={onNodeClick} />
           )
         })}
       </svg>
@@ -93,10 +95,11 @@ interface MarkProps {
   y: number
   mini: boolean
   selected: boolean
+  cooling: boolean
   onClick?: (node: SimNode) => void
 }
 
-function NodeMark({ node, x, y, mini, selected, onClick }: MarkProps) {
+function NodeMark({ node, x, y, mini, selected, cooling, onClick }: MarkProps) {
   const supplier = isSupplier(node)
   const color = statusColor(node.status)
   const nominal = supplier ? node.capacity : node.demand
@@ -142,6 +145,12 @@ function NodeMark({ node, x, y, mini, selected, onClick }: MarkProps) {
               ? `${Math.round(node.currentPower)} kW out`
               : `${Math.round(node.currentPower)}/${Math.round(node.demand)} · ${fmtPeople(node.occupancy)}`)}
           </text>
+          {cooling && (
+            <text y={-r - 8} textAnchor="middle" fontSize={9} fontWeight={600} letterSpacing="0.1em"
+              fill="var(--color-transit)" stroke="var(--color-ink)" strokeWidth={3} paintOrder="stroke">
+              COOLING CENTER
+            </text>
+          )}
         </>
       )}
     </g>

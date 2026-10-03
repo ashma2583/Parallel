@@ -76,6 +76,7 @@ class Node:
     load_shed: float = 0.0
     # 1.0 is full output. A heat wave or a damaged unit lowers it.
     derate: float = 1.0
+    baseline_occupancy: int = 0
     position: dict[str, float] = field(default_factory=dict)
 
     @property
@@ -241,6 +242,8 @@ class CampusGraph:
         self.tick_count: int = 0
         self.last_tick: TickResult | None = None
         assert len(self.nodes) == 20, "expected the 20 approved Ann Arbor places"
+        for node in self.nodes.values():
+            node.baseline_occupancy = node.occupancy
         self.tick()
 
     def get(self, node_id: str) -> Node:
@@ -262,8 +265,8 @@ class CampusGraph:
 
     def send_home(self) -> None:
         """Put everyone back where they started, so transit can route them afresh."""
-        for home in _build_nodes():
-            self.nodes[home.id].occupancy = home.occupancy
+        for node in self.nodes.values():
+            node.occupancy = node.baseline_occupancy
 
     def derate_node(self, node_id: str, factor: float) -> Node:
         """Limit a feed or on-site generator to a fraction of its output."""

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { disrupt, sendCommand, sendVoice, type CommandResult } from '../lib/api'
 import { isSupplier, type Sim, type SimNode } from '../lib/sim'
+import { BriefingPanel } from './BriefingPanel'
 import { PRIORITY_LABEL, STATUS_LABEL, TYPE_LABEL, fmtKw, statusColor, type Status } from '../lib/status'
 
 function Heading({ children }: { children: React.ReactNode }) {
@@ -186,32 +187,31 @@ const AGENT_COLOR: Record<string, string> = {
 }
 
 function Feed({ lines }: { lines: readonly string[] }) {
+  if (lines.length === 0) return <p className="text-xs text-faint">Agents idle. The grid is balanced.</p>
   return (
-    <section className="flex min-h-0 flex-1 flex-col">
-      <Heading>Agent feed</Heading>
-      {lines.length === 0 ? (
-        <p className="text-xs text-faint">Agents idle. The grid is balanced.</p>
-      ) : (
-        <ol className="-mr-2 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2">
-          {lines.slice().reverse().map((line, index) => {
-            const split = line.indexOf(':')
-            const who = split > 0 ? line.slice(0, split) : 'System'
-            const agent = who.split(' ')[0]
-            return (
-              <li key={`${lines.length - index}-${line}`}>
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: AGENT_COLOR[agent] ?? 'var(--color-faint)' }} />
-                  {who}
-                </div>
-                <div className="mt-0.5 text-xs leading-relaxed text-text/80">{split > 0 ? line.slice(split + 1).trim() : line}</div>
-              </li>
-            )
-          })}
-        </ol>
-      )}
-    </section>
+    <ol className="flex flex-col gap-3">
+      {lines.slice().reverse().map((line, index) => {
+        const split = line.indexOf(':')
+        const who = split > 0 ? line.slice(0, split) : 'System'
+        const agent = who.split(' ')[0]
+        return (
+          <li key={`${lines.length - index}-${line}`}>
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: AGENT_COLOR[agent] ?? 'var(--color-faint)' }} />
+              {who}
+            </div>
+            <div className="mt-0.5 text-xs leading-relaxed text-text/80">{split > 0 ? line.slice(split + 1).trim() : line}</div>
+          </li>
+        )
+      })}
+    </ol>
   )
 }
+
+const TABS = [
+  { id: 'briefing', label: 'Briefing' },
+  { id: 'feed', label: 'Agent feed' },
+] as const
 
 interface Props {
   sim: Sim
@@ -219,11 +219,30 @@ interface Props {
 }
 
 export function OpsRail({ sim, selected }: Props) {
+  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('briefing')
   return (
     <aside className="flex w-80 shrink-0 flex-col gap-7 border-l border-line bg-panel p-4">
       <CommandBox onDone={sim.refresh} />
       <Inspector node={selected} onDone={sim.refresh} />
-      <Feed lines={sim.activity} />
+      <section className="flex min-h-0 flex-1 flex-col">
+        <div className="mb-3 flex gap-4 border-b border-line">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`-mb-px border-b pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${
+                tab === t.id ? 'border-text text-text' : 'border-transparent text-faint hover:text-muted'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
+          {tab === 'briefing' ? <BriefingPanel briefing={sim.briefing} /> : <Feed lines={sim.activity} />}
+        </div>
+      </section>
     </aside>
   )
 }

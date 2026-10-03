@@ -63,6 +63,10 @@ STRATEGIES: dict[str, dict[str, str]] = {
         "label": "Protect residential",
         "description": "Keep dorms powered. Academic and commons buildings go dark first.",
     },
+    "academic": {
+        "label": "Protect classes",
+        "description": "Keep classrooms and libraries powered. Residence halls go dark first.",
+    },
     "people": {
         "label": "Most people per kW",
         "description": "Shed the buildings that serve the fewest people per kilowatt first.",
@@ -82,6 +86,9 @@ def _shed_order(consumers: list, strategy: str) -> list:
         return []
     if strategy == "residential":
         return sorted(pool, key=lambda n: (n.type == NodeType.DORM, -n.priority.value, -n.demand, n.id))
+    if strategy == "academic":
+        keep = (NodeType.ACADEMIC, NodeType.LIBRARY)
+        return sorted(pool, key=lambda n: (n.type in keep, -n.priority.value, -n.demand, n.id))
     if strategy == "people":
         return sorted(pool, key=lambda n: (n.occupancy / n.demand if n.demand > 0 else 0.0, n.id))
     return sorted(pool, key=lambda n: (-n.priority.value, -n.demand, n.id))

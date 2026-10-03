@@ -20,6 +20,8 @@ export default function App() {
   const [view, setView] = useState<(typeof VIEWS)[number]['id']>('grid')
   const [branching, setBranching] = useState(false)
   const zones = useMemo(() => zoneLoads(sim.nodes), [sim.nodes])
+  const cooling = sim.briefing?.cooling
+  const coolingIds = useMemo(() => (cooling?.open ? cooling.places.map((place) => place.id) : []), [cooling])
 
   return (
     <div className="flex h-full flex-col">
@@ -46,9 +48,16 @@ export default function App() {
 
               <div className="min-h-0 flex-1">
                 {view === 'map' ? (
-                  <GeoMap nodes={sim.nodes} selectedId={selectedId} onNodeClick={(n) => setSelectedId(n.id)} />
+                  <GeoMap
+                    nodes={sim.nodes}
+                    edges={sim.edges}
+                    selectedId={selectedId}
+                    coolingIds={coolingIds}
+                    reroutes={sim.briefing?.buses.reroute ?? []}
+                    onNodeClick={(n) => setSelectedId(n.id)}
+                  />
                 ) : (
-                  <Schematic nodes={sim.nodes} edges={sim.edges} selectedId={selectedId} onNodeClick={(n) => setSelectedId(n.id)} />
+                  <Schematic nodes={sim.nodes} edges={sim.edges} selectedId={selectedId} coolingIds={coolingIds} onNodeClick={(n) => setSelectedId(n.id)} />
                 )}
               </div>
 

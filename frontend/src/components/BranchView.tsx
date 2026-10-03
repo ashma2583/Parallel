@@ -94,7 +94,7 @@ export function BranchView({ edges, onClose, onAdopted }: Props) {
       )}
 
       {result && (
-        <div className="mt-5 grid flex-1 grid-cols-2 gap-4 xl:grid-cols-4">
+        <div className="mt-5 grid flex-1 grid-cols-2 gap-4 xl:grid-cols-5">
           {result.branches.map((b, index) => {
             const m = b.metrics
             const isLive = b.id === result.active

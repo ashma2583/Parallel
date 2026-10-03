@@ -45,6 +45,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from agents import runtime
+import briefing
 from agents.logic import DEFAULT_STRATEGY, STRATEGIES, apply_policy
 from agents.serve import start_in_thread
 from branch import run_branches
@@ -129,6 +130,14 @@ class StrategyRequest(BaseModel):
     strategy: str = Field(..., examples=["residential"])
 
 
+class PriorityRequest(BaseModel):
+    mode: Literal["balanced", "dorms", "academic"]
+
+
+# The first briefing build named these modes. Each is one of the strategies.
+PRIORITY_STRATEGY = {"balanced": "tiered", "dorms": "residential", "academic": "academic"}
+
+
 class CommandRequest(BaseModel):
     text: str = Field(..., min_length=1, examples=["The south substation just failed"])
 
@@ -185,6 +194,25 @@ def get_state() -> dict:
 @app.get("/activity")
 def get_activity() -> dict:
     return runtime.snapshot()
+
+
+@app.get("/bus-routes")
+def get_bus_routes() -> dict:
+    return briefing.route_collection()
+
+
+@app.get("/briefing")
+def get_briefing() -> dict:
+    with runtime.lock:
+        return briefing.build_briefing(graph, runtime.strategy)
+
+
+@app.post("/priority")
+async def post_priority(req: PriorityRequest) -> dict:
+    """Older name for /strategy. Returns the briefing for the new policy."""
+    await post_strategy(StrategyRequest(strategy=PRIORITY_STRATEGY[req.mode]))
+    with runtime.lock:
+        return briefing.build_briefing(graph, runtime.strategy)
 
 
 @app.post("/tick")
