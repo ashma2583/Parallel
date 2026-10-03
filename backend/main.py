@@ -36,6 +36,7 @@ try:
     from dotenv import load_dotenv
 
     load_dotenv(Path(__file__).resolve().parent / ".env")
+    load_dotenv(Path(__file__).resolve().parent / ".env.local")
 except ImportError:
     pass
 
@@ -44,8 +45,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from agents import runtime
-from agents.logic import apply_policy
+from agents.logic import DEFAULT_STRATEGY, STRATEGIES, apply_policy
 from agents.serve import start_in_thread
+from branch import run_branches
 from graph import CampusGraph
 from stdb import SpacetimePublisher
 import voice
@@ -113,8 +115,18 @@ app.add_middleware(
 
 class DisruptRequest(BaseModel):
     node_ids: list[str] = Field(..., min_length=1, examples=[["sub_south"]])
-    action: Literal["fail", "restore"] = Field("fail")
+    action: Literal["fail", "restore", "derate"] = Field("fail")
+    factor: float = Field(0.5, ge=0.0, le=1.0, description="Output fraction for action=derate")
     reason: str | None = Field(None, examples=["Ice storm knocked out the south substation"])
+
+
+class BranchRequest(BaseModel):
+    ticks: int = Field(6, ge=1, le=60)
+    strategies: list[str] | None = Field(None, examples=[["tiered", "residential"]])
+
+
+class StrategyRequest(BaseModel):
+    strategy: str = Field(..., examples=["residential"])
 
 
 class CommandRequest(BaseModel):
@@ -124,6 +136,7 @@ class CommandRequest(BaseModel):
 def _state() -> dict:
     body = graph.to_dict()
     body["activity"] = list(runtime.activity)
+    body["strategy"] = runtime.strategy
     return body
 
 
@@ -192,10 +205,13 @@ async def post_disrupt(req: DisruptRequest) -> dict:
         for nid in req.node_ids:
             if req.action == "fail":
                 graph.fail_node(nid)
+            elif req.action == "derate":
+                graph.derate_node(nid, req.factor)
             else:
                 graph.restore_node(nid)
+        verb = f"derate to {req.factor:.0%}" if req.action == "derate" else req.action
         runtime.push([
-            f"Director: {req.action} {', '.join(req.node_ids)}"
+            f"Director: {verb} {', '.join(req.node_ids)}"
             + (f" ({req.reason})" if req.reason else "")
         ])
         runtime.run_cycle(graph, force=True)
@@ -208,10 +224,43 @@ async def post_disrupt(req: DisruptRequest) -> dict:
 async def post_reset() -> dict:
     with runtime.lock:
         graph.reset()
+        runtime.strategy = DEFAULT_STRATEGY
         runtime.push(["Director: campus reset"])
         runtime.run_cycle(graph, force=True)
         body = _state()
     await publisher.clear()
+    await publisher.publish(graph)
+    return body
+
+
+@app.post("/branch")
+def post_branch(req: BranchRequest) -> dict:
+    """Fork the live state and run each response policy forward. The live sim is untouched."""
+    ids = req.strategies or list(STRATEGIES)
+    unknown = [sid for sid in ids if sid not in STRATEGIES]
+    if unknown:
+        raise HTTPException(status_code=404, detail=f"Unknown strategy id(s): {unknown}")
+    with runtime.lock:
+        branches = run_branches(graph, ids, req.ticks)
+        return {
+            "base_tick": graph.tick_count,
+            "ticks": req.ticks,
+            "active": runtime.strategy,
+            "branches": branches,
+        }
+
+
+@app.post("/strategy")
+async def post_strategy(req: StrategyRequest) -> dict:
+    """Adopt a response policy on the live simulation."""
+    if req.strategy not in STRATEGIES:
+        raise HTTPException(status_code=404, detail=f"Unknown strategy id: {req.strategy}")
+    with runtime.lock:
+        runtime.strategy = req.strategy
+        graph.send_home()
+        runtime.push([f"Coordinator: adopted policy '{STRATEGIES[req.strategy]['label']}'"])
+        runtime.run_cycle(graph, force=True)
+        body = _state()
     await publisher.publish(graph)
     return body
 

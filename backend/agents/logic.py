@@ -53,9 +53,43 @@ ALIASES: dict[str, str] = {
 }
 
 
-def apply_energy(graph: CampusGraph) -> list[str]:
+# Response policies the energy agent can run. Branch Timeline compares them.
+STRATEGIES: dict[str, dict[str, str]] = {
+    "tiered": {
+        "label": "Priority tiers",
+        "description": "Shed the lowest priority tier first. Critical care is never shed.",
+    },
+    "residential": {
+        "label": "Protect residential",
+        "description": "Keep dorms powered. Academic and commons buildings go dark first.",
+    },
+    "people": {
+        "label": "Most people per kW",
+        "description": "Shed the buildings that serve the fewest people per kilowatt first.",
+    },
+    "even": {
+        "label": "Ration evenly",
+        "description": "No load shedding. Every building on the feed gets the same share.",
+    },
+}
+DEFAULT_STRATEGY = "tiered"
+
+
+def _shed_order(consumers: list, strategy: str) -> list:
+    """Non-critical consumers in the order the strategy sheds them."""
+    pool = [n for n in consumers if n.priority != Priority.CRITICAL]
+    if strategy == "even":
+        return []
+    if strategy == "residential":
+        return sorted(pool, key=lambda n: (n.type == NodeType.DORM, -n.priority.value, -n.demand, n.id))
+    if strategy == "people":
+        return sorted(pool, key=lambda n: (n.occupancy / n.demand if n.demand > 0 else 0.0, n.id))
+    return sorted(pool, key=lambda n: (-n.priority.value, -n.demand, n.id))
+
+
+def apply_energy(graph: CampusGraph, strategy: str = DEFAULT_STRATEGY) -> list[str]:
     """
-    Per feeder: shed lowest priority first and never touch Critical.
+    Per feeder: shed in the order the strategy sets and never touch Critical.
     A deficit on north campus does not shed central campus.
     """
     before = {n.id: round(n.load_shed, 4) for n in graph.nodes.values()}
@@ -70,10 +104,7 @@ def apply_energy(graph: CampusGraph) -> list[str]:
         ]
         supply = supply_for(graph.nodes, feeder)
         deficit = max(0.0, sum(n.demand for n in consumers) - supply)
-        order = sorted(
-            (n for n in consumers if n.priority != Priority.CRITICAL),
-            key=lambda n: (-n.priority.value, -n.demand, n.id),
-        )
+        order = _shed_order(consumers, strategy)
         remaining = deficit
         for node in order:
             if remaining <= 1e-6 or node.demand <= 0:

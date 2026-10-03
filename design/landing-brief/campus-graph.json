@@ -1,0 +1,534 @@
+{
+ "nodes": [
+  {
+   "id": "cpp",
+   "name": "Central Power Plant",
+   "type": "substation",
+   "priority": "none",
+   "feeder": "central",
+   "capacity": 620,
+   "demand": 0.0,
+   "local_supply": 0.0,
+   "occupancy": 40,
+   "position": {
+    "x": 520,
+    "y": 220
+   }
+  },
+  {
+   "id": "uh",
+   "name": "University Hospital",
+   "type": "hospital",
+   "priority": "critical",
+   "feeder": "medical",
+   "capacity": 0.0,
+   "demand": 260,
+   "local_supply": 640,
+   "occupancy": 800,
+   "position": {
+    "x": 860,
+    "y": 80
+   }
+  },
+  {
+   "id": "north_switch",
+   "name": "North Campus Switching Station",
+   "type": "substation",
+   "priority": "none",
+   "feeder": "north",
+   "capacity": 560,
+   "demand": 0.0,
+   "local_supply": 0.0,
+   "occupancy": 12,
+   "position": {
+    "x": 1180,
+    "y": 40
+   }
+  },
+  {
+   "id": "angell",
+   "name": "Angell Hall",
+   "type": "academic",
+   "priority": "high",
+   "feeder": "central",
+   "capacity": 0.0,
+   "demand": 90,
+   "local_supply": 0.0,
+   "occupancy": 400,
+   "position": {
+    "x": 220,
+    "y": 80
+   }
+  },
+  {
+   "id": "shapiro",
+   "name": "Shapiro Undergraduate Library",
+   "type": "library",
+   "priority": "low",
+   "feeder": "central",
+   "capacity": 0.0,
+   "demand": 60,
+   "local_supply": 0.0,
+   "occupancy": 500,
+   "position": {
+    "x": 220,
+    "y": 280
+   }
+  },
+  {
+   "id": "union",
+   "name": "Michigan Union",
+   "type": "dining",
+   "priority": "medium",
+   "feeder": "central",
+   "capacity": 0.0,
+   "demand": 50,
+   "local_supply": 0.0,
+   "occupancy": 350,
+   "position": {
+    "x": 40,
+    "y": 180
+   }
+  },
+  {
+   "id": "ross",
+   "name": "Ross School of Business",
+   "type": "academic",
+   "priority": "medium",
+   "feeder": "central",
+   "capacity": 0.0,
+   "demand": 80,
+   "local_supply": 0.0,
+   "occupancy": 400,
+   "position": {
+    "x": 220,
+    "y": 460
+   }
+  },
+  {
+   "id": "markley",
+   "name": "Mary Markley Hall",
+   "type": "dorm",
+   "priority": "high",
+   "feeder": "central",
+   "capacity": 0.0,
+   "demand": 110,
+   "local_supply": 0.0,
+   "occupancy": 1200,
+   "position": {
+    "x": 520,
+    "y": 40
+   }
+  },
+  {
+   "id": "south_quad",
+   "name": "South Quad",
+   "type": "dorm",
+   "priority": "high",
+   "feeder": "central",
+   "capacity": 0.0,
+   "demand": 100,
+   "local_supply": 0.0,
+   "occupancy": 1100,
+   "position": {
+    "x": 40,
+    "y": 400
+   }
+  },
+  {
+   "id": "mott",
+   "name": "C.S. Mott Children's Hospital",
+   "type": "hospital",
+   "priority": "critical",
+   "feeder": "medical",
+   "capacity": 0.0,
+   "demand": 190,
+   "local_supply": 0.0,
+   "occupancy": 420,
+   "position": {
+    "x": 860,
+    "y": 280
+   }
+  },
+  {
+   "id": "kahn",
+   "name": "Kahn Health Care Pavilion",
+   "type": "hospital",
+   "priority": "high",
+   "feeder": "medical",
+   "capacity": 0.0,
+   "demand": 150,
+   "local_supply": 150,
+   "occupancy": 300,
+   "position": {
+    "x": 1060,
+    "y": 180
+   }
+  },
+  {
+   "id": "beyster",
+   "name": "Beyster Building",
+   "type": "academic",
+   "priority": "high",
+   "feeder": "north",
+   "capacity": 0.0,
+   "demand": 100,
+   "local_supply": 0.0,
+   "occupancy": 450,
+   "position": {
+    "x": 1180,
+    "y": 220
+   }
+  },
+  {
+   "id": "duderstadt",
+   "name": "Duderstadt Center",
+   "type": "library",
+   "priority": "low",
+   "feeder": "north",
+   "capacity": 0.0,
+   "demand": 40,
+   "local_supply": 0.0,
+   "occupancy": 300,
+   "position": {
+    "x": 1400,
+    "y": 120
+   }
+  },
+  {
+   "id": "pierpont",
+   "name": "Pierpont Commons",
+   "type": "dining",
+   "priority": "medium",
+   "feeder": "north",
+   "capacity": 0.0,
+   "demand": 35,
+   "local_supply": 0.0,
+   "occupancy": 250,
+   "position": {
+    "x": 1180,
+    "y": 400
+   }
+  },
+  {
+   "id": "bursley",
+   "name": "Bursley Hall",
+   "type": "dorm",
+   "priority": "high",
+   "feeder": "north",
+   "capacity": 0.0,
+   "demand": 120,
+   "local_supply": 0.0,
+   "occupancy": 1300,
+   "position": {
+    "x": 980,
+    "y": 400
+   }
+  },
+  {
+   "id": "gg_brown",
+   "name": "G.G. Brown Laboratories",
+   "type": "academic",
+   "priority": "medium",
+   "feeder": "north",
+   "capacity": 0.0,
+   "demand": 70,
+   "local_supply": 0.0,
+   "occupancy": 350,
+   "position": {
+    "x": 1400,
+    "y": 300
+   }
+  },
+  {
+   "id": "ncrc",
+   "name": "North Campus Research Complex",
+   "type": "research",
+   "priority": "medium",
+   "feeder": "north",
+   "capacity": 0.0,
+   "demand": 90,
+   "local_supply": 50,
+   "occupancy": 200,
+   "position": {
+    "x": 1400,
+    "y": 480
+   }
+  },
+  {
+   "id": "city_hall",
+   "name": "Larcom City Hall",
+   "type": "civic",
+   "priority": "medium",
+   "feeder": "city_hall",
+   "capacity": 0.0,
+   "demand": 25,
+   "local_supply": 40,
+   "occupancy": 80,
+   "position": {
+    "x": 40,
+    "y": 620
+   }
+  },
+  {
+   "id": "blake",
+   "name": "Blake Transit Center",
+   "type": "transit",
+   "priority": "low",
+   "feeder": "blake",
+   "capacity": 0.0,
+   "demand": 10,
+   "local_supply": 20,
+   "occupancy": 60,
+   "position": {
+    "x": 240,
+    "y": 640
+   }
+  },
+  {
+   "id": "fire_1",
+   "name": "Fire Station 1",
+   "type": "civic",
+   "priority": "high",
+   "feeder": "fire_1",
+   "capacity": 0.0,
+   "demand": 15,
+   "local_supply": 25,
+   "occupancy": 18,
+   "position": {
+    "x": 440,
+    "y": 640
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "power:cpp->angell",
+   "source": "cpp",
+   "target": "angell",
+   "type": "power"
+  },
+  {
+   "id": "power:cpp->shapiro",
+   "source": "cpp",
+   "target": "shapiro",
+   "type": "power"
+  },
+  {
+   "id": "power:cpp->union",
+   "source": "cpp",
+   "target": "union",
+   "type": "power"
+  },
+  {
+   "id": "power:cpp->ross",
+   "source": "cpp",
+   "target": "ross",
+   "type": "power"
+  },
+  {
+   "id": "power:cpp->markley",
+   "source": "cpp",
+   "target": "markley",
+   "type": "power"
+  },
+  {
+   "id": "power:cpp->south_quad",
+   "source": "cpp",
+   "target": "south_quad",
+   "type": "power"
+  },
+  {
+   "id": "power:cpp->uh",
+   "source": "cpp",
+   "target": "uh",
+   "type": "power"
+  },
+  {
+   "id": "power:uh->mott",
+   "source": "uh",
+   "target": "mott",
+   "type": "power"
+  },
+  {
+   "id": "power:uh->kahn",
+   "source": "uh",
+   "target": "kahn",
+   "type": "power"
+  },
+  {
+   "id": "power:north_switch->beyster",
+   "source": "north_switch",
+   "target": "beyster",
+   "type": "power"
+  },
+  {
+   "id": "power:north_switch->duderstadt",
+   "source": "north_switch",
+   "target": "duderstadt",
+   "type": "power"
+  },
+  {
+   "id": "power:north_switch->pierpont",
+   "source": "north_switch",
+   "target": "pierpont",
+   "type": "power"
+  },
+  {
+   "id": "power:north_switch->bursley",
+   "source": "north_switch",
+   "target": "bursley",
+   "type": "power"
+  },
+  {
+   "id": "power:north_switch->gg_brown",
+   "source": "north_switch",
+   "target": "gg_brown",
+   "type": "power"
+  },
+  {
+   "id": "power:north_switch->ncrc",
+   "source": "north_switch",
+   "target": "ncrc",
+   "type": "power"
+  },
+  {
+   "id": "road:union->angell",
+   "source": "union",
+   "target": "angell",
+   "type": "road"
+  },
+  {
+   "id": "road:angell->shapiro",
+   "source": "angell",
+   "target": "shapiro",
+   "type": "road"
+  },
+  {
+   "id": "road:shapiro->ross",
+   "source": "shapiro",
+   "target": "ross",
+   "type": "road"
+  },
+  {
+   "id": "road:ross->south_quad",
+   "source": "ross",
+   "target": "south_quad",
+   "type": "road"
+  },
+  {
+   "id": "road:union->south_quad",
+   "source": "union",
+   "target": "south_quad",
+   "type": "road"
+  },
+  {
+   "id": "road:angell->cpp",
+   "source": "angell",
+   "target": "cpp",
+   "type": "road"
+  },
+  {
+   "id": "road:cpp->markley",
+   "source": "cpp",
+   "target": "markley",
+   "type": "road"
+  },
+  {
+   "id": "road:markley->uh",
+   "source": "markley",
+   "target": "uh",
+   "type": "road"
+  },
+  {
+   "id": "road:cpp->uh",
+   "source": "cpp",
+   "target": "uh",
+   "type": "road"
+  },
+  {
+   "id": "road:uh->mott",
+   "source": "uh",
+   "target": "mott",
+   "type": "road"
+  },
+  {
+   "id": "road:uh->kahn",
+   "source": "uh",
+   "target": "kahn",
+   "type": "road"
+  },
+  {
+   "id": "road:mott->kahn",
+   "source": "mott",
+   "target": "kahn",
+   "type": "road"
+  },
+  {
+   "id": "road:union->blake",
+   "source": "union",
+   "target": "blake",
+   "type": "road"
+  },
+  {
+   "id": "road:blake->city_hall",
+   "source": "blake",
+   "target": "city_hall",
+   "type": "road"
+  },
+  {
+   "id": "road:blake->fire_1",
+   "source": "blake",
+   "target": "fire_1",
+   "type": "road"
+  },
+  {
+   "id": "road:north_switch->beyster",
+   "source": "north_switch",
+   "target": "beyster",
+   "type": "road"
+  },
+  {
+   "id": "road:beyster->duderstadt",
+   "source": "beyster",
+   "target": "duderstadt",
+   "type": "road"
+  },
+  {
+   "id": "road:beyster->pierpont",
+   "source": "beyster",
+   "target": "pierpont",
+   "type": "road"
+  },
+  {
+   "id": "road:beyster->gg_brown",
+   "source": "beyster",
+   "target": "gg_brown",
+   "type": "road"
+  },
+  {
+   "id": "road:pierpont->bursley",
+   "source": "pierpont",
+   "target": "bursley",
+   "type": "road"
+  },
+  {
+   "id": "road:gg_brown->ncrc",
+   "source": "gg_brown",
+   "target": "ncrc",
+   "type": "road"
+  },
+  {
+   "id": "road:north_switch->ncrc",
+   "source": "north_switch",
+   "target": "ncrc",
+   "type": "road"
+  },
+  {
+   "id": "road:pierpont->blake",
+   "source": "pierpont",
+   "target": "blake",
+   "type": "road"
+  }
+ ]
+}

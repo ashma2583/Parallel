@@ -15,7 +15,7 @@ from typing import Any
 
 from graph import CampusGraph
 
-from agents.logic import apply_energy, apply_policy, apply_transit
+from agents.logic import DEFAULT_STRATEGY, apply_energy, apply_policy, apply_transit
 
 TICK_SECONDS = 1.0
 
@@ -28,6 +28,8 @@ graph: CampusGraph | None = None
 agent_status: dict[str, Any] = {"running": False, "address": {}}
 
 policy_queue: deque = deque()
+# Response policy the energy agent is running. Set from Branch Timeline.
+strategy = DEFAULT_STRATEGY
 
 
 def bind(sim: CampusGraph, loop: asyncio.AbstractEventLoop, tick_seconds: float) -> None:
@@ -44,7 +46,7 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
     if not force and now - last_cycle < TICK_SECONDS * 0.85:
         return []
     notes: list[str] = []
-    notes.extend(apply_energy(sim))
+    notes.extend(apply_energy(sim, strategy))
     sim.tick()
     notes.extend(apply_transit(sim))
     if notes:
@@ -60,4 +62,4 @@ def push(lines: list[str]) -> None:
 
 
 def snapshot() -> dict[str, Any]:
-    return {"lines": list(activity), "agents": agent_status}
+    return {"lines": list(activity), "agents": agent_status, "strategy": strategy}
