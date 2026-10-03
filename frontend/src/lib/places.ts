@@ -33,6 +33,9 @@ export const PLACES: Record<string, Place> = {
   fire_1: { lng: -83.7484, lat: 42.2817, zone: 'Downtown' },
 }
 
+/** Vector basemap with streets, parks, and building heights. */
+export const VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/liberty'
+
 export const MAP_STYLE = {
   version: 8 as const,
   glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',

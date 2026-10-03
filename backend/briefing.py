@@ -61,6 +61,8 @@ def _buses(nodes: list[Node]) -> dict:
     broken: list[dict] = []
     seen: set[str] = set()
     for pattern in _patterns():
+        if pattern.get("agency") != "umich":
+            continue
         key = f"{pattern['agency']}:{pattern['id']}"
         if key in seen:
             continue
@@ -80,7 +82,7 @@ def _buses(nodes: list[Node]) -> dict:
         answer = "No. Every bus that serves this map still stops at lit buildings."
     else:
         answer = "Yes. Do not unload at a dark stop. Hold riders for the next lit stop on that route."
-    return {"answer": answer, "reroute": broken[:8]}
+    return {"answer": answer, "reroute": broken}
 
 
 def _cooling(nodes: list[Node], displaced: int) -> dict:
