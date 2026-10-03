@@ -15,6 +15,33 @@ COOLING_TYPES = {NodeType.DINING, NodeType.LIBRARY}
 ROUTES_PATH = Path(__file__).resolve().parent / "data" / "bus_routes.json"
 
 
+def debrief_facts(graph: CampusGraph, preference: str, activity: list[str]) -> dict:
+    """Compact snapshot for the after-action summary. Numbers stay as the sim has them."""
+    nodes = [
+        {
+            "name": n.name,
+            "type": n.type.value,
+            "feeder": n.feeder,
+            "status": n.status.value,
+            "failed": n.failed,
+            "kw": round(n.current_power),
+            "demand_kw": round(n.demand),
+            "people": n.occupancy,
+            "people_before": n.baseline_occupancy,
+            "shed": round(n.load_shed, 2),
+        }
+        for n in graph.nodes.values()
+    ]
+    return {
+        "preference": preference,
+        "tick": graph.tick_count,
+        "scale": "Kilowatts are a demo scale, not the real megawatts. University Hospital and Mott are never shed. City Hall, Blake Transit Center, and Fire Station 1 are on the city grid.",
+        "nodes": nodes,
+        "briefing": build_briefing(graph, preference),
+        "activity": activity[-24:],
+    }
+
+
 def build_briefing(graph: CampusGraph, preference: str) -> dict:
     nodes = list(graph.nodes.values())
     disrupted = any(n.status != Status.GREEN or n.failed for n in nodes)

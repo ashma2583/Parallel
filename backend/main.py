@@ -190,6 +190,20 @@ def get_briefing() -> dict:
         return briefing.build_briefing(graph, runtime.preference)
 
 
+@app.post("/debrief")
+async def post_debrief() -> dict:
+    """Ask Grok for an after-action read of the scenario the director just ran."""
+    with runtime.lock:
+        report = briefing.build_briefing(graph, runtime.preference)
+        if not report["disrupted"]:
+            raise HTTPException(status_code=400, detail="Run a scenario before asking for a summary.")
+        facts = briefing.debrief_facts(graph, runtime.preference, runtime.snapshot()["lines"])
+    try:
+        return await voice.write_debrief(facts)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @app.post("/priority")
 async def post_priority(req: PriorityRequest) -> dict:
     """Change who is shed first, then recompute power and where people go."""

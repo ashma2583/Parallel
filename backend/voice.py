@@ -181,6 +181,52 @@ def _strip_fence(raw: str) -> str:
     return text
 
 
+async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
+    """After-action summary. Uses only the snapshot the simulation just handed over."""
+    key = _xai_key()
+    if not key:
+        raise RuntimeError("XAI_API_KEY is not set")
+    model = os.getenv("GROK_MODEL", "grok-4")
+    prompt = (
+        "You are the after-action analyst for PARALLEL, the University of Michigan emergency desk.\n"
+        "The director has already run a scenario. Write the debrief from the facts only.\n"
+        "Do not invent buildings, bus lines, causes, or numbers that are not in the facts.\n"
+        "preference balanced means protect the hospital only. dorms means keep dorms. academic means keep classes.\n"
+        "A bus listed under reroute no longer stops at the dark buildings in skip, and still stops at the lit buildings in keep.\n"
+        "Reply with JSON only, no markdown, in this shape:\n"
+        '{"headline": str, "grid": str, "options": [str], "buses": str, "solutions": [str], "watch": str}\n'
+        "headline: one sentence on the situation.\n"
+        "grid: what happened on the power grid, two to four sentences.\n"
+        "options: three short choices still open, such as restore a feed or change who is protected.\n"
+        "buses: how the U-M lines are affected, two or three sentences.\n"
+        "solutions: three concrete next actions.\n"
+        "watch: one sentence on people, cooling, the hospital, or research that still needs a decision.\n\n"
+        f"Facts:\n{json.dumps(facts)}"
+    )
+    async with httpx.AsyncClient(timeout=45) as client:
+        resp = await client.post(
+            CHAT_URL,
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+            },
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"grok {resp.status_code}: {resp.text[:300]}")
+    raw = resp.json()["choices"][0]["message"]["content"]
+    parsed = json.loads(_strip_fence(raw))
+    return {
+        "headline": str(parsed.get("headline") or ""),
+        "grid": str(parsed.get("grid") or ""),
+        "options": [str(item) for item in (parsed.get("options") or [])][:4],
+        "buses": str(parsed.get("buses") or ""),
+        "solutions": [str(item) for item in (parsed.get("solutions") or [])][:4],
+        "watch": str(parsed.get("watch") or ""),
+    }
+
+
 def _xai_key() -> str:
     return os.getenv("XAI_API_KEY", "").strip()
 

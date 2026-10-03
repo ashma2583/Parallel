@@ -94,6 +94,19 @@ export async function setPriority(mode: PriorityMode): Promise<Briefing> {
   return post('/priority', { mode }) as Promise<Briefing>
 }
 
+export interface Debrief {
+  headline: string
+  grid: string
+  options: string[]
+  buses: string
+  solutions: string[]
+  watch: string
+}
+
+export async function fetchDebrief(): Promise<Debrief> {
+  return post('/debrief') as Promise<Debrief>
+}
+
 export async function fetchActivity(): Promise<string[]> {
   const res = await fetch(`${BACKEND_URL}/activity`)
   if (!res.ok) return []
