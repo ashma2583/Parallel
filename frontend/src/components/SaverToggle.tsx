@@ -85,6 +85,8 @@ export function SaverToggle({ live, weekday, minute, onWhen, onChanged, onDetail
   }
 
   const onKey = (event: KeyboardEvent) => {
+    // Closed, the pill is a plain button: let keys through.
+    if (!open) return
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
@@ -120,7 +122,8 @@ export function SaverToggle({ live, weekday, minute, onWhen, onChanged, onDetail
         <span className={`h-1.5 w-1.5 rounded-full ${on ? 'bg-flow' : 'bg-line'}`} />
         Energy saver
         <span className={on ? 'text-text' : 'text-faint'}>{on ? live.policy_label : 'Off'}</span>
-        {on && <span className="font-mono text-[11px] tabular-nums text-muted max-[1199px]:hidden">−{Math.round(live.kw_saved_now)} kW</span>}
+        {/* Under 1440px kW now sits in the stats strip and the menu, so hazards keep their room. */}
+        {on && <span className="font-mono text-[11px] tabular-nums text-muted max-[1439px]:hidden">−{Math.round(live.kw_saved_now)} kW</span>}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`transition ${open ? 'rotate-180' : ''}`}>
           <path d="m6 9 6 6 6-6" />
         </svg>
@@ -157,7 +160,7 @@ export function SaverToggle({ live, weekday, minute, onWhen, onChanged, onDetail
             {live ? (
               <>
                 <div className="font-mono text-[11px] tabular-nums text-muted">
-                  {live.weekday} {live.clock} · <span className="text-text">{capped}</span> capped · <span className="text-text">{live.kwh_saved.toFixed(1)} kWh</span> saved
+                  {live.weekday} {live.clock} · <span className="text-text">{capped}</span> capped · <span className="text-text">−{Math.round(live.kw_saved_now)} kW</span> now · <span className="text-text">{live.kwh_saved.toFixed(1)} kWh</span> saved
                 </div>
                 {insight && <p className="mt-1.5 border-l-2 border-flow pl-2 text-[12px] leading-snug">{insight}</p>}
               </>
