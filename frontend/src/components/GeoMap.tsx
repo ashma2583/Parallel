@@ -16,6 +16,7 @@ import type { PlannedScenario } from '../lib/weather/forecast'
 import { useWeather, type StormNote } from './weather/useWeather'
 import { WeatherCanvas } from './weather/WeatherCanvas'
 import { sceneNow } from '../lib/sceneClock'
+import { fmtClock } from '../lib/simClock'
 import { WeatherDock } from './weather/WeatherDock'
 
 setWorkerUrl(maplibreWorkerUrl)
@@ -1324,9 +1325,7 @@ export function GeoMap({
           </button>
           <span className={`ml-1 h-2 w-2 shrink-0 rounded-full bg-people ${classClock.following ? 'animate-pulse' : ''}`} />
           <span className="whitespace-nowrap font-semibold">{classClock.label}</span>
-          {classClock.following && <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.12em] text-people">clock</span>}
           <span className="whitespace-nowrap font-mono tabular-nums text-muted">{classClock.students.toLocaleString()} in class</span>
-          {classClock.following && <span className="whitespace-nowrap text-[10px] uppercase tracking-[0.12em] text-faint">scenario clock</span>}
         </div>
       )}
       {!campusOverview && legend.length > 0 && (!isUmich || !survey) && !showBusPanel && (
@@ -1345,7 +1344,7 @@ export function GeoMap({
           <WeatherCanvas map={map} {...storm.canvas} marks={marks} lightMap={mapTheme === 'day'} hidden={restyling} />
           {/* Box-less wrapper so the dock can be measured without changing how it is placed. */}
           <div ref={dockBox} className="contents">
-            <WeatherDock {...storm.dock} />
+            <WeatherDock {...storm.dock} nowLabel={clockMinutes != null ? fmtClock(clockMinutes) : undefined} />
           </div>
         </>
       )}

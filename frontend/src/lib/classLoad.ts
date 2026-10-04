@@ -48,6 +48,7 @@ export function useClassLoad(followAt: number | null = null, moving = false, jum
   const [error, setError] = useState<string | null>(null)
   const [slot, setSlotRaw] = useState(0)
   const seeded = useRef(false)
+  const jumpTimer = useRef(0)
   // Bumped to try again when the engine was not up yet.
   const [attempt, setAttempt] = useState(0)
 
@@ -154,7 +155,9 @@ export function useClassLoad(followAt: number | null = null, moving = false, jum
       setSlotRaw(index)
       // The slot is a view of the clock: picking one moves the clock to it.
       const at = data?.slots[index]
-      if (jump && at) jump(at.minutes)
+      // A dragged slider settles before the clock moves, so steps cannot land out of order.
+      window.clearTimeout(jumpTimer.current)
+      if (jump && at) jumpTimer.current = window.setTimeout(() => jump(at.minutes), 200)
     },
     spots,
     clock,

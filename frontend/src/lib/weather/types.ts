@@ -340,6 +340,8 @@ export interface WeatherDockProps {
   onClear: () => void
   /** The scenario clock while a run plays. Total is the whole run in ms at the current speed. */
   run: { startedAt: number; total: number } | null
+  /** The campus clock, "HH:MM". While a run plays the dock shows it instead of a clock of its own. */
+  nowLabel?: string
   /** The plan changed since the last run finished, so the map no longer shows it. */
   stale: boolean
   live: LiveStorm[]

@@ -5,7 +5,8 @@ const fmt = (n: number) => n.toLocaleString()
 /** Estimated students in class by time of day, from the class schedule and campus events. */
 export function ClassLoad({ load }: { load: ClassLoadState }) {
   const { data, loading, error, weekday, setWeekday, turnup, setTurnup, slot, setSlot, following } = load
-  const selected = data?.slots[slot]
+  // Outside class hours the slot is -1: the controls stay, nobody is in class.
+  const selected = data?.slots[Math.max(0, slot)]
   const ranked = data
     ? data.buildings
         .map((b) => ({ ...b, now: b.students[slot] ?? 0 }))
@@ -53,7 +54,7 @@ export function ClassLoad({ load }: { load: ClassLoadState }) {
           <div>
             <div className="flex items-baseline justify-between">
               <span className="text-[15px] font-semibold">
-                {data.weekday} {selected.label}
+                {data.weekday} {slot < 0 ? 'outside class hours' : selected.label}
               </span>
               <span className="font-mono text-[13px] tabular-nums text-people">{fmt(selected.students)} people</span>
             </div>

@@ -100,7 +100,7 @@ export default function App() {
   // Buses and a playing scenario stand still while the clock is paused.
   useEffect(() => setScenePaused(clock.paused), [clock.paused])
   const mapRef = useRef<GeoMapHandle>(null)
-  const peopleMinute = classLoad.data?.slots[classLoad.slot]?.minutes
+  const peopleMinute = clock.minutes ?? classLoad.data?.slots[classLoad.slot]?.minutes
   const saverDay = saverWhen.weekday ?? (WEEKDAYS as readonly string[]).find((d) => d === classLoad.weekday) ?? WEEKDAYS[(new Date().getDay() + 6) % 7]
   const saverMinute = saverWhen.minute ?? halfHour(peopleMinute ?? new Date().getHours() * 60 + new Date().getMinutes())
 

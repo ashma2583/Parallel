@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import threading
+import os
 import time
 from collections import deque
 from typing import Any
@@ -191,12 +192,15 @@ def apply_order(sim: CampusGraph, policy: dict) -> list[str]:
     Apply a coordinator policy, log it, and run a cycle. A spoken or typed reset
     ends like the Reset button: default policy, feed started afresh. Caller holds `lock`.
     """
+    global paused
     notes = apply_policy(sim, policy)
     if policy.get("action") == "reset":
         fresh_start()
         forget()
         remember(sim)
         begin_scenario("Campus reset")
+        # Like the Reset button: back to 14:00 and held until something runs.
+        paused = os.getenv("OPEN_PAUSED", "1") != "0"
     push(notes)
     run_cycle(sim, force=True)
     return notes

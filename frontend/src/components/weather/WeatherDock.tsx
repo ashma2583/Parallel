@@ -241,7 +241,7 @@ function MiniBar(p: Props) {
   useNow(p.run !== null)
   const total = p.run ? (p.run.total / 1000) * p.speed : 0
   const elapsed = p.run ? Math.min(total, (Math.max(0, sceneNow() - p.run.startedAt) / 1000) * p.speed) : 0
-  const clock = simClock(startsAt, elapsed)
+  const clock = p.nowLabel ?? simClock(startsAt, elapsed)
   return (
     <div
       {...GUARD}
@@ -257,7 +257,7 @@ function MiniBar(p: Props) {
           <span className="relative h-1.5 w-1.5 rounded-full bg-branch" />
         </span>
         <span className="font-medium text-text">{clock}</span>
-        {p.run && <span className="text-faint @max-[36rem]:hidden">→ {simClock(startsAt, total)}</span>}
+        {p.run && !p.nowLabel && <span className="text-faint @max-[36rem]:hidden">→ {simClock(startsAt, total)}</span>}
       </span>
       <Rule />
       <Ticker live={p.live} landed={p.landed} error={p.error} errorDetail={p.errorDetail ?? null} settling={p.settling ?? false} />

@@ -106,7 +106,12 @@ export function useSimClock({ tick, run, wave, engine }: SimClockInput): SimCloc
   const minutes = !running && engine ? engine.minutes : tick !== undefined && segments.length ? read(segments, tick) : null
   const paused = engine?.paused ?? false
 
-  const at = useCallback((t: number) => (segments.length ? fmtClock(read(segments, t)) : '—'), [segments])
+  // Outside a run, count back from the engine's time, so feed lines and forks match the top bar.
+  const at = useCallback(
+    (t: number) =>
+      !running && engine && tick !== undefined ? fmtClock(engine.minutes + (t - tick) * TICK_MINUTES) : segments.length ? fmtClock(read(segments, t)) : '—',
+    [segments, running, engine, tick],
+  )
   const tickFor = useCallback(
     (time: string) => {
       const parsed = parseClock(time)
