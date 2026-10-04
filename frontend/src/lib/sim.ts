@@ -11,6 +11,7 @@ import { BACKEND_URL } from '../config'
 import { tables } from '../module_bindings'
 import { noteEngineActions } from './actions'
 import type { Briefing, ProposalPin } from './api'
+import type { SaverLive } from './saver'
 import { PLACES, ZONES } from './places'
 
 export interface SimNode {
@@ -28,6 +29,9 @@ export interface SimNode {
   powerRatio: number
   x: number
   y: number
+  /** Energy saver cap as a fraction of demand, and the clock time it next changes. Absent when uncapped. */
+  limit?: number
+  capUntil?: string
 }
 
 export interface SimEdge {
@@ -107,6 +111,8 @@ export interface Sim {
   briefing: Briefing | null
   /** Buildings a planner has added to the campus. */
   proposals: ProposalPin[]
+  /** Energy saver on the live clock. Null when off. */
+  saver: SaverLive | null
   /** Pull engine state now instead of waiting for the next poll. */
   refresh: () => void
 }
@@ -131,6 +137,7 @@ export function useSim(): Sim {
   const [strategy, setStrategy] = useState('tiered')
   const [briefing, setBriefing] = useState<Briefing | null>(null)
   const [proposals, setProposals] = useState<ProposalPin[]>([])
+  const [saver, setSaver] = useState<SaverLive | null>(null)
 
   const stdbLiveRef = useRef(stdbLive)
   useEffect(() => {
@@ -154,6 +161,7 @@ export function useSim(): Sim {
       if (plans.ok) setProposals((await plans.json()).proposals ?? [])
       setEngineUp(true)
       setStrategy(data.strategy ?? 'tiered')
+      setSaver(data.saver ?? null)
       const logs = readScenarios(data)
       setScenarios(logs)
       setActivity(logs[logs.length - 1]?.lines ?? [])
@@ -184,12 +192,15 @@ export function useSim(): Sim {
   }, [pull])
 
   return useMemo(() => {
+    // Saver caps ride on the nodes, so totals and pins read them from one place.
+    const capped = (list: SimNode[]) =>
+      saver ? list.map((n) => (saver.caps[n.id] !== undefined ? { ...n, limit: saver.caps[n.id], capUntil: saver.until[n.id] } : n)) : list
     const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id)
     if (stdbLive) {
       const s = simRows[0]
       return {
         source: 'spacetimedb',
-        nodes: [...nodeRows].sort(byId),
+        nodes: capped([...nodeRows].sort(byId)),
         edges: [...edgeRows],
         summary: s && { tick: Number(s.tick), supply: s.supply, demand: s.demand, deficit: s.deficit },
         activity,
@@ -197,14 +208,15 @@ export function useSim(): Sim {
         strategy,
         briefing,
         proposals,
+        saver,
         refresh: pull,
       }
     }
     if (engineUp && engine) {
-      return { source: 'engine', ...engine, nodes: [...engine.nodes].sort(byId), activity, scenarios, strategy, briefing, proposals, refresh: pull }
+      return { source: 'engine', ...engine, nodes: capped([...engine.nodes].sort(byId)), activity, scenarios, strategy, briefing, proposals, saver, refresh: pull }
     }
-    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, scenarios, strategy, briefing, proposals, refresh: pull }
-  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, scenarios, strategy, briefing, proposals, pull])
+    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, scenarios, strategy, briefing, proposals, saver, refresh: pull }
+  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, scenarios, strategy, briefing, proposals, saver, pull])
 }
 
 function feedLines(lines: string[] = [], ticks: number[] = []): FeedLine[] {
@@ -231,17 +243,20 @@ export function isDisrupted(nodes: readonly SimNode[]): boolean {
 }
 
 /** Supply, demand and unserved kW as the top bar reports them. */
+/** Demand under the energy saver cap. Same as `allowed_demand` in backend/graph.py. */
+export const allowed = (n: SimNode) => n.demand * (n.limit ?? 1)
+
 export function loadTotals(nodes: readonly SimNode[]) {
   const consumers = nodes.filter((n) => !isSupplier(n))
   return {
-    demand: consumers.reduce((sum, n) => sum + n.demand, 0),
-    unserved: consumers.reduce((sum, n) => sum + Math.max(0, n.demand - n.currentPower), 0),
+    demand: consumers.reduce((sum, n) => sum + allowed(n), 0),
+    unserved: consumers.reduce((sum, n) => sum + Math.max(0, allowed(n) - n.currentPower), 0),
   }
 }
 
 /** Delivered kW over wanted kW. Same definition as `_served` in backend/branch.py. */
 function served(nodes: readonly SimNode[]): number {
-  const wanted = nodes.reduce((sum, n) => sum + n.demand, 0)
+  const wanted = nodes.reduce((sum, n) => sum + allowed(n), 0)
   if (wanted <= 0) return 1
   return nodes.reduce((sum, n) => sum + n.currentPower, 0) / wanted
 }
@@ -263,7 +278,7 @@ export function zoneLoads(nodes: readonly SimNode[]): ZoneLoad[] {
     return {
       zone,
       served: served(members),
-      demand: members.reduce((sum, n) => sum + n.demand, 0),
+      demand: members.reduce((sum, n) => sum + allowed(n), 0),
       dark: members.filter((n) => n.status === 'Red').length,
     }
   })

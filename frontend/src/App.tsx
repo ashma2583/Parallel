@@ -7,6 +7,9 @@ import { LivePanel } from './components/LivePanel'
 import { LocationPanel } from './components/LocationPanel'
 import { PlanBuilding, type PlanDraft } from './components/PlanBuilding'
 import { HEAT_WAVE, ScenarioStrip, runScenario, type Scenario } from './components/ScenarioStrip'
+import { SaverPanel } from './components/SaverPanel'
+import { SaverToggle } from './components/SaverToggle'
+import { WEEKDAYS } from './lib/saver'
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
@@ -53,11 +56,18 @@ function HeatWaveBanner({ wave }: { wave: Briefing['heat_wave'] }) {
   )
 }
 
+/** A time of day rounded to the half hour the saver plans in. */
+const halfHour = (minute: number) => (Math.round(minute / 30) * 30) % 1440
+
 export default function App() {
   const sim = useSim()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('map')
   const [branching, setBranching] = useState(false)
+  // The saver's details view. The saver itself is the toggle in the strip.
+  const [saverOpen, setSaverOpen] = useState(false)
+  // Day and start time the toggle uses, from the People selection unless changed there.
+  const [saverWhen, setSaverWhen] = useState<{ weekday?: string; minute?: number }>({})
   const [preview, setPreview] = useState<Branch | null>(null)
   // The dock's plan when Branch opened. Each policy plays it forward on its own copy.
   const [branchPlan, setBranchPlan] = useState<PlannedScenario | null>(null)
@@ -76,6 +86,9 @@ export default function App() {
   // Students in class by time of day. Lives here so it outlives the panel swap to branching.
   const classLoad = useClassLoad(clock.following ? clock.minutes : null)
   const mapRef = useRef<GeoMapHandle>(null)
+  const peopleMinute = classLoad.data?.slots[classLoad.slot]?.minutes
+  const saverDay = saverWhen.weekday ?? (WEEKDAYS as readonly string[]).find((d) => d === classLoad.weekday) ?? WEEKDAYS[(new Date().getDay() + 6) % 7]
+  const saverMinute = saverWhen.minute ?? halfHour(peopleMinute ?? new Date().getHours() * 60 + new Date().getMinutes())
 
   // The map stays mounted once shown, so a scenario keeps running behind the grid view.
   const [mapSeen, setMapSeen] = useState(view === 'map')
@@ -257,6 +270,19 @@ export default function App() {
             onRequest={requestWeather}
             onResetting={() => mapRef.current?.clearWeather()}
             onReset={afterReset}
+            saver={
+              <SaverToggle
+                live={sim.saver}
+                weekday={saverDay}
+                minute={saverMinute}
+                onWhen={(next) => setSaverWhen((current) => ({ ...current, ...next }))}
+                onChanged={sim.refresh}
+                onDetails={() => {
+                  closeBranch()
+                  setSaverOpen(true)
+                }}
+              />
+            }
           />
 
           {sim.briefing?.heat_wave && (
@@ -368,13 +394,20 @@ export default function App() {
                 </div>
               )
             })}
-            <dl className="grid grid-cols-[auto_auto] content-center gap-x-3 gap-y-0.5 whitespace-nowrap px-4 py-2 font-mono text-[11px] tabular-nums text-muted max-[1099px]:hidden">
+            {/* A fourth row while the saver runs, packed tighter so the strip keeps its height. */}
+            <dl className={`grid grid-cols-[auto_auto] content-center gap-x-3 whitespace-nowrap px-4 font-mono text-[11px] tabular-nums text-muted max-[1099px]:hidden ${sim.saver ? 'gap-y-0 py-1 leading-[15px]' : 'gap-y-0.5 py-2'}`}>
               <dt>supply</dt>
               <dd className="text-right text-text">{sim.summary ? `${Math.round(sim.summary.supply)} kW` : '—'}</dd>
               <dt>demand</dt>
               <dd className="text-right text-text">{Math.round(totals.demand)} kW</dd>
               <dt>unserved</dt>
               <dd className={`text-right ${totals.unserved >= 1 ? 'text-down' : 'text-text'}`}>{Math.round(totals.unserved)} kW</dd>
+              {sim.saver && (
+                <>
+                  <dt>saved</dt>
+                  <dd className="text-right text-text">{sim.saver.kwh_saved.toFixed(1)} kWh · −{Math.round(sim.saver.kw_saved_now)} kW now</dd>
+                </>
+              )}
             </dl>
           </div>
         </main>
@@ -398,6 +431,8 @@ export default function App() {
                 mapRef.current?.runPlan()
               }}
             />
+          ) : saverOpen ? (
+            <SaverPanel live={sim.saver} weekday={saverDay} minute={saverMinute} onClose={() => setSaverOpen(false)} onChanged={sim.refresh} />
           ) : (
             <LivePanel
               sim={sim}

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PLACES } from '../lib/places'
-import { isSupplier, type SimEdge, type SimNode } from '../lib/sim'
+import { allowed, isSupplier, type SimEdge, type SimNode } from '../lib/sim'
 import { TYPE_ICON, fmtPeople, statusColor } from '../lib/status'
 
 interface Props {
@@ -174,12 +174,13 @@ function NodeMark({ node, x, y, labels, selected, cooling, shelterKind, onClick 
   const dark = node.status === 'Red'
   const flow = cooling && !dark ? 'go' : dark && node.type !== 'substation' ? 'leave' : null
   const tag = node.failed ? 'OFFLINE' : node.loadShed >= 0.99 ? 'SHED' : node.loadShed > 0.05 ? `SHED ${Math.round(node.loadShed * 100)}%` : null
+  const cap = !tag && node.limit !== undefined && node.limit < 1 ? `CAP ${Math.round(node.limit * 100)}%` : null
   const text = { textAnchor: 'middle' as const, stroke: 'var(--color-ink)', strokeWidth: 3, paintOrder: 'stroke' as const }
 
   return (
     <g transform={`translate(${x},${y})`} onClick={onClick ? () => onClick(node) : undefined}
       style={{ cursor: onClick ? 'pointer' : undefined }}>
-      <title>{`${node.name} · ${node.status}`}</title>
+      <title>{`${node.name} · ${node.status}${cap ? ` · ${cap}${node.capUntil ? ` to ${node.capUntil}` : ''}` : ''}`}</title>
       {dark && flow !== 'leave' && <circle r={r} fill="none" stroke="var(--color-down)" strokeWidth={2} className="node-halo" />}
       {flow === 'go' && <circle r={r + 7} fill="none" stroke="#e879f9" strokeWidth={3} />}
       {flow === 'leave' && <circle r={r + 6} fill="none" stroke="#fb923c" strokeWidth={2.5} />}
@@ -205,8 +206,9 @@ function NodeMark({ node, x, y, labels, selected, cooling, shelterKind, onClick 
         </text>
       )}
       {labels === 'all' && (
-        <text {...text} y={r + 38} fontSize={13} fontFamily="var(--font-mono)" fill={tag ? color : 'var(--color-text)'}>
-          {tag ?? (supplier
+        <text {...text} y={r + 38} fontSize={13} fontFamily="var(--font-mono)" fill={tag ? color : cap ? 'var(--color-flow)' : 'var(--color-text)'}>
+          {/* A capped building reads against its cap, so it does not look short. */}
+          {tag ?? (cap ? `${cap} · ${Math.round(node.currentPower)}/${Math.round(allowed(node))} kW` : null) ?? (supplier
             ? `${Math.round(node.currentPower)} kW out`
             : `${Math.round(node.currentPower)}/${Math.round(node.demand)} kW · ${fmtPeople(node.occupancy)}`)}
         </text>
