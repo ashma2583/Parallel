@@ -423,31 +423,41 @@ export function GeoMap({
         <NavigationControl position="bottom-right" showCompass />
         {campusOverview ? CAMPUSES.map((school) => (
           <Marker key={`campus-${school.id}`} longitude={school.center[0]} latitude={school.center[1]} anchor="center">
-            <button
-              type="button"
-              title={school.name}
-              aria-label={`Open ${school.name} map`}
-              onClick={(event) => {
-                event.stopPropagation()
-                setCampusId(school.id)
-                onCampusChange?.()
-              }}
-              className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white p-1 font-sans text-[9px] font-bold shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-transform hover:scale-110"
-              style={{
-                backgroundColor: school.logo ? '#fff' : school.badgeColor ?? '#334155',
-                color: school.logo ? '#1e293b' : '#fff',
-              }}
-            >
-              <span aria-hidden="true">{school.monogram ?? campusMonogram(school.name)}</span>
-              {school.logo && (
-                <img
-                  src={school.logo}
-                  alt=""
-                  onError={(event) => { event.currentTarget.style.display = 'none' }}
-                  className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain"
-                />
-              )}
-            </button>
+            <div className="group relative">
+              <button
+                type="button"
+                title={school.name}
+                aria-label={`Open ${school.name} map`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setCampusId(school.id)
+                  onCampusChange?.()
+                }}
+                className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white p-1 font-sans text-[9px] font-bold shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-transform hover:scale-110"
+                style={{
+                  backgroundColor: school.logo ? '#fff' : school.badgeColor ?? '#334155',
+                  color: school.logo ? '#1e293b' : '#fff',
+                }}
+              >
+                {school.logo && (
+                  <img
+                    src={school.logo}
+                    alt=""
+                    onError={(event) => {
+                      event.currentTarget.style.display = 'none'
+                      event.currentTarget.nextElementSibling?.classList.remove('hidden')
+                    }}
+                    className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain"
+                  />
+                )}
+                <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-5 w-5 ${school.logo ? 'hidden' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6M8 10h.01M12 10h.01M16 10h.01" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-56 -translate-x-1/2 rounded border border-line bg-panel px-2.5 py-1.5 text-center text-[11px] font-medium text-text opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                {school.name}
+              </span>
+            </div>
           </Marker>
         )) : showCampusLandmarks && campus.landmarks.map((landmark) => (
           <Marker key={`${campus.id}-${landmark.name}`} longitude={landmark.point[0]} latitude={landmark.point[1]} anchor="center">
@@ -1027,11 +1037,6 @@ function CampusDot({ label, ring = '#38bdf8', selected = false, bolt = false, ti
       {bolt && <svg aria-hidden="true" viewBox="0 0 12 16" className="h-2.5 w-2 text-white" fill="currentColor"><path d="M7.1 0 1.8 8h3.5L4.7 16l5.5-9H6.7L7.1 0Z" /></svg>}
     </span>
   )
-}
-
-function campusMonogram(name: string) {
-  const words = name.split(/\s+/).filter((word) => !['of', 'the', 'at'].includes(word.toLowerCase()))
-  return words.slice(0, 3).map((word) => word[0]).join('').toUpperCase()
 }
 
 function links(edges: readonly SimEdge[], kind: string) {
