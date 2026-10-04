@@ -585,7 +585,7 @@ def build_router(graph: Any, publisher: Any):
             # No new scenario log: the saver rides along with whatever is running.
             body = start(graph, req.policy, weekday, req.start_minute)
             runtime.push([f"Director: {label} from {clock(req.start_minute)}. {body['totals']['kwh_saved']} kWh a day vs always-on."])
-            runtime.paused = False
+            # A toggle, not a scenario: leave Pause alone. One forced tick puts the caps on now.
             runtime.run_cycle(graph, force=True)
             state = {"live": live(graph), "totals": body["totals"]}
         await publisher.publish(graph)
