@@ -14,6 +14,7 @@ export interface Campus {
   id: string
   name: string
   logo: string
+  collection: 'featured' | 'extra'
   center: [number, number]
   zoom: number
   landmarks: { name: string; point: [number, number] }[]
@@ -52,6 +53,7 @@ export const CAMPUSES: Campus[] = [
     id: 'umich',
     name: 'University of Michigan',
     logo: 'https://brand.umich.edu/assets/brand/style-guide/logo-guidelines/Block_M-Hex.png',
+    collection: 'featured',
     center: [-83.7425, 42.2724],
     zoom: 14.4,
     landmarks: [
@@ -67,6 +69,7 @@ export const CAMPUSES: Campus[] = [
     id: 'upenn',
     name: 'University of Pennsylvania',
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Shield_of_the_University_of_Pennsylvania.svg/120px-Shield_of_the_University_of_Pennsylvania.svg.png',
+    collection: 'featured',
     center: [-75.1932, 39.9522],
     zoom: 15.2,
     landmarks: [
@@ -87,6 +90,7 @@ export const CAMPUSES: Campus[] = [
     id: 'uchicago',
     name: 'University of Chicago',
     logo: 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Chicago_Maroons_logo.svg',
+    collection: 'featured',
     center: [-87.5995, 41.7887],
     zoom: 15.1,
     landmarks: [
@@ -107,6 +111,7 @@ export const CAMPUSES: Campus[] = [
     id: 'uiuc',
     name: 'University of Illinois Urbana-Champaign',
     logo: 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Illinois_Block_I.png',
+    collection: 'featured',
     center: [-88.2265, 40.1085],
     zoom: 15.1,
     landmarks: [
@@ -127,6 +132,7 @@ export const CAMPUSES: Campus[] = [
     id: 'msu',
     name: 'Michigan State University',
     logo: 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Michigan_State_Spartans_alternate_logo.svg',
+    collection: 'featured',
     center: [-84.4804, 42.7024],
     zoom: 14.4,
     landmarks: [
@@ -140,6 +146,90 @@ export const CAMPUSES: Campus[] = [
       { id: 'msu-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-84.490, 42.731], [-84.484, 42.733], [-84.477, 42.731], [-84.472, 42.726],
         [-84.479, 42.722], [-84.488, 42.724], [-84.490, 42.731],
+      ] },
+    ],
+  },
+  {
+    id: 'purdue',
+    name: 'Purdue University',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/5/51/Purdue_University_wordmark.svg',
+    collection: 'extra',
+    center: [-86.9165, 40.4272],
+    zoom: 14.8,
+    landmarks: [
+      { name: 'Bell Tower', point: [-86.9138, 40.4287] },
+      { name: 'Purdue Memorial Union', point: [-86.9091, 40.4238] },
+      { name: 'Armstrong Hall', point: [-86.9109, 40.4237] },
+      { name: 'Hicks Undergraduate Library', point: [-86.9116, 40.4271] },
+      { name: 'Ross-Ade Stadium', point: [-86.9189, 40.4346] },
+    ],
+    routes: [
+      { id: 'purdue-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
+        [-86.920, 40.432], [-86.915, 40.434], [-86.910, 40.431], [-86.908, 40.425],
+        [-86.913, 40.421], [-86.919, 40.425], [-86.920, 40.432],
+      ] },
+    ],
+  },
+  {
+    id: 'northwestern',
+    name: 'Northwestern University',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/c/c6/Northwestern_University_old_wordmark.svg',
+    collection: 'extra',
+    center: [-87.6755, 42.0552],
+    zoom: 14.7,
+    landmarks: [
+      { name: 'Deering Library', point: [-87.6734, 42.0537] },
+      { name: 'University Library', point: [-87.6753, 42.0526] },
+      { name: 'Norris University Center', point: [-87.6751, 42.0511] },
+      { name: 'Ryan Fieldhouse', point: [-87.6735, 42.0585] },
+      { name: 'Welsh-Ryan Arena', point: [-87.6712, 42.0575] },
+    ],
+    routes: [
+      { id: 'northwestern-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
+        [-87.679, 42.058], [-87.675, 42.059], [-87.671, 42.057], [-87.671, 42.053],
+        [-87.675, 42.050], [-87.679, 42.053], [-87.679, 42.058],
+      ] },
+    ],
+  },
+  {
+    id: 'mit',
+    name: 'Massachusetts Institute of Technology',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/6/61/Massachusetts_Institute_of_Technology_logo.svg',
+    collection: 'extra',
+    center: [-71.0941, 42.3591],
+    zoom: 14.8,
+    landmarks: [
+      { name: 'Great Dome', point: [-71.0942, 42.3597] },
+      { name: 'Killian Court', point: [-71.0892, 42.3583] },
+      { name: 'Stata Center', point: [-71.0903, 42.3612] },
+      { name: 'Kresge Auditorium', point: [-71.0955, 42.3582] },
+      { name: 'Simmons Hall', point: [-71.1007, 42.3589] },
+    ],
+    routes: [
+      { id: 'mit-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
+        [-71.102, 42.362], [-71.096, 42.363], [-71.089, 42.362], [-71.087, 42.358],
+        [-71.093, 42.356], [-71.101, 42.357], [-71.102, 42.362],
+      ] },
+    ],
+  },
+  {
+    id: 'berkeley',
+    name: 'University of California, Berkeley',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/8/82/University_of_California%2C_Berkeley_logo.svg',
+    collection: 'extra',
+    center: [-122.2585, 37.8719],
+    zoom: 14.8,
+    landmarks: [
+      { name: 'Sather Tower', point: [-122.2576, 37.8719] },
+      { name: 'Doe Memorial Library', point: [-122.2598, 37.8725] },
+      { name: 'Memorial Glade', point: [-122.259, 37.873] },
+      { name: 'Greek Theatre', point: [-122.2542, 37.8744] },
+      { name: 'California Memorial Stadium', point: [-122.2526, 37.8703] },
+    ],
+    routes: [
+      { id: 'berkeley-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
+        [-122.263, 37.873], [-122.259, 37.875], [-122.254, 37.874], [-122.252, 37.870],
+        [-122.257, 37.869], [-122.262, 37.870], [-122.263, 37.873],
       ] },
     ],
   },

@@ -343,7 +343,16 @@ export function GeoMap({
           }}
           className="max-w-52 bg-panel text-text outline-none"
         >
-          {CAMPUSES.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          <optgroup label="Featured campuses">
+            {CAMPUSES.filter((item) => item.collection === 'featured').map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Extra previews · not a verified MHacks invite list">
+            {CAMPUSES.filter((item) => item.collection === 'extra').map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </optgroup>
         </select>
       </label>
       {!isUmich && (
