@@ -21,6 +21,8 @@ TICK_SECONDS = 1.0
 
 lock = threading.Lock()
 activity: deque[str] = deque(maxlen=12)
+# Tick each activity line was logged on, kept in step with `activity`.
+activity_ticks: deque[int] = deque(maxlen=12)
 revision = 0
 last_cycle = 0.0
 main_loop: asyncio.AbstractEventLoop | None = None
@@ -58,8 +60,9 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
 def push(lines: list[str]) -> None:
     global revision
     activity.extend(lines)
+    activity_ticks.extend([graph.tick_count if graph else 0] * len(lines))
     revision += 1
 
 
 def snapshot() -> dict[str, Any]:
-    return {"lines": list(activity), "agents": agent_status, "strategy": strategy}
+    return {"lines": list(activity), "ticks": list(activity_ticks), "agents": agent_status, "strategy": strategy}

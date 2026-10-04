@@ -236,7 +236,7 @@ export function GeoMap({ nodes, edges, selectedId, coolingIds = [], onNodeClick 
 
   return (
     <div className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'}`}>
-      <div className="absolute left-4 top-14 z-10 flex flex-col gap-1.5 rounded-md border border-line bg-panel/95 px-3 py-2.5 text-xs text-muted">
+      <div className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
         <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />

@@ -81,12 +81,18 @@ export function fromApiNode(n: ApiNode): SimNode {
 
 export type Source = 'spacetimedb' | 'engine' | 'offline'
 
+export interface FeedLine {
+  tick: number
+  line: string
+}
+
 export interface Sim {
   source: Source
   nodes: SimNode[]
   edges: SimEdge[]
   summary: SimSummary | undefined
-  activity: string[]
+  /** Agent feed, oldest first. */
+  activity: FeedLine[]
   strategy: string
   /** Plain-language answers for the current outage. Null until the engine replies. */
   briefing: Briefing | null
@@ -109,7 +115,7 @@ export function useSim(): Sim {
 
   const [engine, setEngine] = useState<EngineState | null>(null)
   const [engineUp, setEngineUp] = useState(false)
-  const [activity, setActivity] = useState<string[]>([])
+  const [activity, setActivity] = useState<FeedLine[]>([])
   const [strategy, setStrategy] = useState('tiered')
   const [briefing, setBriefing] = useState<Briefing | null>(null)
 
@@ -131,10 +137,10 @@ export function useSim(): Sim {
       setEngineUp(true)
       setStrategy(data.strategy ?? 'tiered')
       if (stdbLiveRef.current) {
-        setActivity(data.lines ?? [])
+        setActivity(feedLines(data.lines, data.ticks))
         return
       }
-      setActivity(data.activity ?? [])
+      setActivity(feedLines(data.activity, data.activity_ticks))
       setEngine({
         nodes: (data.nodes as ApiNode[]).map(fromApiNode),
         edges: data.edges,
@@ -181,16 +187,34 @@ export function useSim(): Sim {
   }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, strategy, briefing, pull])
 }
 
+function feedLines(lines: string[] = [], ticks: number[] = []): FeedLine[] {
+  return lines.map((line, i) => ({ line, tick: ticks[i] ?? 0 }))
+}
+
 export const isSupplier = (n: SimNode) => n.type === 'substation'
 
+/** Anything failed, derated or short of power. */
+export function isDisrupted(nodes: readonly SimNode[]): boolean {
+  return nodes.some((n) => n.failed || n.status !== 'Green')
+}
+
+/** Supply, demand and unserved kW as the top bar reports them. */
+export function loadTotals(nodes: readonly SimNode[]) {
+  const consumers = nodes.filter((n) => !isSupplier(n))
+  return {
+    demand: consumers.reduce((sum, n) => sum + n.demand, 0),
+    unserved: consumers.reduce((sum, n) => sum + Math.max(0, n.demand - n.currentPower), 0),
+  }
+}
+
 /** Delivered kW over wanted kW. Same definition as `_served` in backend/branch.py. */
-function served(nodes: SimNode[]): number {
+function served(nodes: readonly SimNode[]): number {
   const wanted = nodes.reduce((sum, n) => sum + n.demand, 0)
   if (wanted <= 0) return 1
   return nodes.reduce((sum, n) => sum + n.currentPower, 0) / wanted
 }
 
-export function essentialServed(nodes: SimNode[]): number {
+export function essentialServed(nodes: readonly SimNode[]): number {
   return served(nodes.filter((n) => !isSupplier(n) && (n.priority === 'critical' || n.priority === 'high')))
 }
 
@@ -201,7 +225,7 @@ export interface ZoneLoad {
   dark: number
 }
 
-export function zoneLoads(nodes: SimNode[]): ZoneLoad[] {
+export function zoneLoads(nodes: readonly SimNode[]): ZoneLoad[] {
   return ZONES.map((zone) => {
     const members = nodes.filter((n) => !isSupplier(n) && PLACES[n.id]?.zone === zone)
     return {
