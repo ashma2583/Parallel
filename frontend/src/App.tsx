@@ -6,6 +6,7 @@ import { LivePanel } from './components/LivePanel'
 import { LocationPanel } from './components/LocationPanel'
 import { PlanBuilding, type PlanDraft } from './components/PlanBuilding'
 import { HEAT_WAVE, ScenarioStrip, runScenario, type Scenario } from './components/ScenarioStrip'
+import { SaverPanel } from './components/SaverPanel'
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
@@ -55,6 +56,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('grid')
   const [branching, setBranching] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
   const [scenario, setScenario] = useState<Label | null>(null)
   const [hazard, setHazard] = useState<Hazard | null>(null)
@@ -245,6 +247,11 @@ export default function App() {
             onRequest={requestWeather}
             onResetting={() => mapRef.current?.clearWeather()}
             onReset={afterReset}
+            saving={sim.saver !== null}
+            onSaver={() => {
+              closeBranch()
+              setSaving(true)
+            }}
           />
 
           {sim.briefing?.heat_wave && (
@@ -348,13 +355,20 @@ export default function App() {
                 </div>
               )
             })}
-            <dl className="grid grid-cols-[auto_auto] content-center gap-x-3 gap-y-0.5 whitespace-nowrap px-4 py-2 font-mono text-[11px] tabular-nums text-muted max-[1099px]:hidden">
+            {/* A fourth row while the saver runs, packed tighter so the strip keeps its height. */}
+            <dl className={`grid grid-cols-[auto_auto] content-center gap-x-3 whitespace-nowrap px-4 font-mono text-[11px] tabular-nums text-muted max-[1099px]:hidden ${sim.saver ? 'gap-y-0 py-1 leading-[15px]' : 'gap-y-0.5 py-2'}`}>
               <dt>supply</dt>
               <dd className="text-right text-text">{sim.summary ? `${Math.round(sim.summary.supply)} kW` : '—'}</dd>
               <dt>demand</dt>
               <dd className="text-right text-text">{Math.round(totals.demand)} kW</dd>
               <dt>unserved</dt>
               <dd className={`text-right ${totals.unserved >= 1 ? 'text-down' : 'text-text'}`}>{Math.round(totals.unserved)} kW</dd>
+              {sim.saver && (
+                <>
+                  <dt>saved</dt>
+                  <dd className="text-right text-text">{sim.saver.kwh_saved.toFixed(1)} kWh · −{Math.round(sim.saver.kw_saved_now)} kW now</dd>
+                </>
+              )}
             </dl>
           </div>
         </main>
@@ -370,6 +384,8 @@ export default function App() {
                 closeBranch()
               }}
             />
+          ) : saving ? (
+            <SaverPanel live={sim.saver} onClose={() => setSaving(false)} onChanged={sim.refresh} />
           ) : (
             <LivePanel
               sim={sim}

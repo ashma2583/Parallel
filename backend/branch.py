@@ -12,6 +12,7 @@ from typing import Any
 from agents.logic import STRATEGIES, apply_energy, apply_transit
 from briefing import _is_shelter
 from graph import CampusGraph, Priority, Status, _node_to_dict
+import savings
 
 
 def run_branches(
@@ -35,6 +36,7 @@ def _run(graph: CampusGraph, strategy: str, ticks: int, cooling: bool = False) -
     log: list[str] = []
     for _ in range(ticks):
         log.extend(sim.advance_heat_wave())
+        log.extend(savings.advance(sim))
         log.extend(apply_energy(sim, strategy))
         sim.tick()
         log.extend(apply_transit(sim))
@@ -69,7 +71,7 @@ def _run(graph: CampusGraph, strategy: str, ticks: int, cooling: bool = False) -
 
 def _served(nodes: list) -> float:
     """Delivered kW over wanted kW. A failed building still counts as unserved demand."""
-    wanted = sum(n.demand for n in nodes)
+    wanted = sum(n.allowed_demand for n in nodes)
     if wanted <= 0:
         return 1.0
     return round(sum(n.current_power for n in nodes) / wanted, 4)

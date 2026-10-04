@@ -81,6 +81,8 @@ class Node:
     load_shed: float = 0.0
     # 1.0 is full output. A heat wave or a damaged unit lowers it.
     derate: float = 1.0
+    # Energy saver cap, a fraction of demand. 1.0 is no cap.
+    limit: float = 1.0
     baseline_occupancy: int = 0
     position: dict[str, float] = field(default_factory=dict)
 
@@ -89,14 +91,20 @@ class Node:
         return self.type == NodeType.SUBSTATION
 
     @property
+    def allowed_demand(self) -> float:
+        """Demand under the energy saver cap."""
+        return self.demand * self.limit
+
+    @property
     def effective_demand(self) -> float:
         if self.is_supplier or self.failed:
             return 0.0
-        return self.demand * (1.0 - max(0.0, min(1.0, self.load_shed)))
+        return self.allowed_demand * (1.0 - max(0.0, min(1.0, self.load_shed)))
 
     @property
     def power_ratio(self) -> float:
-        nominal = self.capacity if self.is_supplier else self.demand
+        # A capped building is measured against its cap, so it does not read as failing.
+        nominal = self.capacity if self.is_supplier else self.allowed_demand
         if nominal <= 0:
             return 0.0
         return self.current_power / nominal
@@ -259,6 +267,8 @@ class CampusGraph:
         self.scenario_baseline: dict[str, Any] | None = None  # campus before a scenario first ran
         # step 0 is full output. Each tick walks toward HEAT_WAVE_TARGETS.
         self.heat_wave: dict[str, Any] | None = None
+        # Energy saver schedule, kept by savings.py. None is off.
+        self.saver: dict[str, Any] | None = None
         assert len(self.nodes) == 20, "expected the 20 approved Ann Arbor places"
         for node in self.nodes.values():
             node.baseline_occupancy = node.occupancy

@@ -579,6 +579,8 @@ export function GeoMap({
           const flow = cooling && node.status !== 'Red' ? 'go' : node.status === 'Red' && node.type !== 'substation' ? 'leave' : undefined
           const selected = node.id === selectedId
           const named = selected || cooling || node.status !== 'Green'
+          // Energy saver cap, shown only when nothing more urgent is on the pin.
+          const cap = !flow && node.limit !== undefined && node.limit < 1 ? `CAP ${Math.round(node.limit * 100)}%` : null
           return (
             <Marker key={node.id} longitude={place.lng} latitude={place.lat} anchor="center">
               <button
@@ -593,6 +595,12 @@ export function GeoMap({
               >
                 {flow === 'go' && <span className="mb-0.5 text-xs font-bold tracking-wide text-[#e879f9]">GO · {shelterKind === 'cooling' ? 'COOL' : 'WARM'}</span>}
                 {flow === 'leave' && <span className="mb-0.5 text-xs font-bold tracking-wide text-[#fb923c]">LEAVE</span>}
+                {cap && (
+                  <span className="mb-0.5 whitespace-nowrap rounded-sm bg-ink/85 px-1 font-mono text-[10px] font-semibold tracking-wide text-flow">
+                    {cap}
+                    {node.capUntil && <span className="hidden group-hover:inline"> · to {node.capUntil}</span>}
+                  </span>
+                )}
                 <span
                   data-place-dot
                   className={`rounded-full border-2 border-ink ${selected ? 'ring-1 ring-text' : ''}`}

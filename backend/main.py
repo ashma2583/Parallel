@@ -53,6 +53,7 @@ from agents.serve import start_in_thread
 from branch import run_branches
 from graph import CampusGraph
 from stdb import SpacetimePublisher
+import savings
 import storms
 import hazards
 import voice
@@ -120,6 +121,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(storms.build_router(graph, publisher))
+app.include_router(savings.build_router(graph, publisher))
 
 
 class DisruptRequest(BaseModel):
@@ -133,6 +135,10 @@ class DisruptRequest(BaseModel):
 class BranchRequest(BaseModel):
     ticks: int = Field(6, ge=1, le=60)
     strategies: list[str] | None = Field(None, examples=[["tiered", "residential"]])
+    # "saver" compares energy saver policies through 23:30 instead of response policies.
+    mode: Literal["policy", "saver"] = "policy"
+    weekday: Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] = "Tue"
+    start_minute: int = Field(savings.DEFAULT_START, ge=0, lt=1440)
 
 
 class StrategyRequest(BaseModel):
@@ -204,6 +210,7 @@ def _state() -> dict:
     body["scenarios"] = runtime.scenario_logs()
     body["strategy"] = runtime.strategy
     body["reset_count"] = graph.reset_count
+    body["saver"] = savings.live(graph)
     return body
 
 
@@ -250,7 +257,7 @@ def get_state() -> dict:
 
 @app.get("/activity")
 def get_activity() -> dict:
-    return runtime.snapshot()
+    return {**runtime.snapshot(), "saver": savings.live(graph)}
 
 
 @app.get("/bus-routes")
@@ -546,6 +553,9 @@ async def post_reset() -> dict:
 @app.post("/branch")
 def post_branch(req: BranchRequest) -> dict:
     """Fork the live state and run each response policy forward. The live sim is untouched."""
+    if req.mode == "saver":
+        with runtime.lock:
+            return savings.compare(graph, savings.parse_weekday(req.weekday), req.start_minute, runtime.strategy)
     ids = req.strategies or list(STRATEGIES)
     unknown = [sid for sid in ids if sid not in STRATEGIES]
     if unknown:

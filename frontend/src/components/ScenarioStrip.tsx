@@ -73,11 +73,15 @@ interface Props {
   onResetting?: () => void
   /** The campus was reset. */
   onReset: () => void
+  /** Open the energy saver panel. */
+  onSaver?: () => void
+  /** The energy saver is running on the clock. */
+  saving?: boolean
 }
 
 const pill = 'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition'
 
-export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onResetting, onReset }: Props) {
+export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onResetting, onReset, onSaver, saving = false }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [list, setList] = useState<HazardList | null>(null)
@@ -154,6 +158,17 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onR
         </>
       )}
       {error && <span className="shrink-0 text-xs text-down">{error}</span>}
+      {onSaver && (
+        <button
+          type="button"
+          onClick={onSaver}
+          className={`${pill} ml-auto ${saving ? 'border-flow text-text' : 'border-line text-muted hover:text-text'}`}
+          title="Cap power in buildings people are not using"
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${saving ? 'bg-flow' : 'bg-line'}`} />
+          {saving ? 'Saving energy' : 'Save energy'}
+        </button>
+      )}
     </div>
   )
 }
