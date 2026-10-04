@@ -781,7 +781,28 @@ async def post_command(req: CommandRequest) -> dict:
 
 
 async def _order_hazard(transcript: str, hazard_id: str) -> dict:
-    """A typed or spoken hazard ("an ice storm hit North Campus") runs like the strip's hazard pill."""
+    """A typed or spoken hazard ("an ice storm hit North Campus") runs like the strip's hazard pill.
+
+    A storm the map can draw comes back for the console to draw across the zone named and run, so
+    it lands hit by hit like one drawn by hand. Other hazards apply campus-wide here.
+    """
+    storm = voice.DRAWN_STORMS.get(hazard_id)
+    if storm:
+        picked = hazards.hazard(hazard_id) or {"name": hazard_id.replace("_", " ").capitalize()}
+        zone = voice.order_zone(transcript)
+        policy = {
+            "action": "storm",
+            "hazard": hazard_id,
+            "storm": storm,
+            "zone": zone,
+            "node_ids": [],
+            "reason": transcript,
+            "summary": f"{picked['name']} across {zone} campus",
+            "parser": "keyword",
+        }
+        with runtime.lock:
+            body = _state()
+        return {"transcript": transcript, "policy": policy, "notes": [], **body}
     body = await post_hazard_apply(HazardApplyRequest(id=hazard_id))
     picked = body.pop("hazard")
     policy = {

@@ -164,6 +164,10 @@ export interface Policy {
   reason: string
   parser: string
   parser_error?: string
+  /** A typed hazard: its FEMA id, and for a storm drawn on the map, the kind and zone. */
+  hazard?: string
+  storm?: string
+  zone?: string
 }
 
 export interface CommandResult {

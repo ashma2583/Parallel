@@ -105,6 +105,25 @@ def hazard_order(text: str) -> str | None:
     return None
 
 
+# Storms the map can draw and run; the rest of the hazards apply campus-wide.
+DRAWN_STORMS = {"tornado": "tornado", "ice_storm": "ice", "heavy_snow": "blizzard", "thunderstorm_wind": "thunderstorm"}
+_ZONE_WORDS = (
+    ("North", ("north campus", "north")),
+    ("Medical", ("medical", "hospital", "health")),
+    ("Downtown", ("downtown", "main street", "city hall")),
+    ("Central", ("central", "diag", "south", "campus")),
+)
+
+
+def order_zone(text: str) -> str:
+    """The campus zone an order names, for where a storm is drawn. Central when it names none."""
+    t = text.lower()
+    for zone, words in _ZONE_WORDS:
+        if any(re.search(rf"(?<![a-z]){re.escape(w)}(?![a-z])", t) for w in words):
+            return zone
+    return "Central"
+
+
 def is_heat_wave_order(text: str) -> bool:
     """Spoken or typed ask to run the four-hour heat build, not to fail a building."""
     t = text.lower()

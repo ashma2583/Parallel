@@ -67,7 +67,7 @@ function Feed({ scenarios, clockAt }: { scenarios: readonly ScenarioFeed[]; cloc
 function describe({ policy }: CommandResult) {
   if (policy.action === 'reset') return 'reset campus'
   if (policy.action === 'heat_wave') return 'heat wave'
-  if (policy.action === 'hazard') return policy.summary.toLowerCase()
+  if (policy.action === 'hazard' || policy.action === 'storm') return policy.summary.toLowerCase()
   if (policy.action === 'none' || policy.node_ids.length === 0) return 'no action'
   return `${policy.action} ${policy.node_ids.join(', ')}`
 }
