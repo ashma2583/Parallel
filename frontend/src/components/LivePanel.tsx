@@ -194,12 +194,14 @@ interface Props {
   plan: React.ReactNode
   /** Students in class by time of day. */
   people: React.ReactNode
+  /** Shown above the feed and the briefing, e.g. students in class in dark buildings. */
+  notice?: React.ReactNode
   /** The hazard that started this scenario, if one did. */
   hazard: Hazard | null
 }
 
 /** Right panel while watching the live campus: current policy, feed and briefing, director's order. */
-export function LivePanel({ sim, disrupted, running = false, demo = false, onBranch, onCommand, plan, people, hazard }: Props) {
+export function LivePanel({ sim, disrupted, running = false, demo = false, onBranch, onCommand, plan, people, hazard, notice = null }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('briefing')
   const [cue, setCue] = useState(demo)
   const policy = strategyFor(sim.strategy)
@@ -258,6 +260,7 @@ export function LivePanel({ sim, disrupted, running = false, demo = false, onBra
           ))}
         </div>
         <div className="-mr-1.5 min-h-0 flex-1 overflow-y-auto pb-3 pr-1.5">
+          {(tab === 'feed' || tab === 'briefing') && notice}
           {tab === 'feed' && <Feed scenarios={sim.scenarios} />}
           {tab === 'briefing' && <BriefingPanel briefing={sim.briefing} hazard={hazard} onChanged={sim.refresh} />}
           {/* Kept mounted so a half-filled form or a research result survives a tab switch. */}

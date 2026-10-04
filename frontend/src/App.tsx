@@ -12,8 +12,8 @@ import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
 import { fetchHazards, proposeBuilding, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
-import { useClassLoad } from './lib/classLoad'
-import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
+import { SCENARIO_START, useClassLoad } from './lib/classLoad'
+import { isDisrupted, isSupplier, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
@@ -56,7 +56,10 @@ function HeatWaveBanner({ wave }: { wave: Briefing['heat_wave'] }) {
 export default function App() {
   const sim = useSim()
   // Students in class by time of day. Lives here so it outlives the panel swap to branching.
-  const classLoad = useClassLoad()
+  // A weather run on the map, or the heat wave, moves it along the scenario clock.
+  const [runMinutes, setRunMinutes] = useState<number | null>(null)
+  const wave = sim.briefing?.heat_wave
+  const classLoad = useClassLoad(runMinutes ?? (wave ? SCENARIO_START + wave.minutes : null))
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('map')
   const [branching, setBranching] = useState(false)
@@ -132,6 +135,18 @@ export default function App() {
     if (!runningRef.current) setScenario((current) => current ?? next)
   }
   const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
+  // Students in class in buildings that are dark now, at the People tab's time.
+  const classDark = useMemo(() => {
+    const names: string[] = []
+    let students = 0
+    for (const n of sim.nodes) {
+      const here = classLoad.byNode[n.id]
+      if (!here || n.status !== 'Red' || isSupplier(n)) continue
+      students += here
+      names.push(n.name)
+    }
+    return students > 0 ? { students, names } : null
+  }, [sim.nodes, classLoad.byNode])
   const zones = useMemo(() => zoneLoads(nodes), [nodes])
   const totals = useMemo(() => loadTotals(nodes), [nodes])
   const shelter = sim.briefing?.shelter ?? sim.briefing?.cooling
@@ -280,6 +295,7 @@ export default function App() {
                   classSpots={classLoad.spots}
                   classClock={classLoad.clock}
                   onClassSlot={classLoad.setSlot}
+                  onClassTime={setRunMinutes}
                   onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
                   weather={weather}
                   weatherRequest={weatherRequest}
@@ -345,6 +361,11 @@ export default function App() {
                 key={selected.id}
                 node={selected}
                 corner={view === 'map' ? 'top-right' : 'bottom-left'}
+                inClass={
+                  classLoad.clock && selected.id in classLoad.byNode
+                    ? { students: classLoad.byNode[selected.id], when: classLoad.clock.label }
+                    : null
+                }
                 onClose={() => setSelectedId(null)}
                 onToggled={(node, failed) => {
                   if (failed) offerLabel({ label: 'Manual override', detail: `${node.name} failed` })
@@ -416,6 +437,15 @@ export default function App() {
                 sim.refresh()
               }}
               people={<ClassLoad load={classLoad} />}
+              notice={
+                classDark && classLoad.clock ? (
+                  <p className="mb-3 rounded-md border border-people/50 bg-people/10 px-3 py-2 text-[13px] leading-snug">
+                    <span className="font-mono font-semibold tabular-nums text-people">{classDark.students.toLocaleString()}</span> students in class in
+                    buildings that went dark: {classDark.names.join(', ')}.{' '}
+                    <span className="text-muted">{classLoad.clock.label}, from the class schedule.</span>
+                  </p>
+                ) : null
+              }
               plan={
                 <>
                   <PlanBuilding

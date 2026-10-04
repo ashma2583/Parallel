@@ -11,7 +11,7 @@ import { BACKEND_URL } from '../config'
 import { CAMPUSES, MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 import type { SimEdge, SimNode } from '../lib/sim'
 import { splitByClosures } from '../lib/weather/geo'
-import type { BusLine, ClosedRoute, LngLat, WeatherRequest, WeatherState } from '../lib/weather/types'
+import { TICK_MINUTES, type BusLine, type ClosedRoute, type LngLat, type WeatherRequest, type WeatherState } from '../lib/weather/types'
 import { useWeather, type StormNote } from './weather/useWeather'
 import { WeatherCanvas } from './weather/WeatherCanvas'
 import { WeatherDock } from './weather/WeatherDock'
@@ -134,6 +134,8 @@ interface Props {
   classSpots?: readonly ClassSpot[]
   classClock?: ClassClock | null
   onClassSlot?: (slot: number) => void
+  /** Minute of the day on a running scenario's clock, every second; null when the run ends. */
+  onClassTime?: (minutes: number | null) => void
   /** The campus picker or a school marker moved the map to another campus. */
   onCampusChange?: () => void
 }
@@ -164,6 +166,7 @@ export function GeoMap({
   classSpots = [],
   classClock = null,
   onClassSlot,
+  onClassTime,
   onCampusChange,
 }: Props) {
   const [map, setMap] = useState<MaplibreMap | null>(null)
@@ -226,11 +229,12 @@ export function GeoMap({
     for (const spot of visibleClasses) if (spot.nodeId) counts[spot.nodeId] = (counts[spot.nodeId] ?? 0) + spot.students
     return counts
   }, [visibleClasses])
-  // Only the busiest few carry a number, so central campus stays readable.
+  // Only the busiest few carry a label. Buildings with a sim pin show their count on the pin instead.
   const labeledClasses = useMemo(
-    () => new Set([...visibleClasses].sort((a, b) => b.students - a.students).slice(0, 6).map((spot) => spot.code)),
+    () => new Set([...visibleClasses].filter((spot) => !spot.nodeId).sort((a, b) => b.students - a.students).slice(0, 6).map((spot) => spot.code)),
     [visibleClasses],
   )
+  const darkNodes = useMemo(() => new Set(nodes.filter((n) => n.status === 'Red').map((n) => n.id)), [nodes])
 
   useEffect(() => {
     let stop = false
@@ -270,6 +274,27 @@ export function GeoMap({
     onStorm,
   })
   const { closed_routes: closedRoutes, cut_edges: cutEdges, closed_roads: closedRoads } = storm.effective
+
+  // The class circles follow a running scenario's clock, the same one the dock shows.
+  const run = storm.dock.run
+  const runSpeed = storm.dock.speed
+  const runStart = storm.dock.startsAt
+  useEffect(() => {
+    if (!run || !onClassTime) return
+    const [h, m] = (runStart ?? '14:00').split(':').map(Number)
+    const start = (Number.isFinite(h) ? h : 14) * 60 + (Number.isFinite(m) ? m : 0)
+    const tick = () => {
+      const total = (run.total / 1000) * runSpeed
+      const seconds = Math.min(total, (Math.max(0, performance.now() - run.startedAt) / 1000) * runSpeed)
+      onClassTime((start + Math.floor(seconds * TICK_MINUTES)) % 1440)
+    }
+    tick()
+    const timer = window.setInterval(tick, 1000)
+    return () => {
+      window.clearInterval(timer)
+      onClassTime(null)
+    }
+  }, [run, runSpeed, runStart, onClassTime])
 
   const clearWeather = storm.clear
   useImperativeHandle(ref, () => ({ clearWeather }), [clearWeather])
@@ -542,7 +567,7 @@ export function GeoMap({
       map.off('resize', soon)
       if (frame) cancelAnimationFrame(frame)
     }
-  }, [map, nodes, selectedId, coolingIds, active])
+  }, [map, nodes, selectedId, coolingIds, active, visibleClasses])
 
   useEffect(() => {
     mapThemeRef.current = mapTheme
@@ -907,28 +932,39 @@ export function GeoMap({
         {visibleClasses.map((spot) => {
           const share = classMax > 0 ? Math.min(1, spot.students / classMax) : 0
           const size = 14 + Math.sqrt(share) * 52
+          const dark = spot.nodeId != null && darkNodes.has(spot.nodeId)
           return (
             // Under the line overlays and building pins (z-index 2 in index.css), even on hover.
             <Marker key={`class-${spot.code}`} longitude={spot.lng} latitude={spot.lat} anchor="center" style={{ zIndex: 1 }}>
               <div
-                title={`${spot.name}: ${spot.students.toLocaleString()} in class`}
-                className="flex items-center justify-center rounded-full border border-people"
+                title={`${spot.name}: ${spot.students.toLocaleString()} in class${dark ? ', building dark' : ''}`}
+                className={`rounded-full border-[1.5px] ${dark ? 'border-dashed border-down' : 'border-people'}`}
                 style={{
                   width: size,
                   height: size,
-                  background: `color-mix(in srgb, var(--color-people) ${Math.round(18 + share * 52)}%, transparent)`,
+                  // A soft fill with an ink edge, so circles read apart from the yellow power and bus lines.
+                  background: `color-mix(in srgb, var(--color-people) ${Math.round(14 + share * 34)}%, transparent)`,
+                  boxShadow: '0 0 0 1px color-mix(in srgb, var(--color-ink) 55%, transparent)',
                   pointerEvents: armed || placing ? 'none' : undefined,
                 }}
-              >
-                {labeledClasses.has(spot.code) && size >= 30 && (
-                  <span className="rounded-sm bg-ink/85 px-1 font-mono text-[10px] font-semibold tabular-nums text-people">
-                    {spot.students >= 1000 ? `${(spot.students / 1000).toFixed(1)}k` : spot.students}
-                  </span>
-                )}
-              </div>
+              />
             </Marker>
           )
         })}
+        {visibleClasses.map((spot) =>
+          labeledClasses.has(spot.code) ? (
+            // Above the lines; a label that would land on a pin or a name is hidden by declutter.
+            <Marker key={`class-label-${spot.code}`} longitude={spot.lng} latitude={spot.lat} anchor="center" style={{ zIndex: 3, pointerEvents: 'none' }}>
+              <span
+                data-place-label={5}
+                className="whitespace-nowrap rounded-sm border border-people/60 bg-ink/90 px-1 py-px font-mono text-[10px] font-semibold tabular-nums text-people data-[off=true]:invisible"
+              >
+                {spot.code.length <= 6 ? `${spot.code} ` : ''}
+                {spot.students >= 1000 ? `${(spot.students / 1000).toFixed(1)}k` : spot.students}
+              </span>
+            </Marker>
+          ) : null,
+        )}
         {showSchoolMarkers ? CAMPUSES.map((school) => {
           const compact = zoomLevel > 5.5
           const expandOnHover = compact || (school.collection === 'nearby' && !school.prominent)
@@ -1243,9 +1279,10 @@ export function GeoMap({
           >
             ›
           </button>
-          <span className="ml-1 h-2 w-2 shrink-0 rounded-full bg-people" />
+          <span className={`ml-1 h-2 w-2 shrink-0 rounded-full bg-people ${classClock.following ? 'animate-pulse' : ''}`} />
           <span className="whitespace-nowrap font-semibold">{classClock.label}</span>
           <span className="whitespace-nowrap font-mono tabular-nums text-muted">{classClock.students.toLocaleString()} in class</span>
+          {classClock.following && <span className="whitespace-nowrap text-[10px] uppercase tracking-[0.12em] text-faint">scenario clock</span>}
         </div>
       )}
       {!campusOverview && legend.length > 0 && (!isUmich || !survey) && !showBusPanel && (
