@@ -191,7 +191,8 @@ async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
         "You are the after-action analyst for PARALLEL, the University of Michigan emergency desk.\n"
         "The director has already run a scenario. Write the debrief from the facts only.\n"
         "Do not invent buildings, bus lines, causes, or numbers that are not in the facts.\n"
-        "preference balanced means protect the hospital only. dorms means keep dorms. academic means keep classes.\n"
+        "preference is the response policy: tiered sheds the lowest priority tier first, residential keeps dorms, "
+        "academic keeps classes, people keeps the buildings with the most people per kilowatt, even rations every building equally.\n"
         "A bus listed under reroute no longer stops at the dark buildings in skip, and still stops at the lit buildings in keep.\n"
         "Reply with JSON only, no markdown, in this shape:\n"
         '{"headline": str, "grid": str, "options": [str], "buses": str, "solutions": [str], "watch": str}\n'
@@ -245,7 +246,10 @@ async def write_plans(facts: dict[str, Any]) -> dict[str, Any]:
         "Scores are integers from 1 to 10, and higher is better on every score. "
         "cost 10 means cheapest to carry out. risk 10 means safest. energy 10 means the scarce kilowatts are used best. "
         "people 10 means the fewest people are left in a dark or exposed building.\n"
-        "apply is balanced, dorms, academic, or none. Use none when the plan is not one of those three allocation choices.\n"
+        "apply is tiered, residential, academic, people, even, or none. "
+        "tiered protects the hospital only. residential keeps dorms. academic keeps classes. "
+        "people keeps the most people per kilowatt. even rations every building the same share. "
+        "Use none when the plan is not one of those policies.\n"
         "Reply with JSON only:\n"
         '{"plans":[{"title":str,"summary":str,"energy":str,"transit":str,"infrastructure":str,'
         '"intervention":str,"analysis":str,"apply":str,'
@@ -283,7 +287,8 @@ def _rank_plans(raw: list[Any]) -> list[dict[str, Any]]:
             except (TypeError, ValueError):
                 scores[key] = 5
         apply = str(item.get("apply") or "none")
-        if apply not in {"balanced", "dorms", "academic"}:
+        apply = {"balanced": "tiered", "dorms": "residential"}.get(apply, apply)
+        if apply not in {"tiered", "residential", "academic", "people", "even"}:
             apply = None
         plans.append({
             "title": str(item.get("title") or "Plan"),

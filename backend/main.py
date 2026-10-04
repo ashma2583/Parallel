@@ -36,6 +36,7 @@ try:
     from dotenv import load_dotenv
 
     load_dotenv(Path(__file__).resolve().parent / ".env")
+    load_dotenv(Path(__file__).resolve().parent / ".env.local")
 except ImportError:
     pass
 
@@ -45,10 +46,11 @@ from pydantic import BaseModel, Field
 
 from agents import runtime
 import briefing
-from agents.logic import apply_policy
+from agents.logic import DEFAULT_STRATEGY, STRATEGIES, apply_policy
 import location_agent
 import proposal
 from agents.serve import start_in_thread
+from branch import run_branches
 from graph import CampusGraph
 from stdb import SpacetimePublisher
 import voice
@@ -118,8 +120,18 @@ app.add_middleware(
 
 class DisruptRequest(BaseModel):
     node_ids: list[str] = Field(..., min_length=1, examples=[["sub_south"]])
-    action: Literal["fail", "restore"] = Field("fail")
+    action: Literal["fail", "restore", "derate"] = Field("fail")
+    factor: float = Field(0.5, ge=0.0, le=1.0, description="Output fraction for action=derate")
     reason: str | None = Field(None, examples=["Ice storm knocked out the south substation"])
+
+
+class BranchRequest(BaseModel):
+    ticks: int = Field(6, ge=1, le=60)
+    strategies: list[str] | None = Field(None, examples=[["tiered", "residential"]])
+
+
+class StrategyRequest(BaseModel):
+    strategy: str = Field(..., examples=["residential"])
 
 
 class PriorityRequest(BaseModel):
@@ -133,6 +145,10 @@ class SeasonRequest(BaseModel):
 class ClockRequest(BaseModel):
     paused: bool | None = None
     until: int | None = Field(None, ge=1, le=100_000)
+
+
+# The first briefing build named these modes. Each is one of the strategies.
+PRIORITY_STRATEGY = {"balanced": "tiered", "dorms": "residential", "academic": "academic"}
 
 
 class CommandRequest(BaseModel):
@@ -155,6 +171,8 @@ class ProposalRequest(BaseModel):
 def _state() -> dict:
     body = graph.to_dict()
     body["activity"] = list(runtime.activity)
+    body["activity_ticks"] = list(runtime.activity_ticks)
+    body["strategy"] = runtime.strategy
     return body
 
 
@@ -213,7 +231,7 @@ def get_bus_routes() -> dict:
 @app.get("/briefing")
 def get_briefing() -> dict:
     with runtime.lock:
-        return briefing.build_briefing(graph, runtime.preference, runtime.season)
+        return briefing.build_briefing(graph, runtime.strategy, runtime.season)
 
 
 @app.get("/proposals")
@@ -276,10 +294,10 @@ async def post_location(req: LocationRequest) -> dict:
 async def post_debrief() -> dict:
     """Ask Grok for an after-action read of the scenario the director just ran."""
     with runtime.lock:
-        report = briefing.build_briefing(graph, runtime.preference, runtime.season)
+        report = briefing.build_briefing(graph, runtime.strategy, runtime.season)
         if not report["disrupted"]:
             raise HTTPException(status_code=400, detail="Run a scenario before asking for a summary.")
-        facts = briefing.debrief_facts(graph, runtime.preference, runtime.snapshot()["lines"], runtime.season)
+        facts = briefing.debrief_facts(graph, runtime.strategy, runtime.snapshot()["lines"], runtime.season)
     try:
         return await voice.write_debrief(facts)
     except RuntimeError as exc:
@@ -290,10 +308,10 @@ async def post_debrief() -> dict:
 async def post_plans() -> dict:
     """Five ranked response plans for the outage that is already on the grid."""
     with runtime.lock:
-        report = briefing.build_briefing(graph, runtime.preference, runtime.season)
+        report = briefing.build_briefing(graph, runtime.strategy, runtime.season)
         if not report["disrupted"]:
             raise HTTPException(status_code=400, detail="Run a scenario before asking for plans.")
-        facts = briefing.debrief_facts(graph, runtime.preference, runtime.snapshot()["lines"], runtime.season)
+        facts = briefing.debrief_facts(graph, runtime.strategy, runtime.snapshot()["lines"], runtime.season)
     try:
         return await voice.write_plans(facts)
     except RuntimeError as exc:
@@ -304,19 +322,15 @@ async def post_plans() -> dict:
 async def post_season(req: SeasonRequest) -> dict:
     with runtime.lock:
         runtime.season = req.season
-        return briefing.build_briefing(graph, runtime.preference, runtime.season)
+        return briefing.build_briefing(graph, runtime.strategy, runtime.season)
 
 
 @app.post("/priority")
 async def post_priority(req: PriorityRequest) -> dict:
-    """Change who is shed first, then recompute power and where people go."""
+    """Older name for /strategy. Returns the briefing for the new policy."""
+    await post_strategy(StrategyRequest(strategy=PRIORITY_STRATEGY[req.mode]))
     with runtime.lock:
-        runtime.forget_after(graph.tick_count)
-        runtime.preference = req.mode
-        runtime.run_cycle(graph, force=True)
-        body = briefing.build_briefing(graph, runtime.preference, runtime.season)
-    await publisher.publish(graph)
-    return body
+        return briefing.build_briefing(graph, runtime.strategy, runtime.season)
 
 
 @app.get("/clock")
@@ -327,7 +341,7 @@ def get_clock() -> dict:
 
 @app.post("/clock")
 async def post_clock(req: ClockRequest) -> dict:
-    """Pause the clock, or run it forward to a tick."""
+    """Pause the clock, or jump it to a saved tick. A jump pauses there."""
     with runtime.lock:
         if req.paused is not None:
             runtime.paused = req.paused
@@ -366,10 +380,13 @@ async def post_disrupt(req: DisruptRequest) -> dict:
         for nid in req.node_ids:
             if req.action == "fail":
                 graph.fail_node(nid)
+            elif req.action == "derate":
+                graph.derate_node(nid, req.factor)
             else:
                 graph.restore_node(nid)
+        verb = f"derate to {req.factor:.0%}" if req.action == "derate" else req.action
         runtime.push([
-            f"Director: {req.action} {', '.join(req.node_ids)}"
+            f"Director: {verb} {', '.join(req.node_ids)}"
             + (f" ({req.reason})" if req.reason else "")
         ])
         runtime.run_cycle(graph, force=True)
@@ -384,10 +401,44 @@ async def post_reset() -> dict:
         runtime.forget()
         graph.reset()
         runtime.remember(graph)
+        runtime.strategy = DEFAULT_STRATEGY
         runtime.push(["Director: campus reset"])
         runtime.run_cycle(graph, force=True)
         body = _state()
     await publisher.clear()
+    await publisher.publish(graph)
+    return body
+
+
+@app.post("/branch")
+def post_branch(req: BranchRequest) -> dict:
+    """Fork the live state and run each response policy forward. The live sim is untouched."""
+    ids = req.strategies or list(STRATEGIES)
+    unknown = [sid for sid in ids if sid not in STRATEGIES]
+    if unknown:
+        raise HTTPException(status_code=404, detail=f"Unknown strategy id(s): {unknown}")
+    with runtime.lock:
+        branches = run_branches(graph, ids, req.ticks)
+        return {
+            "base_tick": graph.tick_count,
+            "ticks": req.ticks,
+            "active": runtime.strategy,
+            "branches": branches,
+        }
+
+
+@app.post("/strategy")
+async def post_strategy(req: StrategyRequest) -> dict:
+    """Adopt a response policy on the live simulation."""
+    if req.strategy not in STRATEGIES:
+        raise HTTPException(status_code=404, detail=f"Unknown strategy id: {req.strategy}")
+    with runtime.lock:
+        runtime.forget_after(graph.tick_count)
+        runtime.strategy = req.strategy
+        graph.send_home()
+        runtime.push([f"Coordinator: adopted policy '{STRATEGIES[req.strategy]['label']}'"])
+        runtime.run_cycle(graph, force=True)
+        body = _state()
     await publisher.publish(graph)
     return body
 

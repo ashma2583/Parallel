@@ -1,13 +1,148 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PARALLEL · Campus Digital Twin</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PARALLEL · Ann Arbor campus twin</title>
+<meta name="description" content="A live simulation of the University of Michigan campus power grid. Break a feed, branch the timeline, compare five response policies, adopt one.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<script>try{var t=localStorage.getItem('parallel-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body>
+
+<header class="hero hero-b">
+  <nav class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/" aria-label="PARALLEL home">
+      <svg class="mark" viewBox="0 0 22 22" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M5 3v16"/><path d="M5 11c0-4 6-4 6-8"/><path d="M5 11c0 4 6 4 6 8"/><path d="M11 3v16" opacity=".5"/></svg>
+      <span><span class="word">PARALLEL</span><span class="sub" style="display:block">Ann Arbor campus twin</span></span>
+    </a>
+    <div class="nav-actions">
+      <button class="ghost" id="theme" type="button" aria-label="Switch colour mode">Light</button>
+      <a class="btn nav-cta" href="/app" tabindex="-1">Run a scenario <span class="arrow">→</span></a>
+    </div>
+  </div>
+</nav>
+
+  <div class="wrap">
+    <div class="copy">
+      <div class="hero-cap"><span class="dot"></span><span>Live model · Ann Arbor campus · heat wave, 95°F</span></div>
+      <h1>See what your decision does before you make it.</h1>
+      <p class="lede">PARALLEL simulates the University of Michigan campus power grid: twenty real buildings on three feeds, with an energy agent that sheds load and a transit agent that moves people. Cut a feed, watch what happens, then fork the campus and run five response policies side by side.</p>
+      <div class="hero-actions"><a class="btn btn-lg" href="/app">Run a scenario <span class="arrow">→</span></a><span class="hint">Runs in the browser. Nothing to install.</span></div>
+    </div>
+    <div class="console" id="console">
+      <div class="readouts">
+        <div class="ro"><span class="k">Essential served</span><div class="v ok" id="ro-ess">100%</div></div>
+        <div class="ro"><span class="k">Supply</span><div class="v" id="ro-sup">2050 kW</div></div>
+        <div class="ro"><span class="k">Demand</span><div class="v" id="ro-dem">1595 kW</div></div>
+        <div class="ro"><span class="k">Unserved</span><div class="v" id="ro-uns">0 kW</div></div>
+        <div class="ro">
+          <span class="cnt"><i style="background:var(--powered)"></i><span id="c-ok">18</span></span>
+          <span class="cnt"><i style="background:var(--reduced)"></i><span id="c-red">0</span></span>
+          <span class="cnt"><i style="background:var(--dark)"></i><span id="c-dark">0</span></span>
+        </div>
+      </div>
+      <svg class="console-svg" data-parallel-hero data-manual aria-label="Campus one-line diagram. Click a building to fail it."></svg>
+      <div class="console-foot">
+        <ul class="log" id="log"></ul>
+        <div class="console-hint"><span>Click any building to fail it.</span><button class="ghost" id="reset" type="button">Reset campus</button></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="sec" id="how">
+    <div class="wrap">
+      <div class="sec-head reveal"><span class="k q">How a run goes</span><h2>What happens when you cut a feed</h2></div>
+      <div class="ruler">
+        <div class="steps">
+          <div class="step reveal" data-t="t+0"><svg data-parallel-step="1" aria-hidden="true"></svg><span class="k n">01 · Break something</span><h3>Trip a feed or start a heat wave</h3><p>Fail the Central Power Plant, or cut it to 35% and the north feed to 50%. Or click any building and fail it.</p></div>
+          <div class="step reveal" data-t="t+1"><svg data-parallel-step="2" aria-hidden="true"></svg><span class="k n">02 · Watch it cascade</span><h3>Twenty buildings on three feeds react</h3><p>An energy agent sheds load. A transit agent moves people out of dark buildings. Nothing is scripted. No agent can invent power that is not there.</p></div>
+          <div class="step reveal" data-t="t+9"><svg data-parallel-step="3" aria-hidden="true"></svg><span class="k n">03 · Branch the timeline</span><h3>Five policies on five copies</h3><p>The engine forks the campus and runs each response policy forward on its own copy, with the same agents and the same supply.</p></div>
+          <div class="step reveal" data-t="t+11"><svg data-parallel-step="4" aria-hidden="true"></svg><span class="k n">04 · Compare and adopt</span><h3>Pick one. The live campus switches to it.</h3><p>Essential demand served, people relocated, buildings dark, side by side. Adopt a timeline and the live campus follows it.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="compare">
+    <div class="wrap">
+      <div class="sec-head reveal"><span class="k q">Branch timeline</span><h2>One fork from a real run</h2></div>
+      <div class="cmp reveal">
+        <div class="cmp-labels"><div class="cell lbl">Policy</div><div class="cell lbl">Essential demand served</div><div class="cell lbl">Critical care served</div><div class="cell lbl">People relocated</div><div class="cell lbl">People on reduced power</div><div class="cell lbl">Buildings dark</div></div>
+        <div class="cmp-col">
+          <div class="cell head"><h3>Priority tiers <span class="tag">Live now</span></h3><p>Shed the lowest priority tier first. Critical care is never shed.</p></div>
+          <div class="cell"><div class="v big" data-l="Essential demand served">92.7<small>%</small></div><div class="bar"><i style="width:92.7%"></i></div></div>
+          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
+          <div class="cell"><div class="v" data-l="People relocated">3.0k</div></div>
+          <div class="cell"><div class="v red" data-l="People on reduced power">52</div></div>
+          <div class="cell"><div class="v dark" data-l="Buildings dark">6</div></div>
+        </div>
+        <div class="cmp-col">
+          <div class="cell head"><h3>Protect residential <span class="tag best">Best</span></h3><p>Keep dorms powered. Academic and commons buildings go dark first.</p></div>
+          <div class="cell"><div class="v big" data-l="Essential demand served">92.7<small>%</small></div><div class="bar"><i style="width:92.7%"></i></div></div>
+          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
+          <div class="cell"><div class="v" data-l="People relocated">2.2k</div></div>
+          <div class="cell"><div class="v red" data-l="People on reduced power">52</div></div>
+          <div class="cell"><div class="v dark" data-l="Buildings dark">6</div></div>
+        </div>
+        <div class="cmp-col">
+          <div class="cell head"><h3>Protect classes</h3><p>Keep classrooms and libraries powered. Residence halls go dark first.</p></div>
+          <div class="cell"><div class="v big" data-l="Essential demand served">81.5<small>%</small><span class="d">−11.2 pts vs live</span></div><div class="bar"><i style="width:81.5%"></i></div></div>
+          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
+          <div class="cell"><div class="v" data-l="People relocated">3.1k</div></div>
+          <div class="cell"><div class="v red" data-l="People on reduced power">552</div></div>
+          <div class="cell"><div class="v dark" data-l="Buildings dark">5</div></div>
+        </div>
+        <div class="cmp-col">
+          <div class="cell head"><h3>Most people per kW</h3><p>Shed the buildings that serve the fewest people per kilowatt first.</p></div>
+          <div class="cell"><div class="v big" data-l="Essential demand served">89<small>%</small><span class="d">−3.7 pts vs live</span></div><div class="bar"><i style="width:89%"></i></div></div>
+          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
+          <div class="cell"><div class="v" data-l="People relocated">1.9k</div></div>
+          <div class="cell"><div class="v red" data-l="People on reduced power">502</div></div>
+          <div class="cell"><div class="v dark" data-l="Buildings dark">5</div></div>
+        </div>
+        <div class="cmp-col">
+          <div class="cell head"><h3>Ration evenly</h3><p>No load shedding. Every building on the feed gets the same share.</p></div>
+          <div class="cell"><div class="v big" data-l="Essential demand served">80<small>%</small><span class="d">−12.7 pts vs live</span></div><div class="bar"><i style="width:80%"></i></div></div>
+          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
+          <div class="cell"><div class="v" data-l="People relocated">4.0k</div></div>
+          <div class="cell"><div class="v red" data-l="People on reduced power">2.9k</div></div>
+          <div class="cell"><div class="v dark" data-l="Buildings dark">6</div></div>
+        </div>
+      </div>
+      <p class="cmp-note reveal">Scenario: <span class="mono">Heat wave, 95°F</span>. Forked at tick 8. Each policy ran 6 ticks on its own copy of the campus, with the same agents and the same supply. Best is the highest essential service; fewer people moved breaks a tie. The live campus did not change until a policy was adopted.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="trust">
+    <div class="wrap">
+      <div class="trust">
+        <p class="limit reveal">This is a <b>constraint-based teaching model</b>, not a forecast of the real grid. The numbers come from running the simulation. Use them to practise a decision, not to predict an outage.</p>
+        <ul class="facts reveal">
+          <li><span class="num">20</span><span class="t"><b>Real buildings.</b> Markley, South Quad, University Hospital, Mott, Duderstadt, NCRC and fourteen more, with demand in kW and occupancy.</span></li>
+          <li><span class="num">3</span><span class="t"><b>Real feeds.</b> The Central Power Plant, the hospital's own utility intake, and the North Campus Switching Station, wired the way the campus is.</span></li>
+          <li><span class="num">38</span><span class="t"><b>Power lines and roads.</b> Fifteen lines carry power. Twenty-three roads carry people when the transit agent moves them.</span></li>
+          <li><span class="num">0</span><span class="t"><b>Invented kilowatts.</b> Supply is a hard limit on every feed. Agents shed, reroute and relocate. They never create power.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>PARALLEL · Built at MHacks 2026</span>
+    <div class="cols">
+      <span>Source <a href="https://github.com/ashma2583/MHacks2026">github.com/ashma2583/MHacks2026</a></span>
+      <span>Map data © OpenStreetMap contributors</span>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="/src/landing/main.ts"></script>
+</body>
 </html>

@@ -6,8 +6,8 @@
 @import '@fontsource/ibm-plex-mono/500.css';
 
 /*
- * Colour roles (shared with the landing page):
- *   ok / warn / down  building state only, never decoration
+ * Colour roles:
+ *   ok / warn / down  node state only, never decoration
  *   flow              energized power lines
  *   branch            anything that forks or adopts a timeline
  */
@@ -21,43 +21,18 @@
   --color-line: #222832;
   --color-text: #ece9e2;
   --color-muted: #8f95a1;
-  --color-faint: #6b7280;
+  --color-faint: #596070;
 
   --color-ok: #3ddc97;
-  --color-warn: #ff8a3d;
+  --color-warn: #ffb224;
   --color-down: #ff5d5d;
-  --color-flow: #cfe3ff;
+  --color-flow: #f3e3a3;
   --color-branch: #a48bff;
-  --color-onbranch: #090b0f;
   --color-transit: #7cc4ff;
 }
 
 :root {
   color-scheme: dark;
-}
-
-/* Light mode follows the system, or the choice saved by the landing page's toggle. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --color-ink: #f3f4f1; --color-panel: #fbfbf9; --color-raised: #eceee9; --color-line: #d9dcd6;
-    --color-text: #12151a; --color-muted: #5a616d; --color-faint: #7a808a;
-    --color-ok: #0f9d63; --color-warn: #d9650d; --color-down: #d93a3a; --color-flow: #3b5b8c;
-    --color-branch: #5b3fd6; --color-onbranch: #fbfbf9; --color-transit: #2a6fb0;
-    color-scheme: light;
-  }
-  :root:not([data-theme='dark']) .map-raster .maplibregl-canvas {
-    filter: saturate(0.45) contrast(0.95) brightness(1.02);
-  }
-}
-:root[data-theme='light'] {
-  --color-ink: #f3f4f1; --color-panel: #fbfbf9; --color-raised: #eceee9; --color-line: #d9dcd6;
-  --color-text: #12151a; --color-muted: #5a616d; --color-faint: #7a808a;
-  --color-ok: #0f9d63; --color-warn: #d9650d; --color-down: #d93a3a; --color-flow: #3b5b8c;
-  --color-branch: #5b3fd6; --color-onbranch: #fbfbf9; --color-transit: #2a6fb0;
-  color-scheme: light;
-}
-:root[data-theme='light'] .map-raster .maplibregl-canvas {
-  filter: saturate(0.45) contrast(0.95) brightness(1.02);
 }
 
 html,
@@ -82,11 +57,8 @@ button:disabled {
   outline: 2px solid var(--color-branch);
   outline-offset: 2px;
 }
-.map-raster .maplibregl-canvas,
-.map-3d .maplibregl-canvas {
-  opacity: var(--map-opacity, 1);
-}
-.map-raster .maplibregl-canvas {
+
+.maplibregl-canvas {
   filter: invert(1) hue-rotate(180deg) brightness(0.75) contrast(0.95) saturate(0.6);
 }
 
@@ -121,11 +93,11 @@ button:disabled {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
 }
 .rise {
-  animation: rise 0.3s ease-out both;
+  animation: rise 0.35s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {

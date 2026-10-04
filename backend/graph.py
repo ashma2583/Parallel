@@ -74,6 +74,8 @@ class Node:
     status: Status = Status.GREEN
     failed: bool = False
     load_shed: float = 0.0
+    # 1.0 is full output. A heat wave or a damaged unit lowers it.
+    derate: float = 1.0
     baseline_occupancy: int = 0
     position: dict[str, float] = field(default_factory=dict)
 
@@ -120,7 +122,7 @@ def supply_for(nodes: dict[str, Node], feeder: str) -> float:
     for node in nodes.values():
         if node.feeder != feeder or node.failed:
             continue
-        total += node.capacity if node.is_supplier else node.local_supply
+        total += (node.capacity if node.is_supplier else node.local_supply) * node.derate
     if feeder == "medical":
         cpp = nodes.get("cpp")
         if cpp and not cpp.failed:
@@ -273,6 +275,18 @@ class CampusGraph:
     def restore_node(self, node_id: str) -> Node:
         node = self.get(node_id)
         node.failed = False
+        node.derate = 1.0
+        return node
+
+    def send_home(self) -> None:
+        """Put everyone back where they started, so transit can route them afresh."""
+        for node in self.nodes.values():
+            node.occupancy = node.baseline_occupancy
+
+    def derate_node(self, node_id: str, factor: float) -> Node:
+        """Limit a feed or on-site generator to a fraction of its output."""
+        node = self.get(node_id)
+        node.derate = max(0.0, min(1.0, factor))
         return node
 
     def set_load_shed(self, node_id: str, fraction: float) -> Node:
@@ -297,8 +311,12 @@ class CampusGraph:
 
             for node in group:
                 if node.is_supplier:
-                    node.current_power = 0.0 if node.failed else round(min(node.capacity, max(demand, 0.0)), 2)
-                    node.status = Status.RED if node.failed else Status.GREEN
+                    output = node.capacity * node.derate
+                    node.current_power = 0.0 if node.failed else round(min(output, max(demand, 0.0)), 2)
+                    if node.failed:
+                        node.status = Status.RED
+                    else:
+                        node.status = Status.GREEN if node.derate >= GREEN_THRESHOLD else Status.AMBER
                 elif node.failed:
                     node.current_power = 0.0
                     node.status = Status.RED

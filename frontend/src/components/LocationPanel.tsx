@@ -39,7 +39,7 @@ export function LocationPanel({
 
   return (
     <section>
-      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Add a location</h2>
+      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Add a location</h2>
       <form
         className="flex gap-1"
         onSubmit={(event) => {
@@ -51,33 +51,39 @@ export function LocationPanel({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="a campus, or one building"
-          className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+          className="min-w-0 flex-1 rounded border border-line bg-ink px-2 py-1.5 text-xs text-text"
         />
         <button
           type="submit"
           disabled={busy || query.trim().length < 2}
-          className="rounded bg-sky-400 px-2 py-1.5 text-xs font-semibold text-slate-950 disabled:bg-slate-800 disabled:text-slate-500"
+          className="rounded bg-branch px-2 py-1.5 text-xs font-semibold text-onbranch disabled:bg-raised disabled:text-muted"
         >
           {busy ? '…' : 'Research'}
         </button>
       </form>
-      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+      <p className="mt-1 text-[11px] leading-relaxed text-muted">
         A campus returns the 15–20 buildings that matter in an outage, and the lines that connect them.
       </p>
-      {error && <p className="mt-2 text-[11px] leading-relaxed text-red-300">{error}</p>}
+      {error && <p className="mt-2 text-[11px] leading-relaxed text-down">{error}</p>}
       {survey && (
-        <div className="mt-2 rounded-md border border-slate-800 bg-slate-900/80 p-2">
+        <div className="mt-2 rounded-md border border-line bg-ink p-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-slate-100">{survey.name}</p>
-            <button type="button" onClick={onClear} className="text-[10px] font-semibold text-slate-400 hover:text-slate-200">
+            <p className="text-xs font-semibold text-text">{survey.name}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setSurvey(null)
+                onClear()
+              }}
+              className="text-[10px] font-semibold text-muted hover:text-text">
               Clear
             </button>
           </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-slate-300">{survey.summary}</p>
-          <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <p className="mt-1 text-[11px] leading-relaxed text-text/80">{survey.summary}</p>
+          <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
             {survey.buildings.length} buildings
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+          <p className="mt-1 text-[11px] leading-relaxed text-muted">
             Click a building to take it offline. The plant feeds the campus. A hospital keeps its own supply.
           </p>
           <ul className="mt-1 flex flex-col gap-1">
@@ -89,9 +95,9 @@ export function LocationPanel({
                   <button
                     type="button"
                     onClick={() => onToggle(node.id)}
-                    className="w-full rounded px-1 py-0.5 text-left text-[11px] leading-relaxed text-slate-400 hover:bg-slate-800"
+                    className="w-full rounded px-1 py-0.5 text-left text-[11px] leading-relaxed text-muted hover:bg-raised"
                   >
-                    <span className={down ? 'text-red-300' : 'text-slate-200'}>{node.name}</span>
+                    <span className={down ? 'text-down' : 'text-text'}>{node.name}</span>
                     {down ? ' · offline' : ''}
                     {' · '}
                     {feeder ? `fed by ${feeder.name}` : 'own supply'}
@@ -102,11 +108,11 @@ export function LocationPanel({
           </ul>
           {survey.transit.length > 0 && (
             <>
-              <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Core lines</p>
+              <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Core lines</p>
               <ul className="mt-1 flex flex-col gap-1">
                 {survey.transit.map((line) => (
-                  <li key={`${line.agency}-${line.name}`} className="text-[11px] leading-relaxed text-slate-400">
-                    <span className="text-slate-200">
+                  <li key={`${line.agency}-${line.name}`} className="text-[11px] leading-relaxed text-muted">
+                    <span className="text-text">
                       {line.agency ? `${line.agency} ` : ''}
                       {line.name}
                     </span>
@@ -119,7 +125,7 @@ export function LocationPanel({
           {survey.sources.length > 0 && (
             <ul className="mt-2 flex flex-col gap-0.5">
               {survey.sources.map((url) => (
-                <li key={url} className="truncate text-[10px] text-sky-300">
+                <li key={url} className="truncate text-[10px] text-branch">
                   <a href={url} target="_blank" rel="noreferrer">
                     {url.replace(/^https?:\/\//, '')}
                   </a>

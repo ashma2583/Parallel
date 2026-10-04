@@ -1,10 +1,12 @@
 /**
  * Thin client for the FastAPI simulation engine. Writes go here; reads come
- * from SpacetimeDB subscriptions (never poll the backend for state).
+ * from SpacetimeDB subscriptions, with `/state` as the fallback when
+ * SpacetimeDB is not reachable.
  */
 import { BACKEND_URL } from '../config'
+import { fromApiNode, type ApiNode, type SimNode } from './sim'
 
-export type DisruptAction = 'fail' | 'restore'
+export type DisruptAction = 'fail' | 'restore' | 'derate'
 
 async function post(path: string, body?: unknown): Promise<unknown> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
@@ -19,12 +21,90 @@ async function post(path: string, body?: unknown): Promise<unknown> {
   return res.json()
 }
 
-export function disrupt(nodeIds: string[], action: DisruptAction = 'fail', reason?: string) {
-  return post('/disrupt', { node_ids: nodeIds, action, reason })
+export function disrupt(nodeIds: string[], action: DisruptAction = 'fail', reason?: string, factor?: number) {
+  return post('/disrupt', { node_ids: nodeIds, action, reason, factor })
 }
 
 export function resetSim() {
   return post('/reset')
+}
+
+export function adoptStrategy(strategy: string) {
+  return post('/strategy', { strategy })
+}
+
+export interface BranchMetrics {
+  essential_served: number
+  critical_served: number
+  total_served: number
+  people_total: number
+  people_full_power: number
+  people_reduced_power: number
+  people_dark: number
+  people_relocated: number
+  buildings_dark: number
+}
+
+export interface Branch {
+  id: string
+  label: string
+  description: string
+  metrics: BranchMetrics
+  nodes: SimNode[]
+  log: string[]
+}
+
+export interface BranchResult {
+  baseTick: number
+  ticks: number
+  active: string
+  branches: Branch[]
+}
+
+/** Fork the live state and run every response policy forward. */
+export async function runBranches(ticks = 6): Promise<BranchResult> {
+  const data = (await post('/branch', { ticks })) as {
+    base_tick: number
+    ticks: number
+    active: string
+    branches: (Omit<Branch, 'nodes'> & { nodes: ApiNode[] })[]
+  }
+  return {
+    baseTick: data.base_tick,
+    ticks: data.ticks,
+    active: data.active,
+    branches: data.branches.map((b) => ({ ...b, nodes: b.nodes.map(fromApiNode) })),
+  }
+}
+
+export type Season = 'summer' | 'fall' | 'winter' | 'spring'
+
+export interface Shelter {
+  kind?: 'cooling' | 'warming'
+  answer: string
+  open: boolean
+  places: { id: string; name: string; occupancy: number }[]
+}
+
+export interface Briefing {
+  preference: string
+  season?: Season
+  disrupted: boolean
+  displaced: number
+  priority: {
+    answer: string
+    dorms_dark: number
+    classrooms_dark: number
+    dorms_lit: number
+    classrooms_lit: number
+  }
+  buses: {
+    answer: string
+    reroute: { id: string; name: string; agency: string; skip: string[]; keep: string[] }[]
+  }
+  cooling: Shelter
+  shelter?: Shelter
+  systems: { system: string; status: 'up' | 'down'; detail: string }[]
 }
 
 export interface Policy {
@@ -59,44 +139,6 @@ export async function sendVoice(blob: Blob): Promise<CommandResult> {
   return data as CommandResult
 }
 
-export type PriorityMode = 'balanced' | 'dorms' | 'academic'
-export type Season = 'summer' | 'fall' | 'winter' | 'spring'
-
-export interface Briefing {
-  preference: PriorityMode
-  season: Season
-  disrupted: boolean
-  displaced: number
-  priority: {
-    answer: string
-    dorms_dark: number
-    classrooms_dark: number
-    dorms_lit: number
-    classrooms_lit: number
-  }
-  buses: {
-    answer: string
-    reroute: { id: string; name: string; agency: string; skip: string[]; keep: string[] }[]
-  }
-  shelter: {
-    kind: 'cooling' | 'warming'
-    answer: string
-    open: boolean
-    places: { id: string; name: string; occupancy: number }[]
-  }
-  systems: { system: string; status: 'up' | 'down'; detail: string }[]
-}
-
-export async function fetchBriefing(): Promise<Briefing | null> {
-  const res = await fetch(`${BACKEND_URL}/briefing`)
-  if (!res.ok) return null
-  return res.json()
-}
-
-export async function setPriority(mode: PriorityMode): Promise<Briefing> {
-  return post('/priority', { mode }) as Promise<Briefing>
-}
-
 export async function fetchClock(): Promise<{ tick: number; paused: boolean }> {
   const res = await fetch(`${BACKEND_URL}/clock`)
   if (!res.ok) return { tick: 0, paused: false }
@@ -129,7 +171,7 @@ export interface ResponsePlan {
   infrastructure: string
   intervention: string
   analysis: string
-  apply: PriorityMode | null
+  apply: string | null
   scores: PlanScores
   total: number
 }
@@ -241,11 +283,4 @@ export async function researchLocation(query: string): Promise<LocationSurvey> {
 
 export async function fetchDebrief(): Promise<Debrief> {
   return post('/debrief') as Promise<Debrief>
-}
-
-export async function fetchActivity(): Promise<string[]> {
-  const res = await fetch(`${BACKEND_URL}/activity`)
-  if (!res.ok) return []
-  const data = await res.json()
-  return (data.lines ?? []) as string[]
 }

@@ -1,66 +1,52 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSpacetimeDB, useTable } from 'spacetimedb/react'
-import { tables } from './module_bindings'
-import { CampusMap } from './components/CampusMap'
+import { useEffect, useMemo, useState } from 'react'
+import { BranchPanel } from './components/BranchPanel'
 import { GeoMap } from './components/GeoMap'
+import { Inspector } from './components/Inspector'
+import { LivePanel } from './components/LivePanel'
+import { LocationPanel } from './components/LocationPanel'
+import { PlanBuilding, type PlanDraft } from './components/PlanBuilding'
+import { ScenarioStrip, type Scenario } from './components/ScenarioStrip'
+import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
-import { StatusBar } from './components/StatusBar'
-import { ControlPanel } from './components/ControlPanel'
-import {
-  fetchActivity,
-  fetchBriefing,
-  fetchProposals,
-  proposeBuilding,
-  removeProposal,
-  setClock,
-  setPriority,
-  setSeason,
-  type Briefing,
-  type LocationSurvey,
-  type PriorityMode,
-  type Season,
-  type ProposalImpact,
-  type ProposalPin,
-} from './lib/api'
-import type { PlanDraft } from './components/PlanBuilding'
+import { TopBar, type View } from './components/TopBar'
+import { proposeBuilding, removeProposal, type Branch, type LocationSurvey, type ProposalImpact } from './lib/api'
+import { isDisrupted, useSim, zoneLoads } from './lib/sim'
+import { STATUS_COLOR } from './lib/status'
+import { DEFAULT_STRATEGY } from './lib/strategies'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
 
 export default function App() {
-  const { isActive, connectionError } = useSpacetimeDB()
-
-  // Live subscriptions. SpacetimeDB pushes row diffs; React re-renders.
-  const [nodes, nodesReady] = useTable(tables.node)
-  const [edges] = useTable(tables.edge)
-  const [simRows] = useTable(tables.simState)
-  const sim = simRows[0]
-
+  const sim = useSim()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
-  const [activity, setActivity] = useState<string[]>([])
-  const [briefing, setBriefing] = useState<Briefing | null>(null)
-  const [view, setView] = useState<'graph' | 'map'>('graph')
+  const [view, setView] = useState<View>('grid')
+  const [branching, setBranching] = useState(false)
+  const [preview, setPreview] = useState<Branch | null>(null)
+  const [scenario, setScenario] = useState<Scenario | null>(null)
+
+  // A researched place, shown in place of the campus until it is cleared.
   const [survey, setSurvey] = useState<LocationSurvey | null>(null)
   const [surveyFailed, setSurveyFailed] = useState<string[]>([])
+  const surveyModel = useMemo(() => (survey ? buildSurvey(survey) : null), [survey])
+  const surveyDark = useMemo(() => (surveyModel ? darkIds(surveyModel, surveyFailed) : new Set<string>()), [surveyModel, surveyFailed])
+  const toggleSurvey = (id: string) =>
+    setSurveyFailed((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+
+  // A planned building: fill the form, drop a pin on the map, confirm.
   const [placing, setPlacing] = useState<PlanDraft | null>(null)
   const [draftPoint, setDraftPoint] = useState<{ lng: number; lat: number } | null>(null)
   const [confirming, setConfirming] = useState(false)
-  const [proposals, setProposals] = useState<ProposalPin[]>([])
   const [proposalImpact, setProposalImpact] = useState<ProposalImpact | null>(null)
   const [planError, setPlanError] = useState<string | null>(null)
-  const [paused, setPaused] = useState(false)
-  const surveyModel = useMemo(() => (survey ? buildSurvey(survey) : null), [survey])
-  const surveyDark = useMemo(() => (surveyModel ? darkIds(surveyModel, surveyFailed) : new Set<string>()), [surveyModel, surveyFailed])
 
   async function confirmPlacement() {
     if (!placing || !draftPoint || confirming) return
     setConfirming(true)
     setPlanError(null)
     try {
-      const impact = await proposeBuilding({ ...placing, lng: draftPoint.lng, lat: draftPoint.lat })
-      setProposalImpact(impact)
-      setProposals(await fetchProposals())
+      setProposalImpact(await proposeBuilding({ ...placing, lng: draftPoint.lng, lat: draftPoint.lat }))
       setPlacing(null)
       setDraftPoint(null)
+      sim.refresh()
     } catch (err) {
       setPlanError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -70,182 +56,193 @@ export default function App() {
 
   async function dropProposal(id: string) {
     await removeProposal(id)
-    setProposals(await fetchProposals())
     setProposalImpact((current) => (current?.id === id ? null : current))
+    sim.refresh()
   }
 
-  function toggleSurvey(id: string) {
-    setSurveyFailed((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
-  }
-  const shelterIds = briefing?.shelter.open ? briefing.shelter.places.map((place) => place.id) : []
-  const shelterKind = briefing?.shelter.kind ?? 'warming'
-  const briefingEpoch = useRef(0)
+  // While a policy is hovered in the branch list, the whole console shows its end state.
+  const nodes = preview ? preview.nodes : sim.nodes
+  const disrupted = isDisrupted(sim.nodes)
+  const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
+  const zones = useMemo(() => zoneLoads(nodes), [nodes])
+  const shelter = sim.briefing?.shelter ?? sim.briefing?.cooling
+  const shelterKind = shelter?.kind ?? (sim.briefing?.season === 'summer' ? 'cooling' : 'warming')
+  const coolingIds = useMemo(() => (shelter?.open ? shelter.places.map((place) => place.id) : []), [shelter])
+  const useRouteIds = useMemo(
+    () => (sim.briefing?.buses.reroute ?? []).filter((route) => route.keep.length > 0).map((route) => route.id),
+    [sim.briefing],
+  )
 
-  async function onPriority(mode: PriorityMode) {
-    const epoch = ++briefingEpoch.current
-    const next = await setPriority(mode)
-    if (epoch === briefingEpoch.current) setBriefing(next)
-  }
-
-  async function onPause(next: boolean) {
-    const clock = await setClock({ paused: next })
-    setPaused(clock.paused)
-  }
-
-  async function onGoTo(tick: number) {
-    try {
-      const clock = await setClock({ until: tick })
-      setPaused(clock.paused)
-      return null
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      const detail = message.match(/"detail":"([^"]+)"/)
-      return detail?.[1] ?? message
-    }
-  }
-
-  async function onSeason(season: Season) {
-    const epoch = ++briefingEpoch.current
-    const next = await setSeason(season)
-    if (epoch === briefingEpoch.current) setBriefing(next)
+  const closeBranch = () => {
+    setBranching(false)
+    setPreview(null)
   }
 
   useEffect(() => {
-    let stop = false
-    const pull = async () => {
-      const epoch = briefingEpoch.current
-      try {
-        const [lines, nextBriefing, nextProposals] = await Promise.all([fetchActivity(), fetchBriefing(), fetchProposals()])
-        if (stop || epoch !== briefingEpoch.current) return
-        setActivity(lines)
-        setBriefing(nextBriefing)
-        setProposals(nextProposals)
-      } catch {
-        // The map still updates from SpacetimeDB if the REST poll misses a beat.
-      }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeBranch()
     }
-    void pull()
-    const timer = setInterval(() => void pull(), 1000)
-    return () => {
-      stop = true
-      clearInterval(timer)
-    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const sortedNodes = useMemo(() => [...nodes].sort((a, b) => a.id.localeCompare(b.id)), [nodes])
+  // Break, Watch, Branch, Adopt. A policy other than the default means one was adopted.
+  const step = !disrupted ? 0 : branching ? 2 : sim.strategy !== DEFAULT_STRATEGY ? 3 : 1
+  const onStep = (index: number) => {
+    if (index === 1) closeBranch()
+    if (index >= 2 && disrupted) setBranching(true)
+  }
 
   return (
-    <div className="flex h-full flex-col">
-      <StatusBar
-        sim={sim}
-        connected={isActive}
-        connectionError={connectionError}
-        paused={paused}
-        onPause={(next) => void onPause(next)}
-        onGoTo={onGoTo}
-      />
+    <div className="grid h-full min-h-[640px] grid-cols-[minmax(0,1fr)] grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-ink text-text">
+      <TopBar sim={sim} nodes={nodes} step={step} onStep={onStep} view={view} onView={setView} />
 
-      <div className="flex min-h-0 flex-1">
-        <main className="relative min-w-0 flex-1">
-          <div className="absolute left-3 top-3 z-10 flex overflow-hidden rounded-md border border-slate-700 bg-slate-950/90 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setView('graph')}
-              className={`px-3 py-1.5 ${view === 'graph' ? 'bg-slate-100 text-slate-950' : 'text-slate-300'}`}
-            >
-              Grid
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('map')}
-              className={`px-3 py-1.5 ${view === 'map' ? 'bg-slate-100 text-slate-950' : 'text-slate-300'}`}
-            >
-              Ann Arbor
-            </button>
-          </div>
-          {nodesReady && nodes.length > 0 ? (
-            view === 'map' ? (
+      <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_340px] min-[1100px]:grid-cols-[minmax(0,1fr)_400px]">
+        <main className="relative flex min-w-0 flex-col">
+          <ScenarioStrip
+            disrupted={disrupted}
+            scenario={scenario}
+            previewName={preview?.label ?? null}
+            onScenario={setScenario}
+            onChanged={sim.refresh}
+          />
+
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            {sim.nodes.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted">
+                <span>Waiting for the simulation engine…</span>
+                <code className="font-mono text-xs">cd backend &amp;&amp; uvicorn main:app --port 8000</code>
+              </div>
+            ) : view === 'map' ? (
               <GeoMap
-                nodes={sortedNodes}
-                edges={edges}
-                coolingIds={shelterIds}
+                nodes={nodes}
+                edges={sim.edges}
+                selectedId={selectedId}
+                coolingIds={coolingIds}
                 shelterKind={shelterKind}
-                preference={briefing?.preference ?? 'balanced'}
-                useRouteIds={(briefing?.buses.reroute ?? []).filter((route) => route.keep.length > 0).map((route) => route.id)}
-                reroutes={briefing?.buses.reroute ?? []}
+                useRouteIds={useRouteIds}
+                reroutes={sim.briefing?.buses.reroute ?? []}
                 survey={survey}
                 surveyGraph={surveyModel}
                 surveyDark={surveyDark}
                 onToggleSurvey={toggleSurvey}
                 placing={placing !== null}
-                proposals={proposals}
+                proposals={sim.proposals}
                 draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
                 onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
-                onNodeClick={(n) => setSelectedId(n.id)}
+                onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
               />
             ) : surveyModel ? (
               <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
             ) : (
-              <CampusMap
-                nodes={sortedNodes}
-                edges={edges}
-                coolingIds={shelterIds}
+              <Schematic
+                nodes={nodes}
+                edges={sim.edges}
+                selectedId={selectedId}
+                coolingIds={coolingIds}
                 shelterKind={shelterKind}
-                preference={briefing?.preference ?? 'balanced'}
-                onNodeClick={(n) => setSelectedId(n.id)}
+                onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
               />
-            )
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-slate-500">
-              {isActive
-                ? 'Connected. Waiting for the simulation engine to publish state…'
-                : connectionError
-                  ? `Cannot reach SpacetimeDB: ${connectionError.message}`
-                  : 'Connecting to SpacetimeDB…'}
-            </div>
-          )}
+            )}
+
+            {selected && (
+              <Inspector
+                key={selected.id}
+                node={selected}
+                corner={view === 'map' ? 'top-right' : 'bottom-left'}
+                onClose={() => setSelectedId(null)}
+                onToggled={(node, failed) => {
+                  if (failed && !scenario) setScenario({ label: 'Manual override', detail: `${node.name} failed` })
+                  sim.refresh()
+                }}
+              />
+            )}
+          </div>
+
+          <div className="grid shrink-0 grid-cols-4 border-t border-line bg-panel">
+            {zones.map((z) => {
+              const color = z.served >= 0.9 ? STATUS_COLOR.Green : z.served >= 0.5 ? STATUS_COLOR.Amber : STATUS_COLOR.Red
+              return (
+                <div key={z.zone} className="border-r border-line px-4 py-2.5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{z.zone}</span>
+                    <span className="font-mono text-[13px] tabular-nums" style={{ color }}>{Math.round(z.served * 100)}%</span>
+                  </div>
+                  <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-line">
+                    <div className="h-full transition-[width] duration-500" style={{ width: `${z.served * 100}%`, background: color }} />
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-muted">
+                    {z.dark > 0 ? `${z.dark} building${z.dark > 1 ? 's' : ''} dark` : 'All buildings served'}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </main>
 
-        <ControlPanel
-          nodes={sortedNodes}
-          selected={selected}
-          activity={activity}
-          briefing={briefing}
-          onPriority={onPriority}
-          onSeason={(season) => void onSeason(season)}
-          onSurvey={(next) => {
-            setSurvey(next)
-            setSurveyFailed([])
-            setView('map')
-          }}
-          onClearSurvey={() => {
-            setSurvey(null)
-            setSurveyFailed([])
-            setView('graph')
-          }}
-          placing={placing !== null}
-          pinReady={draftPoint !== null}
-          confirming={confirming}
-          proposalImpact={proposalImpact}
-          proposals={proposals}
-          onStartPlan={(draft) => {
-            setPlanError(null)
-            setDraftPoint(null)
-            setPlacing(draft)
-            setView('map')
-          }}
-          onMovePlan={() => setDraftPoint(null)}
-          onConfirmPlan={() => void confirmPlacement()}
-          onCancelPlan={() => {
-            setPlacing(null)
-            setDraftPoint(null)
-          }}
-          onRemoveProposal={(id) => void dropProposal(id)}
-          planError={planError}
-          surveyGraph={surveyModel}
-          surveyDark={surveyDark}
-          onToggleSurvey={toggleSurvey}
-        />
+        <aside className="flex min-h-0 flex-col border-l border-line bg-panel">
+          {branching ? (
+            <BranchPanel
+              onPreview={setPreview}
+              onClose={closeBranch}
+              onAdopted={() => {
+                sim.refresh()
+                closeBranch()
+              }}
+            />
+          ) : (
+            <LivePanel
+              sim={sim}
+              disrupted={disrupted}
+              onBranch={() => setBranching(true)}
+              onCommand={(result) => {
+                if (result.policy.action === 'reset') setScenario(null)
+                else if (result.policy.action === 'fail' && !scenario) setScenario({ label: 'Director’s order', detail: result.transcript })
+                sim.refresh()
+              }}
+              plan={
+                <>
+                  <PlanBuilding
+                    placing={placing !== null}
+                    pinReady={draftPoint !== null}
+                    confirming={confirming}
+                    impact={proposalImpact}
+                    pins={sim.proposals}
+                    onStart={(draft) => {
+                      setPlanError(null)
+                      setDraftPoint(null)
+                      setPlacing(draft)
+                      setView('map')
+                    }}
+                    onUndo={() => setDraftPoint(null)}
+                    onConfirm={() => void confirmPlacement()}
+                    onCancel={() => {
+                      setPlacing(null)
+                      setDraftPoint(null)
+                    }}
+                    onRemove={(id) => void dropProposal(id)}
+                    error={planError}
+                  />
+                  <LocationPanel
+                    onShow={(next) => {
+                      setSurvey(next)
+                      setSurveyFailed([])
+                      setView('map')
+                    }}
+                    onClear={() => {
+                      setSurvey(null)
+                      setSurveyFailed([])
+                      setView('grid')
+                    }}
+                    graph={surveyModel}
+                    dark={surveyDark}
+                    onToggle={toggleSurvey}
+                  />
+                </>
+              }
+            />
+          )}
+        </aside>
       </div>
     </div>
   )

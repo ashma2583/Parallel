@@ -1,60 +1,97 @@
 import { useEffect, useState } from 'react'
-import { fetchPlans, type Briefing, type PriorityMode, type ResponsePlan, type Season } from '../lib/api'
+import { adoptStrategy, fetchDebrief, fetchPlans, setSeason, type Briefing, type Debrief, type ResponsePlan, type Season } from '../lib/api'
+import { strategyFor } from '../lib/strategies'
 
 const SEASONS: Season[] = ['fall', 'winter', 'spring', 'summer']
 
-const MODES: { id: PriorityMode; label: string }[] = [
-  { id: 'balanced', label: 'Hospital only' },
-  { id: 'dorms', label: 'Keep dorms' },
-  { id: 'academic', label: 'Keep classes' },
+const SCORES: { key: keyof ResponsePlan['scores']; label: string }[] = [
+  { key: 'optimal', label: 'optimal' },
+  { key: 'energy', label: 'energy' },
+  { key: 'feasibility', label: 'feasible' },
+  { key: 'cost', label: 'cost' },
+  { key: 'risk', label: 'risk' },
+  { key: 'people', label: 'people' },
 ]
 
-export function BriefingPanel({
-  briefing,
-  onChoose,
-  onSeason,
-}: {
-  briefing: Briefing | null
-  onChoose: (mode: PriorityMode) => void | Promise<void>
-  onSeason: (season: Season) => void
-}) {
+function Question({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="text-[13px] font-semibold">{title}</h3>
+      {children}
+    </div>
+  )
+}
+
+/** The outage in plain language, plus ranked plans the desk can try. */
+export function BriefingPanel({ briefing, onChanged }: { briefing: Briefing | null; onChanged?: () => void }) {
+  const [debrief, setDebrief] = useState<Debrief | null>(null)
   const [plans, setPlans] = useState<ResponsePlan[]>([])
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'summary' | 'plans' | null>(null)
   const [applying, setApplying] = useState<number | null>(null)
+  const [applied, setApplied] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const disrupted = briefing?.disrupted ?? false
 
   useEffect(() => {
     if (!disrupted) {
       setPlans([])
+      setDebrief(null)
+      setApplied(null)
       setError(null)
     }
   }, [disrupted])
 
-  if (!briefing) return null
+  if (!briefing) return <p className="text-xs text-muted">Waiting for the engine&rsquo;s briefing.</p>
 
-  async function loadPlans() {
-    setBusy(true)
+  const shelter = briefing.shelter ?? briefing.cooling
+  const shelterKind = shelter.kind ?? (briefing.season === 'summer' ? 'cooling' : 'warming')
+  const season = briefing.season ?? 'fall'
+  const { priority, buses, systems } = briefing
+
+  async function summarize() {
+    setBusy('summary')
     setError(null)
     try {
-      const result = await fetchPlans()
-      setPlans(result.plans)
+      setDebrief(await fetchDebrief())
+    } catch (err) {
+      setDebrief(null)
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function loadPlans() {
+    setBusy('plans')
+    setError(null)
+    try {
+      setPlans((await fetchPlans()).plans)
     } catch (err) {
       setPlans([])
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
-  const shelterTitle = briefing.shelter.kind === 'cooling' ? 'Open cooling centers?' : 'Open warming centers?'
+  async function chooseSeason(next: Season) {
+    setError(null)
+    try {
+      await setSeason(next)
+      onChanged?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
 
   async function tryPlan(plan: ResponsePlan) {
     if (!plan.apply || applying !== null) return
     setApplying(plan.rank)
     setError(null)
     try {
-      await onChoose(plan.apply)
+      await adoptStrategy(plan.apply)
+      setApplied(plan.apply)
+      onChanged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -63,146 +100,127 @@ export function BriefingPanel({
   }
 
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
-      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">If this stays dark</h2>
-      <div className="mb-2 flex flex-wrap gap-1">
-        {SEASONS.map((season) => (
-          <button
-            key={season}
-            type="button"
-            onClick={() => onSeason(season)}
-            className={`rounded px-2 py-0.5 text-[10px] font-semibold capitalize ${
-              briefing.season === season ? 'bg-slate-100 text-slate-950' : 'bg-slate-800 text-slate-400'
-            }`}
-          >
-            {season}
-          </button>
-        ))}
-      </div>
-
-      <p className="text-xs font-semibold text-slate-200">Dorms or classrooms?</p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-300">{briefing.priority.answer}</p>
-      <p className="mt-1 text-[11px] text-slate-500">
-        {briefing.priority.dorms_lit.toLocaleString()} people in lit dorms · {briefing.priority.classrooms_lit.toLocaleString()} in lit classrooms
-        {briefing.displaced > 0 ? ` · ${briefing.displaced.toLocaleString()} moved out of dark buildings` : ''}
-      </p>
-      <div className="mt-2 flex flex-wrap gap-1">
-        {MODES.map((mode) => (
-          <button
-            key={mode.id}
-            onClick={() => onChoose(mode.id)}
-            className={`rounded px-2 py-1 text-[11px] font-semibold ${
-              briefing.preference === mode.id ? 'bg-sky-400 text-slate-950' : 'bg-slate-800 text-slate-300'
-            }`}
-          >
-            {mode.label}
-          </button>
-        ))}
-      </div>
-
-      <p className="mt-3 text-xs font-semibold text-slate-200">Reroute buses?</p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-300">{briefing.buses.answer}</p>
-      {briefing.buses.reroute.length > 0 && (
-        <ul className="mt-1 flex flex-col gap-1">
-          {briefing.buses.reroute.map((route) => (
-            <li key={`${route.agency}-${route.id}`} className="text-[11px] leading-relaxed text-slate-400">
-              <span className="text-slate-200">
-                {route.agency} {route.name}.
-              </span>{' '}
-              Skip {route.skip.join(', ')}
-              {route.keep.length > 0 ? `. Still stops at ${route.keep.join(', ')}` : ''}
-            </li>
+    <div className="flex flex-col gap-3.5 text-xs leading-[1.55]">
+      <Question title="Season">
+        <div className="mt-1.5 flex gap-1">
+          {SEASONS.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => void chooseSeason(item)}
+              className={`rounded px-2 py-1 text-[11px] font-semibold capitalize ${
+                season === item ? 'bg-branch text-onbranch' : 'border border-line text-muted'
+              }`}
+            >
+              {item}
+            </button>
           ))}
-        </ul>
-      )}
+        </div>
+      </Question>
 
-      <p className="mt-3 text-xs font-semibold text-slate-200">{shelterTitle}</p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-300">{briefing.shelter.answer}</p>
+      <Question title="Dorms or classrooms?">
+        <p className="mt-1">{priority.answer}</p>
+        <p className="mt-1 font-mono text-[11px] text-muted">
+          {priority.dorms_lit.toLocaleString()} in lit dorms · {priority.classrooms_lit.toLocaleString()} in lit classrooms
+          {briefing.displaced > 0 ? ` · ${briefing.displaced.toLocaleString()} moved` : ''}
+        </p>
+      </Question>
 
-      <p className="mt-3 text-xs font-semibold text-slate-200">What else moves</p>
-      <ul className="mt-1 flex flex-col gap-1">
-        {briefing.systems.map((system) => (
-          <li key={system.system} className="text-[11px] leading-relaxed text-slate-400">
-            <span className={system.status === 'down' ? 'text-red-300' : 'text-emerald-300'}>{system.system}</span>
+      <Question title="Reroute buses?">
+        <p className="mt-1">{buses.answer}</p>
+        {buses.reroute.map((route) => (
+          <p key={`${route.agency}-${route.id}`} className="mt-1 text-muted">
+            <span className="text-text">{route.agency} {route.name}.</span> Skip {route.skip.join(', ')}
+            {route.keep.length > 0 ? `. Still stops at ${route.keep.join(', ')}` : ''}
+          </p>
+        ))}
+      </Question>
+
+      <Question title={shelterKind === 'cooling' ? 'Open cooling centers?' : 'Open warming centers?'}>
+        <p className="mt-1">{shelter.answer}</p>
+      </Question>
+
+      <Question title="What else moves">
+        {systems.map((system) => (
+          <p key={system.system} className="mt-1 text-muted">
+            <span className={system.status === 'down' ? 'text-down' : 'text-ok'}>{system.system}</span>
             {' · '}
             {system.detail}
-          </li>
+          </p>
         ))}
-      </ul>
+      </Question>
 
-      <button
-        type="button"
-        disabled={!briefing.disrupted || busy}
-        onClick={() => void loadPlans()}
-        className="mt-3 w-full rounded-md bg-sky-400 px-3 py-2 text-xs font-semibold text-slate-950 disabled:bg-slate-800 disabled:text-slate-500"
-      >
-        {busy ? 'Ranking plans…' : '5 response plans'}
-      </button>
-      {!briefing.disrupted && (
-        <p className="mt-1 text-[11px] text-slate-500">Fail a building or a feed, then ask the agents for plans.</p>
-      )}
-      {error && <p className="mt-2 text-[11px] leading-relaxed text-red-300">{error}</p>}
-      {plans.length > 0 && (
-        <div className="mt-3 flex flex-col gap-2 border-t border-slate-800 pt-3">
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          disabled={!disrupted || busy !== null}
+          onClick={() => void loadPlans()}
+          className="w-full rounded-md bg-branch px-3 py-2 text-[13px] font-semibold text-onbranch disabled:bg-line disabled:text-muted"
+        >
+          {busy === 'plans' ? 'Writing five plans…' : '5 response plans'}
+        </button>
+        <button
+          type="button"
+          disabled={!disrupted || busy !== null}
+          onClick={() => void summarize()}
+          className="w-full rounded-md border border-branch px-3 py-2 text-[13px] font-semibold text-branch disabled:border-line disabled:text-muted"
+        >
+          {busy === 'summary' ? 'Writing the summary…' : 'Summarize this scenario'}
+        </button>
+        {!disrupted && <p className="text-[11px] text-muted">Run a scenario, then ask for plans or a summary.</p>}
+        {error && <p className="text-down">{error}</p>}
+      </div>
+
+      {plans.length > 0 && disrupted && (
+        <div className="flex flex-col gap-3 border-t border-line pt-3">
           {plans.map((plan) => (
-            <article key={plan.rank} className="rounded border border-slate-800 bg-slate-950/60 p-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                #{plan.rank} · {plan.total}/10
-              </p>
-              <p className="text-xs font-semibold text-slate-100">{plan.title}</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-slate-300">{plan.summary}</p>
-              <dl className="mt-1 grid grid-cols-3 gap-1 text-[10px] text-slate-400">
-                <Score label="Optimal" value={plan.scores.optimal} />
-                <Score label="Energy" value={plan.scores.energy} />
-                <Score label="Feasible" value={plan.scores.feasibility} />
-                <Score label="Cost" value={plan.scores.cost} />
-                <Score label="Risk" value={plan.scores.risk} />
-                <Score label="People" value={plan.scores.people} />
+            <article key={plan.rank} className="rounded-md border border-line p-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <h4 className="text-[13px] font-semibold">
+                  {plan.rank}. {plan.title}
+                </h4>
+                <span className="font-mono text-[11px] text-muted">{plan.total.toFixed(1)}</span>
+              </div>
+              <p className="mt-1">{plan.summary}</p>
+              <dl className="mt-2 grid grid-cols-3 gap-1 font-mono text-[10px] text-muted">
+                {SCORES.map((score) => (
+                  <div key={score.key}>
+                    {score.label} <span className="text-text">{plan.scores[score.key]}</span>
+                  </div>
+                ))}
               </dl>
-              <DebriefBlock title="Energy" body={plan.energy} />
-              <DebriefBlock title="Transit" body={plan.transit} />
-              <DebriefBlock title="Infrastructure" body={plan.infrastructure} />
-              <DebriefBlock title="Intervention" body={plan.intervention} />
-              <DebriefBlock title="Analysis" body={plan.analysis} />
+              <p className="mt-2 text-muted">{plan.analysis}</p>
               {plan.apply && (
-                <div className="mt-1">
-                  <button
-                    type="button"
-                    disabled={applying !== null}
-                    onClick={() => void tryPlan(plan)}
-                    className={`rounded px-2 py-1 text-[10px] font-semibold ${
-                      briefing.preference === plan.apply
-                        ? 'bg-sky-400 text-slate-950'
-                        : 'bg-slate-800 text-sky-300'
-                    } disabled:opacity-50`}
-                  >
-                    {applying === plan.rank
-                      ? 'Applying…'
-                      : briefing.preference === plan.apply
-                        ? 'This allocation is on'
-                        : 'Try this allocation'}
-                  </button>
-                  {briefing.preference === plan.apply && (
-                    <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-                      {briefing.priority.answer} {briefing.priority.dorms_lit.toLocaleString()} people in lit dorms ·{' '}
-                      {briefing.priority.classrooms_lit.toLocaleString()} in lit classrooms.
-                    </p>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  disabled={applying !== null}
+                  onClick={() => void tryPlan(plan)}
+                  className="mt-2 rounded border border-branch px-2 py-1 text-[11px] font-semibold text-branch disabled:opacity-40"
+                >
+                  {applying === plan.rank
+                    ? 'Applying…'
+                    : applied === plan.apply
+                      ? `This allocation is on · ${strategyFor(plan.apply).label}`
+                      : `Try this allocation · ${strategyFor(plan.apply).label}`}
+                </button>
               )}
             </article>
           ))}
+          <p className="text-[11px] text-muted">Scores are 1–10. Higher is better on every score, including cost and risk. Written from the simulation&rsquo;s own numbers.</p>
         </div>
       )}
-    </section>
-  )
-}
 
-function Score({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="font-semibold text-slate-200">{value}</dd>
+      {debrief && disrupted && (
+        <div className="flex flex-col gap-2.5 border-t border-line pt-3">
+          <p className="text-[13px] font-semibold leading-normal">{debrief.headline}</p>
+          <DebriefBlock title="Power grid" body={debrief.grid} />
+          <DebriefList title="Options from here" items={debrief.options} />
+          <DebriefBlock title="Bus routes" body={debrief.buses} />
+          <DebriefList title="What to do next" items={debrief.solutions} />
+          <DebriefBlock title="Still watching" body={debrief.watch} />
+          <p className="text-[11px] text-muted">Written by a language model from the simulation&rsquo;s own numbers.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -211,9 +229,22 @@ function DebriefBlock({ title, body }: { title: string; body: string }) {
   if (!body) return null
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-      <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{body}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">{title}</p>
+      <p className="mt-0.5">{body}</p>
     </div>
   )
 }
 
+function DebriefList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">{title}</p>
+      <ul className="mt-0.5 flex list-disc flex-col gap-1 pl-4">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
