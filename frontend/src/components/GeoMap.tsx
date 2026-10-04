@@ -110,6 +110,8 @@ export function GeoMap({
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
   const [campusId, setCampusId] = useState<(typeof CAMPUSES)[number]['id']>('umich')
   const [campusOverview, setCampusOverview] = useState(false)
+  const [showSchoolMarkers, setShowSchoolMarkers] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState(14)
   const [focus, setFocus] = useState<string | null>(null)
   const [showLayerPanel, setShowLayerPanel] = useState(true)
   const [showBusPanel, setShowBusPanel] = useState(true)
@@ -237,8 +239,11 @@ export function GeoMap({
   useEffect(() => {
     if (!map) return
     const updateOverview = () => {
-      const next = map.getZoom() <= 5.5
+      const zoom = map.getZoom()
+      const next = zoom <= 5.5
       setCampusOverview((current) => current === next ? current : next)
+      setShowSchoolMarkers(zoom <= 9.5)
+      setZoomLevel(zoom)
     }
     updateOverview()
     map.on('zoom', updateOverview)
@@ -443,7 +448,10 @@ export function GeoMap({
         cursor={placing ? 'crosshair' : undefined}
       >
         <NavigationControl position="bottom-right" showCompass />
-        {campusOverview ? CAMPUSES.map((school) => (
+        {showSchoolMarkers ? CAMPUSES.map((school) => {
+          const compact = zoomLevel > 5.5
+          const expandOnHover = compact || (school.collection === 'nearby' && !school.prominent)
+          return (
           <Marker
             key={`campus-${school.id}`}
             longitude={school.center[0]}
@@ -462,13 +470,15 @@ export function GeoMap({
                   onCampusChange?.()
                 }}
                 className={`relative flex items-center justify-center overflow-hidden border-2 border-white p-1 font-sans text-[9px] font-bold shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-all duration-150 hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 ${
-                  school.collection !== 'nearby' || school.prominent
-                    ? 'h-12 w-12 rounded-full'
-                    : 'h-3 w-3 rounded-full group-hover:h-10 group-hover:w-10 group-focus-within:h-10 group-focus-within:w-10'
+                  compact
+                    ? 'h-2 w-2 rounded-full group-hover:h-10 group-hover:w-10 group-focus-within:h-10 group-focus-within:w-10'
+                    : school.collection !== 'nearby' || school.prominent
+                      ? 'h-12 w-12 rounded-full'
+                      : 'h-3 w-3 rounded-full group-hover:h-10 group-hover:w-10 group-focus-within:h-10 group-focus-within:w-10'
                 }`}
                 style={{
-                  backgroundColor: school.logo ? '#fff' : school.badgeColor ?? '#334155',
-                  color: school.logo ? '#1e293b' : '#fff',
+                  backgroundColor: compact ? school.badgeColor ?? '#334155' : school.logo ? '#fff' : school.badgeColor ?? '#334155',
+                  color: compact || !school.logo ? '#fff' : '#1e293b',
                 }}
               >
                 {school.logo && (
@@ -480,7 +490,7 @@ export function GeoMap({
                       event.currentTarget.nextElementSibling?.classList.remove('hidden')
                     }}
                     className={`absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain ${
-                      school.collection === 'nearby' && !school.prominent
+                      expandOnHover
                         ? 'hidden group-hover:block group-focus-within:block'
                         : ''
                     }`}
@@ -488,8 +498,8 @@ export function GeoMap({
                 )}
                 <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-5 w-5 ${
                   school.logo
-                    ? `hidden ${school.collection === 'nearby' && !school.prominent ? 'group-hover:block group-focus-within:block' : ''}`
-                    : school.collection === 'nearby' && !school.prominent
+                    ? `hidden ${expandOnHover ? 'group-hover:block group-focus-within:block' : ''}`
+                    : expandOnHover
                       ? 'hidden group-hover:block group-focus-within:block'
                       : ''
                 }`} fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -501,7 +511,7 @@ export function GeoMap({
               </span>
             </div>
           </Marker>
-        )) : showCampusLandmarks && campus.landmarks.map((landmark) => (
+        )}) : showCampusLandmarks && campus.landmarks.map((landmark) => (
           <Marker key={`${campus.id}-${landmark.name}`} longitude={landmark.point[0]} latitude={landmark.point[1]} anchor="center">
             <CampusDot label={landmark.name} title={`${landmark.name} · ${campus.name}`} />
           </Marker>
