@@ -2,6 +2,8 @@
 
 **See what your decision does before you make it.**
 
+**Built for decisions that could protect lives when essential services fail.** The ambition is safer preparation at campus scale: meaningful AI actions, testable alternatives and visible consequences. Today's evidence is a working teaching simulator; real-world lives saved have not been measured.
+
 ## Problem and purpose
 
 Emergency decisions need more than a plausible-sounding answer. Campuses must preserve essential services under limited power and changing occupancy. PARALLEL connects AI interpretation and tool execution to a simulator so users can inspect tested consequences before committing to a response.
