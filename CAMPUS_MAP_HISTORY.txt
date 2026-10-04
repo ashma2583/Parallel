@@ -90,6 +90,17 @@ Conversation and implementation timeline
      - `f2699b1` Layer prominent school logos above nearby markers
      - `95f1ca9` Keep compact school markers at regional zoom
 
+9. Automatic campus selection by map location
+   The user asked for the campus preview window to switch to a school when the
+   map is moved near it, with more important schools prioritized. At zoom 8 or
+   closer, the map center now selects a campus when it is within 6 km. Schools
+   are ranked by the existing featured/extra/prominent-nearby groupings when
+   candidates are geographically close; a small distance hysteresis avoids
+   flickering between neighboring previews. Automatic selection updates the
+   campus selector and preview card without recentering or interrupting the
+   user's map movement. Manual selection still navigates to the selected
+   school's campus.
+
 Important accuracy notes
 ------------------------
 - Only the U-M campus simulation is connected to the existing simulation data.

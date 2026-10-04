@@ -112,6 +112,7 @@ export function GeoMap({
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
   const dayPaintValues = useRef(new globalThis.Map<string, string | ExpressionSpecification>())
   const [campusId, setCampusId] = useState<(typeof CAMPUSES)[number]['id']>('umich')
+  const keepCameraOnAutomaticCampusChange = useRef(false)
   const [campusOverview, setCampusOverview] = useState(false)
   const [showSchoolMarkers, setShowSchoolMarkers] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(14)
@@ -269,6 +270,55 @@ export function GeoMap({
   }, [map])
 
   useEffect(() => {
+    if (!map) return
+    const updateCampusFromMapCenter = () => {
+      const zoom = map.getZoom()
+      if (zoom < 8) return
+
+      const center = map.getCenter()
+      const candidates = CAMPUSES.flatMap((school) => {
+        const distance = distanceBetweenCoordinatesKm(
+          [center.lng, center.lat],
+          school.center,
+        )
+        return distance <= 6 ? [{ school, distance }] : []
+      })
+      if (candidates.length === 0) return
+
+      const nearestDistance = Math.min(...candidates.map(({ distance }) => distance))
+      const priority = (school: (typeof CAMPUSES)[number]) =>
+        school.collection === 'featured' ? 3 : school.prominent || school.collection === 'extra' ? 2 : 1
+      const contenders = candidates
+        .filter(({ distance }) => distance <= nearestDistance + 0.75)
+        .sort((a, b) => priority(b.school) - priority(a.school) || a.distance - b.distance)
+      let nextCampus = contenders[0]
+
+      const currentCampus = candidates.find(({ school }) => school.id === campusId)
+      if (
+        currentCampus &&
+        priority(currentCampus.school) >= priority(nextCampus.school) &&
+        currentCampus.distance <= nextCampus.distance + 0.5
+      ) {
+        nextCampus = currentCampus
+      }
+
+      if (nextCampus.school.id !== campusId) {
+        keepCameraOnAutomaticCampusChange.current = true
+        setCampusId(nextCampus.school.id)
+        onCampusChange?.()
+      }
+    }
+
+    updateCampusFromMapCenter()
+    map.on('moveend', updateCampusFromMapCenter)
+    map.on('zoomend', updateCampusFromMapCenter)
+    return () => {
+      map.off('moveend', updateCampusFromMapCenter)
+      map.off('zoomend', updateCampusFromMapCenter)
+    }
+  }, [map, campusId, onCampusChange])
+
+  useEffect(() => {
     if (!map || !campusOverview) return
     const longitudes = CAMPUSES.map((item) => item.center[0])
     const latitudes = CAMPUSES.map((item) => item.center[1])
@@ -290,13 +340,17 @@ export function GeoMap({
         addBuildings(map, mapThemeRef.current)
         applyMapTheme(map, mapThemeRef.current, dayPaintValues.current)
       }
-      map.easeTo({
-        pitch: threeD && vector ? 60 : 0,
-        bearing: threeD && vector ? -24 : 0,
-        zoom: campus.zoom,
-        center: campus.center,
-        duration: 800,
-      })
+      if (keepCameraOnAutomaticCampusChange.current) {
+        keepCameraOnAutomaticCampusChange.current = false
+      } else {
+        map.easeTo({
+          pitch: threeD && vector ? 60 : 0,
+          bearing: threeD && vector ? -24 : 0,
+          zoom: campus.zoom,
+          center: campus.center,
+          duration: 800,
+        })
+      }
     }
     if (map.isStyleLoaded()) apply()
     map.on('style.load', apply)
@@ -1026,6 +1080,20 @@ function lineFeature(
     },
     geometry: { type: 'LineString' as const, coordinates },
   }
+}
+
+function distanceBetweenCoordinatesKm(
+  [fromLng, fromLat]: readonly [number, number],
+  [toLng, toLat]: readonly [number, number],
+) {
+  const radians = Math.PI / 180
+  const latitudeDelta = (toLat - fromLat) * radians
+  const longitudeDelta = (toLng - fromLng) * radians
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(fromLat * radians) * Math.cos(toLat * radians) *
+      Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
 }
 
 function addBuildings(map: MaplibreMap, theme: 'day' | 'night') {
