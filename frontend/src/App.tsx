@@ -504,6 +504,12 @@ export default function App() {
                   setHazard(null)
                 }
                 else if (result.policy.action === 'heat_wave') setScenario(HEAT_WAVE)
+                else if (result.policy.action === 'storm' && result.policy.storm) {
+                  // Typed or spoken storm: draw it on the map and run it.
+                  const kind = result.policy.storm as StormKind
+                  if (result.policy.hazard) pickedFor.current.set(kind, result.policy.hazard)
+                  requestWeather({ storm: { kind, zone: result.policy.zone ?? 'Central' } }, null)
+                }
                 else if (result.policy.action === 'fail') offerLabel({ label: 'Director’s order', detail: result.transcript })
                 sim.refresh()
               }}

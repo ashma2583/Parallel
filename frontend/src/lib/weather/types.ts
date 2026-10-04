@@ -484,4 +484,6 @@ export interface WeatherRequest {
   kind?: StormKind
   hazard?: HazardKind
   fault?: FaultKind
+  /** Draw this storm across a campus zone and run it now, e.g. a typed "a tornado hit central campus". */
+  storm?: { kind: StormKind; zone: string }
 }

@@ -308,10 +308,20 @@ export function useWeather(o: WeatherOptions): WeatherController {
 
   // Something outside the map asked for the dock: arm a kind, or add a condition or fault.
   const [seenRequest, setSeenRequest] = useState(() => handledRequest)
+  const [pendingRun, setPendingRun] = useState(false)
   if (request && request.seq !== seenRequest) {
     setSeenRequest(request.seq)
     setOpen(true)
     if (request.kind) setKind(request.kind)
+    if (request.storm) {
+      // A typed or spoken storm: a fresh plan with the storm drawn across the zone, run at once.
+      const { kind: stormKind, zone } = request.storm
+      const event = stormEvent(stormKind, levels[stormKind], zonePath(zone), 0)
+      setKind(null)
+      setPlan({ ...plan, events: [event] })
+      setVersion((v) => v + 1)
+      setPendingRun(true)
+    }
     const extra = request.hazard ?? request.fault
     if (extra) {
       const start = nextStart(plan.events)
@@ -1219,6 +1229,13 @@ export function useWeather(o: WeatherOptions): WeatherController {
       begin(run)
     })
   }, [abort, accept, begin, cancelDraw, clearRun, enqueue, fail, hint, local, notify, pauseWatch, remote, resumeWatch, select, server, stopPreview, unretire])
+
+  // A storm request runs once its plan is in place.
+  useEffect(() => {
+    if (!pendingRun) return
+    setPendingRun(false)
+    onRun()
+  }, [pendingRun, onRun])
 
   const onStop = useCallback(() => {
     const run = runRef.current
@@ -2312,4 +2329,18 @@ function message(err: unknown): { text: string; detail?: string } {
   if (err instanceof NoStormRoutes) return { text: err.message }
   const detail = err instanceof Error ? err.message : String(err)
   return { text: 'The engine didn’t take part of the plan. Try again.', detail }
+}
+
+/** A storm track across a campus zone: south-west to north-east through the middle of its buildings. */
+function zonePath(zone: string): LngLat[] {
+  const spots = Object.values(PLACES).filter((p) => p.zone === zone)
+  const from = spots.length ? spots : Object.values(PLACES).filter((p) => p.zone === 'Central')
+  const lng = from.reduce((sum, p) => sum + p.lng, 0) / from.length
+  const lat = from.reduce((sum, p) => sum + p.lat, 0) / from.length
+  return [
+    [lng - 0.014, lat - 0.008],
+    [lng - 0.005, lat - 0.002],
+    [lng + 0.005, lat + 0.003],
+    [lng + 0.014, lat + 0.008],
+  ]
 }
