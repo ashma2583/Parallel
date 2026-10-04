@@ -50,7 +50,7 @@ from agents.logic import STRATEGIES
 import location_agent
 import proposal
 from agents.serve import start_in_thread
-from branch import run_branches
+from branch import ScenarioBatch, run_branches, scenario_ticks
 from graph import CampusGraph
 from stdb import SpacetimePublisher
 import storms
@@ -133,6 +133,8 @@ class DisruptRequest(BaseModel):
 class BranchRequest(BaseModel):
     ticks: int = Field(6, ge=1, le=60)
     strategies: list[str] | None = Field(None, examples=[["tiered", "residential"]])
+    # A planned scenario to play forward on each copy, in timed batches.
+    scenario: list[ScenarioBatch] | None = Field(None, max_length=400)
 
 
 class StrategyRequest(BaseModel):
@@ -556,17 +558,27 @@ def post_branch(req: BranchRequest) -> dict:
         # A heat wave still in progress is compared at its peak, not six seconds in.
         if wave and wave["step"] < wave["span"]:
             ticks = max(req.ticks, wave["span"] - wave["step"])
-        cooling = runtime.season == "summer" or graph.heat_wave is not None
-        branches = run_branches(graph, ids, ticks, runtime.season, cooling=cooling)
-        return {
+        through_peak = ticks > req.ticks
+        heat = False
+        if req.scenario:
+            # A planned scenario runs past its last hit, or to the peak of a heat wave it starts.
+            ticks, through_peak = scenario_ticks(graph, req.scenario, req.ticks)
+            heat = any(b.hazard == "extreme_heat" for b in req.scenario)
+        cooling = runtime.season == "summer" or graph.heat_wave is not None or heat
+        branches = run_branches(graph, ids, ticks, runtime.season, cooling=cooling, scenario=req.scenario)
+        body = {
             "base_tick": graph.tick_count,
             "ticks": ticks,
             "active": runtime.strategy,
             "season": runtime.season,
             "shelter": "cooling" if cooling else "warming",
-            "through_peak": ticks > req.ticks,
+            "through_peak": through_peak,
             "branches": branches,
         }
+        if req.scenario:
+            body["through"] = "heat peak" if through_peak else "scenario end"
+            body["from_baseline"] = getattr(graph, "scenario_baseline", None) is not None
+        return body
 
 
 @app.post("/verdict")
