@@ -169,6 +169,16 @@ def _capture(sim: CampusGraph) -> dict[str, Any]:
     }
 
 
+def clear_scenarios() -> None:
+    """Drop every saved feed, including the one on screen. A full reset starts clean."""
+    global scenario_id, scenario_label
+    scenarios.clear()
+    activity.clear()
+    activity_ticks.clear()
+    scenario_id += 1
+    scenario_label = "Campus"
+
+
 def begin_scenario(label: str) -> None:
     """Start a fresh log and keep the previous scenario's lines. A scenario starts the clock."""
     global scenario_id, scenario_label, paused
