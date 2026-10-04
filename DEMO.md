@@ -21,7 +21,15 @@ The agent is **PARALLEL Coordinator**, address `agent1qgx5x29ews09d95fph5uz32vw7
 
 **LLM fallbacks:** parsing and the plans, verdict and debrief use Grok first, then Claude, then deterministic text. The Fetch.ai agent uses ASI:One, then Grok, then Claude. The demo keeps working if one provider is down. Voice transcription is Grok only.
 
-## Script (about 4 minutes)
+## Main pitch (under 3 minutes)
+
+**Built for moments when keeping the lights on means keeping people safe.** PARALLEL is a campus resilience simulator for safer decisions and smarter energy use.
+
+Use this sequence for the main judging panel: problem and campus (20 s), one scenario (30 s), compare five policies and apply one (50 s), Balanced energy saver and its timeclock baseline (40 s), limitations and closing (25 s). Keep ASI:One and multiplayer for sponsor demonstrations. The longer walkthrough below is also useful for recording a separate sponsor video.
+
+The console ranks final outcomes by people in powered shelters, then fewer people left dark, then shelter power. The ASI:One Energy Planner separately prioritizes essential service. Adoption applies a policy to the live simulation; it does not replace the campus with the projected branch end state.
+
+## Extended walkthrough (about 4 minutes)
 1. **Hook (15 s).** "PARALLEL is a digital twin of the University of Michigan campus: 20 real buildings on the 3 real power feeds, the real U-M bus routes, and the real Fall 2026 class schedule. You throw a disaster at it and see what your decision does before you make it."
 2. **The map (30 s, Duke + bottleOfVacuum).** Open **Ann Arbor**.
    - Buses move along the real routes; their icons follow the streets in 2D and 3D.
@@ -36,15 +44,15 @@ The agent is **PARALLEL Coordinator**, address `agent1qgx5x29ews09d95fph5uz32vw7
    - As evening comes, the map turns to night.
 5. **Energy saver (30 s).** In the strip, set **Energy saver** to Balanced.
    - CAP tags appear on empty buildings, and the counter shows kWh saved.
-   - It uses the real class schedule, so it never caps below what the people inside need.
+   - It uses the class schedule and caps at or above modeled occupied need. Savings are modeled demand reductions, not measured utility savings; compare against the timeclock baseline as well as always-on.
    - **Details** opens the building-by-time heatmap and "what we learned".
-6. **People drive decisions (15 s).** In the **People** tab, the agents act on who is actually in each building. A failure at 14:00 moves more people than the same failure at 20:00.
+6. **People drive decisions (15 s).** In the **People** tab, agents use schedule-derived occupancy estimates. A failure at 14:00 can affect different numbers of people than the same failure at 20:00.
 7. **Ask an agent (30 s, Fetch.ai).** In ASI:One: "an ice storm hit North Campus, what should we do?" It runs the options through the simulator and replies with ranked options from the Energy, Transit and Repair-crew planners. Then say "adopt 1".
 8. **Multiplayer (15 s, optional).** With two windows side by side, an action in one appears instantly in the other.
 
 ## Honest notes for judges
 - **Real data:**
-  - building locations and feed topology;
+  - building locations and campus infrastructure context (feed connections are simplified);
   - U-M and TheRide GTFS bus routes;
   - the Fall 2026 class schedule and campus events;
   - FEMA and NOAA hazard frequencies;
@@ -52,9 +60,11 @@ The agent is **PARALLEL Coordinator**, address `agent1qgx5x29ews09d95fph5uz32vw7
 - **Modelled:**
   - kilowatts are a scaled demo model;
   - storm effects follow written rules (overhead vs underground lines, direct hits);
-  - energy-saver base loads are labelled assumptions.
+  - energy-saver base loads and occupancy turnout are labelled assumptions;
+  - relocation is illustrative, without travel-time or shelter-capacity constraints;
+  - response comparisons report final outcomes, not cumulative exposure or lives saved.
 
 ## Morning-of checklist
 1. Fetch.ai: start the agent (above), test it in ASI:One with the address, then register with the MHacks ASI:One submission agent.
 2. Optional: `spacetime login`, then publish to maincloud for hosted multiplayer.
-3. Record the video and submit to Devpost by 12:15.
+3. Record the video and submit to Devpost by noon EDT on October 4, the conservative deadline in the supplied event briefing (which notes a conflicting 12:15 listing). Include the table number and all teammates, and register the Devpost link in the MHacks dashboard. Fetch.ai additionally requests a public shared chat, Agentverse profile, repository instructions and a 3-5 minute video through its separate submission workflow.
