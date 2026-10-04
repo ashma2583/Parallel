@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Map, Marker, NavigationControl } from '@vis.gl/react-maplibre'
 import { setWorkerUrl, type Map as MaplibreMap } from 'maplibre-gl'
+import type { Feature, FeatureCollection, GeoJsonProperties, LineString } from 'geojson'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Briefing, LocationSurvey, ProposalPin } from '../lib/api'
 import type { SurveyGraphModel } from '../lib/surveyGraph'
 import { BACKEND_URL } from '../config'
-import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
+import { CAMPUSES, MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 import type { SimEdge, SimNode } from '../lib/sim'
 
 setWorkerUrl(maplibreWorkerUrl)
@@ -77,6 +78,7 @@ interface Props {
   draftPoint?: { lng: number; lat: number; name: string } | null
   onPlace?: (lng: number, lat: number) => void
   onNodeClick?: (node: SimNode) => void
+  onCampusChange?: () => void
 }
 
 export function GeoMap({
@@ -93,6 +95,7 @@ export function GeoMap({
   draftPoint = null,
   onPlace,
   onNodeClick,
+  onCampusChange,
 }: Props) {
   const [map, setMap] = useState<MaplibreMap | null>(null)
   const [buses, setBuses] = useState<BusCollection>(EMPTY)
@@ -100,9 +103,16 @@ export function GeoMap({
   const [showRoads, setShowRoads] = useState(false)
   const [showBuses, setShowBuses] = useState(true)
   const [showRecommended, setShowRecommended] = useState(true)
-  const [threeD, setThreeD] = useState(false)
+  const [showMotion, setShowMotion] = useState(true)
+  const [threeD, setThreeD] = useState(true)
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
+  const [campusId, setCampusId] = useState<(typeof CAMPUSES)[number]['id']>('umich')
+  const [campusOverview, setCampusOverview] = useState(false)
   const [focus, setFocus] = useState<string | null>(null)
+  const [showLayerPanel, setShowLayerPanel] = useState(true)
+  const [showBusPanel, setShowBusPanel] = useState(true)
+  const campus = CAMPUSES.find((item) => item.id === campusId) ?? CAMPUSES[0]
+  const isUmich = campusId === 'umich'
 
   useEffect(() => {
     let stop = false
@@ -175,18 +185,70 @@ export function GeoMap({
     () => catalog.flatMap((feature) => openAroundDarkStops(feature, darkPlaces)),
     [catalog, darkPlaces],
   )
-
-  const legend = useMemo(
+  const motionRoutes = useMemo(
     () =>
-      catalog
-        .map((feature) => feature.properties)
-        .sort((a, b) => a.agency.localeCompare(b.agency) || a.name.localeCompare(b.name)),
-    [catalog],
+      drawnBuses.flatMap((feature, index) => {
+        const coordinates = feature.geometry.coordinates
+        if (feature.properties.skipped || coordinates.length < 2) return []
+        return [{
+          id: `${feature.properties.id}-${index}`,
+          name: feature.properties.name,
+          color: feature.properties.color,
+          coordinates,
+        }]
+      }),
+    [drawnBuses],
   )
+
+  const legend = isUmich
+    ? catalog
+        .map((feature) => feature.properties)
+        .sort((a, b) => a.agency.localeCompare(b.agency) || a.name.localeCompare(b.name))
+    : campus.routes.map((route) => ({
+        id: route.id,
+        name: route.name,
+        agency: campus.name,
+        color: '#38bdf8',
+        dashed: false,
+      }))
+  const campusRouteFeatures = campus.routes.map((route) => ({
+    type: 'Feature' as const,
+    properties: { id: route.id, name: route.name, color: '#38bdf8', dashed: false },
+    geometry: { type: 'LineString' as const, coordinates: route.coordinates },
+  }))
+  const activeMotionRoutes: MotionRoute[] = isUmich
+    ? motionRoutes
+    : campus.routes.map((route) => ({ ...route, color: '#38bdf8' }))
 
   function onLoad(event: { target: MaplibreMap }) {
     setMap(event.target)
   }
+
+  useEffect(() => {
+    if (!map) return
+    const updateOverview = () => {
+      const next = map.getZoom() <= 5.5
+      setCampusOverview((current) => current === next ? current : next)
+    }
+    updateOverview()
+    map.on('zoom', updateOverview)
+    return () => {
+      map.off('zoom', updateOverview)
+    }
+  }, [map])
+
+  useEffect(() => {
+    if (!map || !campusOverview) return
+    const longitudes = CAMPUSES.map((item) => item.center[0])
+    const latitudes = CAMPUSES.map((item) => item.center[1])
+    map.fitBounds(
+      [
+        [Math.min(...longitudes), Math.min(...latitudes)],
+        [Math.max(...longitudes), Math.max(...latitudes)],
+      ],
+      { padding: 48, duration: 700, maxZoom: 4.5 },
+    )
+  }, [map, campusOverview])
 
   useEffect(() => {
     if (!map) return
@@ -195,23 +257,21 @@ export function GeoMap({
       setBasemap(vector ? 'vector' : 'raster')
       if (threeD && vector) {
         addBuildings(map)
-        map.easeTo({
-          pitch: 60,
-          bearing: -24,
-          zoom: Math.max(map.getZoom(), 15.4),
-          center: [-83.7385, 42.2762],
-          duration: 800,
-        })
-      } else if (!threeD && !vector && map.getPitch() > 1) {
-        map.easeTo({ pitch: 0, bearing: 0, zoom: 12.4, center: [-83.728, 42.286], duration: 600 })
       }
+      map.easeTo({
+        pitch: threeD && vector ? 60 : 0,
+        bearing: threeD && vector ? -24 : 0,
+        zoom: campus.zoom,
+        center: campus.center,
+        duration: 800,
+      })
     }
     if (map.isStyleLoaded()) apply()
     map.on('style.load', apply)
     return () => {
       map.off('style.load', apply)
     }
-  }, [map, threeD])
+  }, [map, threeD, campus])
 
   useEffect(() => {
     if (!map || !survey || survey.buildings.length === 0) return
@@ -227,8 +287,8 @@ export function GeoMap({
   }, [map, survey])
 
   useEffect(() => {
-    if (!map || basemap !== 'vector') return
-    const ground = (features: { geometry: { coordinates: number[][] }; properties?: Record<string, unknown> }[]) =>
+    if (!map || basemap !== 'vector' || !isUmich) return
+    const ground = (features: Feature<LineString, GeoJsonProperties>[]) =>
       features.map((feature) => ({
         ...feature,
         properties: {
@@ -268,31 +328,95 @@ export function GeoMap({
         'line-opacity': 0.95,
       },
     )
-  }, [map, basemap, showRoads, showPower, roads, power, drawnBuses, focus])
+  }, [map, basemap, showRoads, showPower, roads, power, drawnBuses, focus, isUmich])
 
   return (
     <div className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : ''}`}>
-      <div className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-        <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />
-        <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
-        <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
-        <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
-        <Toggle label="3D view" checked={threeD} onChange={setThreeD} />
-      </div>
+      <label className="absolute right-4 top-3.5 z-10 flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-xs text-muted shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+        Campus
+        <select
+          aria-label="Select campus"
+          value={campusId}
+          onChange={(event) => {
+            setCampusId(event.target.value as typeof campusId)
+            onCampusChange?.()
+          }}
+          className="max-w-52 bg-panel text-text outline-none"
+        >
+          {CAMPUSES.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </label>
+      {!isUmich && (
+        <div className="absolute right-4 top-16 z-10 rounded bg-panel/90 px-2.5 py-1.5 font-mono text-[10px] text-muted">
+          MAP PREVIEW ONLY · SIMULATION REMAINS U-M
+        </div>
+      )}
+      {showLayerPanel ? (
+        <div className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <div className="mb-1 flex items-center justify-between gap-5 border-b border-line pb-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Map layers</span>
+            <button type="button" aria-label="Hide map layers panel" onClick={() => setShowLayerPanel(false)} className="text-sm leading-none text-muted hover:text-text">×</button>
+          </div>
+          {isUmich && <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />}
+          {isUmich && <Toggle label="Road links" checked={showRoads} onChange={setShowRoads} />}
+          {isUmich ? (
+            <>
+              <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
+              <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
+              <Toggle label="Illustrative bus movement" checked={showMotion} onChange={setShowMotion} />
+            </>
+          ) : (
+            <>
+              <Toggle label="Illustrative campus route" checked={showBuses} onChange={setShowBuses} />
+              <Toggle label="Illustrative route movement" checked={showMotion} onChange={setShowMotion} />
+            </>
+          )}
+          <Toggle label="3D buildings" checked={threeD} onChange={setThreeD} />
+        </div>
+      ) : (
+        <button type="button" onClick={() => setShowLayerPanel(true)} className="absolute left-4 top-3.5 z-10 rounded-md border border-line bg-panel/95 px-3 py-2 text-xs text-text shadow">
+          Show map layers
+        </button>
+      )}
       <Map
         mapStyle={threeD ? VECTOR_STYLE : MAP_STYLE}
-        initialViewState={{ longitude: -83.728, latitude: 42.286, zoom: 12.4, pitch: 0 }}
+        initialViewState={
+          threeD
+            ? { longitude: campus.center[0], latitude: campus.center[1], zoom: campus.zoom, pitch: 60, bearing: -24 }
+            : { longitude: campus.center[0], latitude: campus.center[1], zoom: campus.zoom, pitch: 0 }
+        }
         maxPitch={70}
         style={{ width: '100%', height: '100%' }}
         onLoad={onLoad}
         onClick={(event) => {
-          if (!placing || !onPlace) return
+          if (!isUmich || !placing || !onPlace) return
           onPlace(event.lngLat.lng, event.lngLat.lat)
         }}
         cursor={placing ? 'crosshair' : undefined}
       >
         <NavigationControl position="bottom-right" showCompass />
-        {nodes.map((node) => {
+        {campusOverview ? CAMPUSES.map((school) => (
+          <Marker key={`campus-${school.id}`} longitude={school.center[0]} latitude={school.center[1]} anchor="center">
+            <button
+              type="button"
+              title={school.name}
+              aria-label={`Open ${school.name} map`}
+              onClick={(event) => {
+                event.stopPropagation()
+                setCampusId(school.id)
+                onCampusChange?.()
+              }}
+              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white p-1 shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-transform hover:scale-110"
+            >
+              <img src={school.logo} alt="" className="h-full w-full object-contain" />
+            </button>
+          </Marker>
+        )) : campus.landmarks.map((landmark) => (
+          <Marker key={`${campus.id}-${landmark.name}`} longitude={landmark.point[0]} latitude={landmark.point[1]} anchor="center">
+            <CampusDot label={landmark.name} title={`${landmark.name} · ${campus.name}`} />
+          </Marker>
+        ))}
+        {!campusOverview && isUmich && nodes.map((node) => {
           const place = PLACES[node.id]
           if (!place || CITY.has(node.id)) return null
           const color = statusColor(node.status)
@@ -306,27 +430,15 @@ export function GeoMap({
                   event.stopPropagation()
                   onNodeClick?.(node)
                 }}
-                className="group flex flex-col items-center"
+                className="flex flex-col items-center"
                 title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
               >
-                <span
-                  className={`h-3.5 w-3.5 rounded-full border-2 border-ink ${selected ? 'ring-1 ring-text' : ''}`}
-                  style={{ background: color, boxShadow: `0 0 12px ${color}` }}
-                />
-                {/* Central campus is dense: label only what needs attention, the rest on hover. */}
-                <span
-                  className={`mt-1 max-w-32 truncate rounded-sm bg-ink/85 px-1.5 py-0.5 text-[10px] font-medium text-text ${
-                    selected || cooling || node.status !== 'Green' ? '' : 'invisible group-hover:visible'
-                  }`}
-                >
-                  {place.short}
-                  {cooling && <span className="ml-1 text-transit">cooling</span>}
-                </span>
+                <CampusDot label={`${place.short} · ${node.status}${cooling ? ' · cooling center' : ''}`} ring={color} selected={selected} bolt />
               </button>
             </Marker>
           )
         })}
-        {draftPoint && (
+        {!campusOverview && isUmich && draftPoint && (
           <Marker longitude={draftPoint.lng} latitude={draftPoint.lat} anchor="bottom">
             <div className="flex flex-col items-center">
               <span className="mb-0.5 text-[9px] font-bold tracking-wide text-warn">PIN</span>
@@ -337,7 +449,7 @@ export function GeoMap({
             </div>
           </Marker>
         )}
-        {proposals.map((pin) => {
+        {!campusOverview && isUmich && proposals.map((pin) => {
           const color = statusColor(pin.status)
           return (
             <Marker key={pin.id} longitude={pin.lng} latitude={pin.lat} anchor="bottom">
@@ -354,7 +466,7 @@ export function GeoMap({
             </Marker>
           )
         })}
-        {surveyGraph?.nodes.map((building) => {
+        {!campusOverview && isUmich && surveyGraph?.nodes.map((building) => {
           const down = surveyDark?.has(building.id) ?? false
           const color = down ? 'var(--color-down)' : 'var(--color-ok)'
           return (
@@ -372,7 +484,7 @@ export function GeoMap({
           )
         })}
       </Map>
-      {proposals.length > 0 && (
+      {isUmich && proposals.length > 0 && (
         <LineOverlay
           map={map}
           features={proposals.flatMap((pin) => {
@@ -393,7 +505,7 @@ export function GeoMap({
           width={2}
         />
       )}
-      {surveyGraph && (
+      {isUmich && surveyGraph && (
         <LineOverlay
           map={map}
           features={surveyGraph.edges.flatMap((edge) => {
@@ -420,9 +532,14 @@ export function GeoMap({
           width={2}
         />
       )}
-      {legend.length > 0 && !survey && (
+      {!campusOverview && legend.length > 0 && (!isUmich || !survey) && showBusPanel && (
         <div className="absolute bottom-8 left-4 z-10 max-h-52 w-56 overflow-y-auto rounded-md border border-line bg-panel/95 p-2 text-xs text-muted">
-          <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Bus lines</div>
+          <div className="mb-1 flex items-center justify-between px-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+              {isUmich ? 'Bus lines' : 'Illustrative routes'}
+            </span>
+            <button type="button" aria-label="Hide bus lines panel" onClick={() => setShowBusPanel(false)} className="text-sm leading-none text-muted hover:text-text">×</button>
+          </div>
           {legend.map((route) => (
             <button
               key={route.id}
@@ -444,14 +561,159 @@ export function GeoMap({
           ))}
         </div>
       )}
-      {basemap !== 'vector' && (
+      {!campusOverview && legend.length > 0 && (!isUmich || !survey) && !showBusPanel && (
+        <button type="button" onClick={() => setShowBusPanel(true)} className="absolute bottom-8 left-4 z-10 rounded-md border border-line bg-panel/95 px-3 py-2 text-xs text-text shadow">
+          Show bus lines
+        </button>
+      )}
+      {!campusOverview && isUmich && basemap !== 'vector' && (
         <>
           <LineOverlay map={map} features={showRoads ? roads.features : []} color="#94a3b8" width={2} dash="6 6" />
           <LineOverlay map={map} features={showPower ? power.features : []} color="#facc15" width={3} />
           <LineOverlay map={map} features={drawnBuses} width={focus ? 2 : 3} focus={focus} />
         </>
       )}
+      {!campusOverview && !isUmich && showBuses && (
+        <LineOverlay map={map} features={campusRouteFeatures} width={3} focus={focus} />
+      )}
+      {!campusOverview && showMotion && activeMotionRoutes.length > 0 && (
+        <TransitMotion map={map} routes={activeMotionRoutes} />
+      )}
+      {!campusOverview && !isUmich && showMotion && activeMotionRoutes.length > 0 && (
+        <div className="pointer-events-none absolute bottom-3 right-4 z-[2] rounded bg-ink/85 px-2 py-1 font-mono text-[10px] text-text">
+          ILLUSTRATIVE ROUTE AND MOVEMENT · NOT LIVE TRANSIT
+        </div>
+      )}
     </div>
+  )
+}
+
+interface MotionRoute {
+  id: string
+  name: string
+  color: string
+  coordinates: [number, number][]
+}
+
+interface ProjectedRoute {
+  route: MotionRoute
+  points: { x: number; y: number }[]
+  distances: number[]
+  total: number
+  duration: number
+}
+
+function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: readonly MotionRoute[] }) {
+  const vehicleRefs = useRef(new globalThis.Map<string, SVGGElement>())
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  )
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReducedMotion(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    if (!map || routes.length === 0) return
+
+    let frame = 0
+    let projected: ProjectedRoute[] = []
+    const projectRoutes = () => {
+      const width = map.getCanvas().clientWidth
+      const height = map.getCanvas().clientHeight
+      projected = routes.flatMap((route, index) => {
+        const points = route.coordinates.map((coordinate) => map.project(coordinate))
+        const distances = [0]
+        for (let i = 1; i < points.length; i++) {
+          distances.push(distances[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y))
+        }
+        const total = distances[distances.length - 1]
+        if (total <= 0) return []
+        const visible = points.some((point) => point.x >= -20 && point.x <= width + 20 && point.y >= -20 && point.y <= height + 20)
+        if (!visible) return []
+        return [{ route, points, distances, total, duration: 84_000 + (index % 4) * 12_000 }]
+      })
+    }
+
+    const draw = (time: number) => {
+      for (let index = 0; index < projected.length; index++) {
+        const path = projected[index]
+        const phase = ((time + index * 5_000) % (path.duration * 2)) / path.duration
+        const fraction = phase <= 1 ? phase : 2 - phase
+        const target = fraction * path.total
+        let segment = path.distances.findIndex((value) => value >= target)
+        if (segment <= 0) segment = 1
+        const segmentStart = path.distances[segment - 1]
+        const segmentLength = path.distances[segment] - segmentStart
+        const progress = segmentLength > 0 ? (target - segmentStart) / segmentLength : 0
+        const from = path.points[segment - 1]
+        const to = path.points[segment]
+        const x = from.x + (to.x - from.x) * progress
+        const y = from.y + (to.y - from.y) * progress
+        const heading = Math.atan2((phase <= 1 ? to.y : from.y) - y, (phase <= 1 ? to.x : from.x) - x) * (180 / Math.PI)
+        vehicleRefs.current.get(path.route.id)?.setAttribute('transform', `translate(${x} ${y}) rotate(${heading})`)
+      }
+    }
+
+    const stop = () => {
+      if (frame) cancelAnimationFrame(frame)
+      frame = 0
+      for (const vehicle of vehicleRefs.current.values()) vehicle.style.visibility = 'hidden'
+    }
+    const start = () => {
+      stop()
+      projectRoutes()
+      for (const path of projected) {
+        const vehicle = vehicleRefs.current.get(path.route.id)
+        if (vehicle) vehicle.style.visibility = 'visible'
+      }
+      draw(reducedMotion ? 12_000 : performance.now())
+      if (!reducedMotion) {
+        const animate = (time: number) => {
+          draw(time)
+          frame = requestAnimationFrame(animate)
+        }
+        frame = requestAnimationFrame(animate)
+      }
+    }
+
+    start()
+    map.on('movestart', stop)
+    map.on('moveend', start)
+    map.on('resize', start)
+    return () => {
+      stop()
+      map.off('movestart', stop)
+      map.off('moveend', start)
+      map.off('resize', start)
+    }
+  }, [map, routes, reducedMotion])
+
+  if (!map || routes.length === 0) return null
+  return (
+    <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[2] h-full w-full overflow-hidden">
+      {routes.map((route) => (
+        <g
+          key={route.id}
+          ref={(element) => {
+            if (element) vehicleRefs.current.set(route.id, element)
+            else vehicleRefs.current.delete(route.id)
+          }}
+          style={{ visibility: 'hidden' }}
+          aria-label={`${route.name} illustrative vehicle`}
+        >
+          <title>{`${route.name} · illustrative movement, not live tracking`}</title>
+          <circle r="10" fill="#0b1424" stroke={route.color} strokeWidth="2" />
+          <rect x="-6.5" y="-4" width="13" height="8" rx="2" fill={route.color} />
+          <path d="M -3 -2.5 h2.5 v2.5 h-2.5 z M 1 -2.5 h2.5 v2.5 h-2.5 z" fill="#0b1424" />
+          <circle cx="-3.5" cy="4" r="1" fill="#e6edf7" />
+          <circle cx="3.5" cy="4" r="1" fill="#e6edf7" />
+        </g>
+      ))}
+    </svg>
   )
 }
 
@@ -473,10 +735,14 @@ function LineOverlay({
   dash?: string
   focus?: string | null
 }) {
+  const svgRef = useRef<SVGSVGElement>(null)
   const [paths, setPaths] = useState<{ d: string; color: string; dash?: string; opacity: number; width: number }[]>([])
 
   useEffect(() => {
     if (!map) return
+    const hide = () => {
+      if (svgRef.current) svgRef.current.style.visibility = 'hidden'
+    }
     const redraw = () => {
       setPaths(
         features.flatMap((feature) => {
@@ -498,19 +764,22 @@ function LineOverlay({
           ]
         }),
       )
+      if (svgRef.current) svgRef.current.style.visibility = 'visible'
     }
     redraw()
-    map.on('move', redraw)
+    map.on('movestart', hide)
+    map.on('moveend', redraw)
     map.on('resize', redraw)
     return () => {
-      map.off('move', redraw)
+      map.off('movestart', hide)
+      map.off('moveend', redraw)
       map.off('resize', redraw)
     }
   }, [map, features, color, width, dash, focus])
 
   if (!map || paths.length === 0) return null
   return (
-    <svg className="pointer-events-none absolute inset-0 z-[1] h-full w-full">
+    <svg ref={svgRef} className="pointer-events-none absolute inset-0 z-[1] h-full w-full">
       {paths.map((path, index) => (
         <path
           key={index}
@@ -640,10 +909,10 @@ function addBuildings(map: MaplibreMap) {
 function setGroundLines(
   map: MaplibreMap,
   id: string,
-  features: { geometry: { coordinates: number[][] }; properties?: Record<string, unknown> }[],
+  features: Feature<LineString, GeoJsonProperties>[],
   paint: Record<string, unknown>,
 ) {
-  const data = { type: 'FeatureCollection' as const, features }
+  const data: FeatureCollection<LineString, GeoJsonProperties> = { type: 'FeatureCollection', features }
   const before = map.getLayer('buildings-3d') ? 'buildings-3d' : undefined
   const source = map.getSource(id) as { setData?: (next: typeof data) => void } | undefined
   if (source?.setData) {
@@ -677,6 +946,28 @@ function Toggle({
       <input type="checkbox" className="accent-branch" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       {label}
     </label>
+  )
+}
+
+function CampusDot({ label, ring = '#38bdf8', selected = false, bolt = false, title }: {
+  label: string
+  ring?: string
+  selected?: boolean
+  bolt?: boolean
+  title?: string
+}) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={title ?? label}
+      className={`flex h-4 w-4 items-center justify-center rounded-full border-2 bg-sky-600 shadow-[0_0_8px_rgba(56,189,248,0.55)] ${
+        selected ? 'scale-125' : ''
+      }`}
+      style={{ borderColor: ring }}
+    >
+      {bolt && <svg aria-hidden="true" viewBox="0 0 12 16" className="h-2.5 w-2 text-white" fill="currentColor"><path d="M7.1 0 1.8 8h3.5L4.7 16l5.5-9H6.7L7.1 0Z" /></svg>}
+    </span>
   )
 }
 
