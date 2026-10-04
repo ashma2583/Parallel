@@ -13,12 +13,39 @@ export interface Place {
 export interface Campus {
   id: string
   name: string
-  logo: string
-  collection: 'featured' | 'extra'
+  logo?: string | null
+  monogram?: string
+  badgeColor?: string
+  collection: 'featured' | 'extra' | 'nearby'
   center: [number, number]
   zoom: number
   landmarks: { name: string; point: [number, number] }[]
   routes: { id: string; name: string; coordinates: [number, number][] }[]
+}
+
+function nearbyCampus(
+  id: string,
+  name: string,
+  monogram: string,
+  badgeColor: string,
+  center: [number, number],
+  landmarks: { name: string; point: [number, number] }[],
+): Campus {
+  return {
+    id,
+    name,
+    monogram,
+    badgeColor,
+    collection: 'nearby',
+    center,
+    zoom: 14.8,
+    landmarks,
+    routes: [{
+      id: `${id}-loop`,
+      name: 'Campus loop (illustrative)',
+      coordinates: [center, ...landmarks.map((landmark) => landmark.point), center],
+    }],
+  }
 }
 
 export const PLACES: Record<string, Place> = {
@@ -218,7 +245,9 @@ export const CAMPUSES: Campus[] = [
   {
     id: 'northwestern',
     name: 'Northwestern University',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/c/c6/Northwestern_University_old_wordmark.svg',
+    logo: null,
+    monogram: 'NU',
+    badgeColor: '#4E2A84',
     collection: 'extra',
     center: [-87.6755, 42.0552],
     zoom: 14.7,
@@ -302,6 +331,126 @@ export const CAMPUSES: Campus[] = [
       ] },
     ],
   },
+  nearbyCampus('eastern-michigan', 'Eastern Michigan University', 'EMU', '#006633', [-83.6244, 42.2508], [
+    { name: 'McKenny Hall', point: [-83.6253, 42.2495] },
+    { name: 'Eastern Eateries', point: [-83.6234, 42.2518] },
+    { name: 'Bowen Field House', point: [-83.6206, 42.2503] },
+    { name: 'Rynearson Stadium', point: [-83.6246, 42.2650] },
+  ]),
+  nearbyCampus('wayne-state', 'Wayne State University', 'WSU', '#006B3F', [-83.0677, 42.3593], [
+    { name: 'Main Library', point: [-83.0722, 42.3568] },
+    { name: 'Old Main', point: [-83.0692, 42.3589] },
+    { name: 'Student Center', point: [-83.0674, 42.3579] },
+    { name: 'Tom Adams Field', point: [-83.0737, 42.3622] },
+  ]),
+  nearbyCampus('oakland', 'Oakland University', 'OU', '#B59A57', [-83.2150, 42.6736], [
+    { name: 'Elliott Tower', point: [-83.2153, 42.6748] },
+    { name: 'Oakland Center', point: [-83.2166, 42.6738] },
+    { name: 'Pawley Hall', point: [-83.2182, 42.6758] },
+    { name: 'Grizz Dome', point: [-83.2119, 42.6711] },
+  ]),
+  nearbyCampus('western-michigan', 'Western Michigan University', 'WMU', '#8B6F4E', [-85.6161, 42.2839], [
+    { name: 'Waldo Library', point: [-85.6159, 42.2830] },
+    { name: 'Student Center', point: [-85.6146, 42.2845] },
+    { name: 'Sangren Hall', point: [-85.6180, 42.2833] },
+    { name: 'Waldo Stadium', point: [-85.6272, 42.2840] },
+  ]),
+  nearbyCampus('central-michigan', 'Central Michigan University', 'CMU', '#6A0032', [-84.7758, 43.5875], [
+    { name: 'Warriner Hall', point: [-84.7751, 43.5880] },
+    { name: 'Park Library', point: [-84.7769, 43.5874] },
+    { name: 'Bovee University Center', point: [-84.7782, 43.5860] },
+    { name: 'Kelly / Shorts Stadium', point: [-84.7725, 43.5904] },
+  ]),
+  nearbyCampus('grand-valley', 'Grand Valley State University', 'GVSU', '#00563F', [-85.8878, 42.9636], [
+    { name: 'Mary Idema Pew Library', point: [-85.8886, 42.9635] },
+    { name: 'Kirkhof Center', point: [-85.8895, 42.9650] },
+    { name: 'Holton-Hooker Living Center', point: [-85.8868, 42.9661] },
+    { name: 'Lubbers Stadium', point: [-85.8944, 42.9630] },
+  ]),
+  nearbyCampus('ferris-state', 'Ferris State University', 'FSU', '#C41230', [-85.4817, 43.6856], [
+    { name: 'FLITE Library', point: [-85.4811, 43.6860] },
+    { name: 'University Center', point: [-85.4825, 43.6838] },
+    { name: 'West Campus Community Center', point: [-85.4848, 43.6840] },
+    { name: 'Top Taggart Field', point: [-85.4784, 43.6881] },
+  ]),
+  nearbyCampus('michigan-tech', 'Michigan Technological University', 'MTU', '#D47A00', [-88.5489, 47.1183], [
+    { name: 'Administration Building', point: [-88.5484, 47.1189] },
+    { name: 'Van Pelt and Opie Library', point: [-88.5471, 47.1178] },
+    { name: 'Rozsa Center', point: [-88.5461, 47.1167] },
+    { name: 'John MacInnes Student Ice Arena', point: [-88.5506, 47.1155] },
+  ]),
+  nearbyCampus('detroit-mercy', 'University of Detroit Mercy', 'UDM', '#006747', [-83.1390, 42.4150], [
+    { name: 'Fisher Administration Center', point: [-83.1390, 42.4146] },
+    { name: 'Library', point: [-83.1402, 42.4157] },
+    { name: 'Student Fitness Center', point: [-83.1377, 42.4166] },
+    { name: 'Calihan Hall', point: [-83.1372, 42.4144] },
+  ]),
+  nearbyCampus('um-dearborn', 'University of Michigan-Dearborn', 'UMD', '#00274C', [-83.2311, 42.3195], [
+    { name: 'Mardigian Library', point: [-83.2311, 42.3195] },
+    { name: 'University Center', point: [-83.2328, 42.3203] },
+    { name: 'Institute for Advanced Vehicle Systems', point: [-83.2291, 42.3185] },
+    { name: 'Fairlane Center', point: [-83.2355, 42.3168] },
+  ]),
+  nearbyCampus('lawrence-tech', 'Lawrence Technological University', 'LTU', '#005A9C', [-83.2268, 42.4758], [
+    { name: 'Buick Automotive Gallery', point: [-83.2266, 42.4765] },
+    { name: 'Taubman Complex', point: [-83.2252, 42.4752] },
+    { name: 'University Housing', point: [-83.2282, 42.4747] },
+    { name: 'Don Ridler Field House', point: [-83.2242, 42.4740] },
+  ]),
+  nearbyCampus('kettering', 'Kettering University', 'KU', '#002F6C', [-83.7100, 43.0126], [
+    { name: 'Campus Center', point: [-83.7095, 43.0124] },
+    { name: 'Learning Commons', point: [-83.7110, 43.0128] },
+    { name: 'Connie and Jim John Recreation Center', point: [-83.7086, 43.0109] },
+    { name: 'Atwood Stadium', point: [-83.7143, 43.0144] },
+  ]),
+  nearbyCampus('notre-dame', 'University of Notre Dame', 'ND', '#0C2340', [-86.2389, 41.7032], [
+    { name: 'Main Building', point: [-86.2389, 41.7032] },
+    { name: 'Hesburgh Library', point: [-86.2359, 41.7034] },
+    { name: 'LaFortune Student Center', point: [-86.2379, 41.6997] },
+    { name: 'Notre Dame Stadium', point: [-86.2339, 41.6983] },
+  ]),
+  nearbyCampus('indiana', 'Indiana University Bloomington', 'IU', '#990000', [-86.5264, 39.1709], [
+    { name: 'Sample Gates', point: [-86.5162, 39.1661] },
+    { name: 'Wells Library', point: [-86.5262, 39.1725] },
+    { name: 'Indiana Memorial Union', point: [-86.5238, 39.1663] },
+    { name: 'Assembly Hall', point: [-86.5268, 39.1804] },
+  ]),
+  nearbyCampus('ohio-state', 'The Ohio State University', 'OSU', '#BB0000', [-83.0147, 40.0067], [
+    { name: 'Thompson Library', point: [-83.0141, 40.0036] },
+    { name: 'Ohio Union', point: [-83.0080, 40.0025] },
+    { name: 'Wexner Center for the Arts', point: [-83.0117, 40.0067] },
+    { name: 'Ohio Stadium', point: [-83.0198, 40.0017] },
+  ]),
+  nearbyCampus('toledo', 'The University of Toledo', 'UT', '#005A9C', [-83.6130, 41.6580], [
+    { name: 'University Hall', point: [-83.6144, 41.6579] },
+    { name: 'Carlson Library', point: [-83.6123, 41.6585] },
+    { name: 'Student Union', point: [-83.6113, 41.6573] },
+    { name: 'Savage Arena', point: [-83.6187, 41.6571] },
+  ]),
+  nearbyCampus('bowling-green', 'Bowling Green State University', 'BGSU', '#FE5000', [-83.6374, 41.3780], [
+    { name: 'Bowen-Thompson Student Union', point: [-83.6379, 41.3788] },
+    { name: 'Jerome Library', point: [-83.6389, 41.3799] },
+    { name: 'Olscamp Hall', point: [-83.6394, 41.3777] },
+    { name: 'Doyt Perry Stadium', point: [-83.6304, 41.3768] },
+  ]),
+  nearbyCampus('case-western', 'Case Western Reserve University', 'CWRU', '#0A304E', [-81.6083, 41.5043], [
+    { name: 'Kelvin Smith Library', point: [-81.6083, 41.5037] },
+    { name: 'Thwing Center', point: [-81.6067, 41.5027] },
+    { name: 'Tinkham Veale University Center', point: [-81.6087, 41.5016] },
+    { name: 'Case Quad', point: [-81.6044, 41.5052] },
+  ]),
+  nearbyCampus('cincinnati', 'University of Cincinnati', 'UC', '#E00122', [-84.5150, 39.1329], [
+    { name: 'Langsam Library', point: [-84.5148, 39.1318] },
+    { name: 'TUC Student Center', point: [-84.5158, 39.1304] },
+    { name: 'DAAP', point: [-84.5175, 39.1350] },
+    { name: 'Nippert Stadium', point: [-84.5163, 39.1310] },
+  ]),
+  nearbyCampus('miami-ohio', 'Miami University', 'MU', '#C41230', [-84.7340, 39.5070], [
+    { name: 'King Library', point: [-84.7334, 39.5080] },
+    { name: 'Armstrong Student Center', point: [-84.7357, 39.5076] },
+    { name: 'Upham Hall', point: [-84.7319, 39.5062] },
+    { name: 'Yager Stadium', point: [-84.7444, 39.5085] },
+  ]),
 ] as const
 
 /** Vector basemap with streets, parks, and building heights. */

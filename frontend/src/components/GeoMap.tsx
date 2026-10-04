@@ -358,6 +358,11 @@ export function GeoMap({
               <option key={item.id} value={item.id}>{item.name}</option>
             ))}
           </optgroup>
+          <optgroup label="Nearby schools">
+            {CAMPUSES.filter((item) => item.collection === 'nearby').map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </optgroup>
           <optgroup label="Extra previews · not a verified MHacks invite list">
             {CAMPUSES.filter((item) => item.collection === 'extra').map((item) => (
               <option key={item.id} value={item.id}>{item.name}</option>
@@ -427,9 +432,21 @@ export function GeoMap({
                 setCampusId(school.id)
                 onCampusChange?.()
               }}
-              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white p-1 shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-transform hover:scale-110"
+              className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white p-1 font-sans text-[9px] font-bold shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-transform hover:scale-110"
+              style={{
+                backgroundColor: school.logo ? '#fff' : school.badgeColor ?? '#334155',
+                color: school.logo ? '#1e293b' : '#fff',
+              }}
             >
-              <img src={school.logo} alt="" className="h-full w-full object-contain" />
+              <span aria-hidden="true">{school.monogram ?? campusMonogram(school.name)}</span>
+              {school.logo && (
+                <img
+                  src={school.logo}
+                  alt=""
+                  onError={(event) => { event.currentTarget.style.display = 'none' }}
+                  className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain"
+                />
+              )}
             </button>
           </Marker>
         )) : showCampusLandmarks && campus.landmarks.map((landmark) => (
@@ -1010,6 +1027,11 @@ function CampusDot({ label, ring = '#38bdf8', selected = false, bolt = false, ti
       {bolt && <svg aria-hidden="true" viewBox="0 0 12 16" className="h-2.5 w-2 text-white" fill="currentColor"><path d="M7.1 0 1.8 8h3.5L4.7 16l5.5-9H6.7L7.1 0Z" /></svg>}
     </span>
   )
+}
+
+function campusMonogram(name: string) {
+  const words = name.split(/\s+/).filter((word) => !['of', 'the', 'at'].includes(word.toLowerCase()))
+  return words.slice(0, 3).map((word) => word[0]).join('').toUpperCase()
 }
 
 function links(edges: readonly SimEdge[], kind: string) {
