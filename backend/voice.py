@@ -1,12 +1,18 @@
 """
-Phase 5. Audio goes to Grok Voice Transcribe. The transcript becomes a JSON
-policy via Gemini or Grok (same XAI_API_KEY as voice and Imagine). A keyword
-parser covers the case where neither key is set.
+Phase 5. Audio goes to Grok Voice Transcribe (Grok only, no fallback). The
+transcript becomes a JSON policy via Gemini or Grok (same XAI_API_KEY as voice
+and Imagine). Every text task runs through llm.py, so a provider that is down,
+slow or unkeyed hands the question to the next one:
+
+    parse_policy   Gemini/Grok choice -> Claude -> keyword parser
+    write_debrief  Grok -> Claude              (no answer raises, as before)
+    write_plans    Grok -> Claude              (no answer raises, as before)
+    write_verdict  Grok -> Claude -> verdict_from_numbers
 
 POLICY_PARSER:
-    auto    Gemini if GEMINI_API_KEY is set, otherwise Grok, otherwise keywords
-    grok    always Grok
-    gemini  always Gemini
+    auto    Gemini if GEMINI_API_KEY is set, then Grok, then Claude, then keywords
+    grok    Grok, then Claude, then keywords
+    gemini  Gemini, then Claude, then keywords
     keyword never call a model
 """
 
@@ -19,6 +25,7 @@ from typing import Any
 
 import httpx
 
+import llm
 from agents.logic import keyword_policy
 from graph import CampusGraph
 
@@ -26,9 +33,9 @@ log = logging.getLogger("parallel.voice")
 
 STT_URL = "https://api.x.ai/v1/stt"
 STT_MODEL = "grok-voice-transcribe-2.0"
-CHAT_URL = "https://api.x.ai/v1/chat/completions"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 _ACTIONS = {"fail", "restore", "reset", "heat_wave", "none"}
+TEXT_CHAIN = ("grok", "claude")  # debrief, plans, verdict; the deterministic fallback lives with each caller
+NO_MODEL = "No language model answered (Grok and Claude both failed or are not configured)."
 
 
 def gemini_configured() -> bool:
@@ -39,20 +46,19 @@ def xai_configured() -> bool:
     return bool(_xai_key())
 
 
-def policy_parser() -> str:
-    """Which parser the next order will actually use."""
+def _policy_chain() -> list[str]:
+    """Providers for the next spoken order, in order. Empty means the keyword parser."""
     choice = os.getenv("POLICY_PARSER", "auto").strip().lower()
     if choice == "keyword":
-        return "keyword"
-    if choice == "grok":
-        return "grok" if xai_configured() else "keyword"
-    if choice == "gemini":
-        return "gemini" if gemini_configured() else "keyword"
-    if gemini_configured():
-        return "gemini"
-    if xai_configured():
-        return "grok"
-    return "keyword"
+        return []
+    first = {"grok": ["grok"], "gemini": ["gemini"]}.get(choice, ["gemini", "grok"])
+    return [name for name in (*first, "claude") if llm.configured(name)]
+
+
+def policy_parser() -> str:
+    """Which parser the next order will try first."""
+    chain = _policy_chain()
+    return chain[0] if chain else "keyword"
 
 
 async def transcribe(audio: bytes, filename: str, content_type: str) -> str:
@@ -81,7 +87,7 @@ def is_heat_wave_order(text: str) -> bool:
 
 
 async def parse_policy(graph: CampusGraph, text: str) -> dict[str, Any]:
-    """Model when a key is set, otherwise the keyword parser. Model errors fall back too."""
+    """Model chain when a key is set, otherwise the keyword parser. Model errors fall back too."""
     if is_heat_wave_order(text):
         return {
             "action": "heat_wave",
@@ -90,24 +96,24 @@ async def parse_policy(graph: CampusGraph, text: str) -> dict[str, Any]:
             "summary": "Start a four-hour heat wave",
             "parser": "keyword",
         }
-    which = policy_parser()
-    if which == "keyword":
-        policy = keyword_policy(text)
-        policy["parser"] = "keyword"
-        return policy
-    try:
-        if which == "grok":
-            policy = await _grok(graph, text, _xai_key())
-        else:
-            policy = await _gemini(graph, text, _gemini_key())
-        policy["parser"] = which
-        return policy
-    except Exception as exc:  # noqa: BLE001 - demo should still do something
-        log.warning("%s parse failed, using keyword fallback: %s", which, exc)
-        policy = keyword_policy(text)
-        policy["parser"] = "keyword"
-        policy["parser_error"] = f"{type(exc).__name__}: {exc}"
-        return policy
+    chain = _policy_chain()
+    if chain:
+        result = await llm.complete_json(
+            "", _prompt(graph, text),
+            providers=chain, timeout=8, total_timeout=22, max_tokens=600,
+            schema=_POLICY_SCHEMA, accept=lambda parsed: parsed.get("action") in _ACTIONS,
+            label="command",
+        )
+        if result is not None:
+            policy, provider = result
+            policy = _coerce(policy)
+            policy["parser"] = provider
+            return policy
+    policy = keyword_policy(text)
+    policy["parser"] = "keyword"
+    if chain:
+        policy["parser_error"] = f"no model answered ({', '.join(chain)}); used keywords"
+    return policy
 
 
 def _prompt(graph: CampusGraph, text: str) -> str:
@@ -131,52 +137,38 @@ def _prompt(graph: CampusGraph, text: str) -> str:
     )
 
 
-async def _grok(graph: CampusGraph, text: str, key: str) -> dict[str, Any]:
-    model = os.getenv("GROK_MODEL", "grok-4")
-    async with httpx.AsyncClient(timeout=40) as client:
-        resp = await client.post(
-            CHAT_URL,
-            headers={"Authorization": f"Bearer {key}"},
-            json={
-                "model": model,
-                "messages": [{"role": "user", "content": _prompt(graph, text)}],
-                "response_format": {"type": "json_object"},
+_STR = {"type": "string"}
+_STRS = {"type": "array", "items": _STR}
+# Plain JSON Schema. Claude is held to it (structured outputs); llm.py converts it for Gemini.
+_POLICY_SCHEMA = {
+    "type": "object",
+    "properties": {"summary": _STR, "action": {"type": "string", "enum": sorted(_ACTIONS)}, "node_ids": _STRS, "reason": _STR},
+    "required": ["summary", "action", "node_ids", "reason"],
+}
+_VERDICT_SCHEMA = {"type": "object", "properties": {"paragraph": _STR}, "required": ["paragraph"]}
+_DEBRIEF_SCHEMA = {
+    "type": "object",
+    "properties": {"headline": _STR, "grid": _STR, "options": _STRS, "buses": _STR, "solutions": _STRS, "watch": _STR},
+    "required": ["headline", "grid", "options", "buses", "solutions", "watch"],
+}
+_SCORES = ("optimal", "energy", "feasibility", "cost", "risk", "people")
+_PLANS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "plans": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    **{k: _STR for k in ("title", "summary", "energy", "transit", "infrastructure", "intervention", "analysis", "apply")},
+                    "scores": {"type": "object", "properties": {k: {"type": "integer"} for k in _SCORES}, "required": list(_SCORES)},
+                },
+                "required": ["title", "summary", "energy", "transit", "infrastructure", "intervention", "analysis", "apply", "scores"],
             },
-        )
-    if resp.status_code >= 400:
-        raise RuntimeError(f"grok {resp.status_code}: {resp.text[:300]}")
-    raw = resp.json()["choices"][0]["message"]["content"]
-    return _coerce(json.loads(_strip_fence(raw)))
-
-
-async def _gemini(graph: CampusGraph, text: str, key: str) -> dict[str, Any]:
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    prompt = _prompt(graph, text)
-    schema = {
-        "type": "OBJECT",
-        "properties": {
-            "summary": {"type": "STRING"},
-            "action": {"type": "STRING", "enum": ["fail", "restore", "reset", "heat_wave", "none"]},
-            "node_ids": {"type": "ARRAY", "items": {"type": "STRING"}},
-            "reason": {"type": "STRING"},
-        },
-        "required": ["summary", "action", "node_ids", "reason"],
-    }
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            GEMINI_URL.format(model=model),
-            params={"key": key},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"responseMimeType": "application/json", "responseSchema": schema},
-            },
-        )
-    if resp.status_code >= 400:
-        raise RuntimeError(f"gemini {resp.status_code}: {resp.text[:300]}")
-    body = resp.json()
-    parts = body["candidates"][0]["content"]["parts"]
-    raw = "".join(part.get("text", "") for part in parts)
-    return _coerce(json.loads(raw))
+        }
+    },
+    "required": ["plans"],
+}
 
 
 def _coerce(parsed: dict[str, Any]) -> dict[str, Any]:
@@ -198,10 +190,6 @@ def _strip_fence(raw: str) -> str:
 
 async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
     """After-action summary. Uses only the snapshot the simulation just handed over."""
-    key = _xai_key()
-    if not key:
-        raise RuntimeError("XAI_API_KEY is not set")
-    model = os.getenv("GROK_MODEL", "grok-4")
     prompt = (
         "You are the after-action analyst for PARALLEL, the University of Michigan emergency desk.\n"
         "The director has already run a scenario. Write the debrief from the facts only.\n"
@@ -219,20 +207,15 @@ async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
         "watch: one sentence on people, cooling, the hospital, or research that still needs a decision.\n\n"
         f"Facts:\n{json.dumps(facts)}"
     )
-    async with httpx.AsyncClient(timeout=45) as client:
-        resp = await client.post(
-            CHAT_URL,
-            headers={"Authorization": f"Bearer {key}"},
-            json={
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-            },
-        )
-    if resp.status_code >= 400:
-        raise RuntimeError(f"grok {resp.status_code}: {resp.text[:300]}")
-    raw = resp.json()["choices"][0]["message"]["content"]
-    parsed = json.loads(_strip_fence(raw))
+    result = await llm.complete_json(
+        "", prompt,
+        providers=TEXT_CHAIN, timeout=25, total_timeout=50, max_tokens=1500, schema=_DEBRIEF_SCHEMA,
+        accept=lambda parsed: bool(str(parsed.get("headline") or "").strip()),
+        label="debrief",
+    )
+    if result is None:
+        raise RuntimeError(NO_MODEL)
+    parsed, provider = result
     return {
         "headline": str(parsed.get("headline") or ""),
         "grid": str(parsed.get("grid") or ""),
@@ -240,6 +223,7 @@ async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
         "buses": str(parsed.get("buses") or ""),
         "solutions": [str(item) for item in (parsed.get("solutions") or [])][:4],
         "watch": str(parsed.get("watch") or ""),
+        "model": provider,
     }
 
 
@@ -269,10 +253,6 @@ def verdict_from_numbers(facts: dict[str, Any]) -> str:
 async def write_verdict(facts: dict[str, Any]) -> dict[str, Any]:
     """One paragraph on the winning policy. Numbers stay the ones the sim computed."""
     fallback = verdict_from_numbers(facts)
-    key = _xai_key()
-    if not key:
-        return {"paragraph": fallback, "source": "sim"}
-    model = os.getenv("GROK_MODEL", "grok-4")
     prompt = (
         "You are the coordinator for PARALLEL, a University of Michigan emergency desk.\n"
         "A heat wave has already derated the campus. Five policies were run on copies of the same campus.\n"
@@ -285,35 +265,20 @@ async def write_verdict(facts: dict[str, Any]) -> dict[str, Any]:
         "Reply with JSON only: {\"paragraph\": str}\n\n"
         f"Facts:\n{json.dumps(facts)}"
     )
-    try:
-        async with httpx.AsyncClient(timeout=25) as client:
-            resp = await client.post(
-                CHAT_URL,
-                headers={"Authorization": f"Bearer {key}"},
-                json={
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"},
-                },
-            )
-        if resp.status_code >= 400:
-            return {"paragraph": fallback, "source": "sim"}
-        raw = resp.json()["choices"][0]["message"]["content"]
-        parsed = json.loads(_strip_fence(raw))
-        paragraph = str(parsed.get("paragraph") or "").strip()
-        if not paragraph:
-            return {"paragraph": fallback, "source": "sim"}
-        return {"paragraph": paragraph, "source": "model"}
-    except (httpx.HTTPError, KeyError, json.JSONDecodeError, TypeError, ValueError):
+    result = await llm.complete_json(
+        "", prompt,
+        providers=TEXT_CHAIN, timeout=12, total_timeout=28, max_tokens=600, schema=_VERDICT_SCHEMA,
+        accept=lambda parsed: bool(str(parsed.get("paragraph") or "").strip()),
+        label="verdict",
+    )
+    if result is None:
         return {"paragraph": fallback, "source": "sim"}
+    parsed, provider = result
+    return {"paragraph": str(parsed.get("paragraph") or "").strip(), "source": "model", "model": provider}
 
 
 async def write_plans(facts: dict[str, Any]) -> dict[str, Any]:
     """Five ranked response plans. Scores are relative. The facts stay the sim's."""
-    key = _xai_key()
-    if not key:
-        raise RuntimeError("XAI_API_KEY is not set")
-    model = os.getenv("GROK_MODEL", "grok-4")
     prompt = (
         "You are the coordinator for PARALLEL, the University of Michigan emergency desk.\n"
         "A building or feed has already failed. Energy, transit, and infrastructure have reported in the facts.\n"
@@ -336,25 +301,20 @@ async def write_plans(facts: dict[str, Any]) -> dict[str, Any]:
         '"scores":{"optimal":int,"energy":int,"feasibility":int,"cost":int,"risk":int,"people":int}}]}\n\n'
         f"Facts:\n{json.dumps(facts)}"
     )
-    async with httpx.AsyncClient(timeout=50) as client:
-        resp = await client.post(
-            CHAT_URL,
-            headers={"Authorization": f"Bearer {key}"},
-            json={
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-            },
-        )
-    if resp.status_code >= 400:
-        raise RuntimeError(f"grok {resp.status_code}: {resp.text[:300]}")
-    raw = resp.json()["choices"][0]["message"]["content"]
-    parsed = json.loads(_strip_fence(raw))
-    return {"season": str(facts.get("season") or "fall"), "plans": _rank_plans(parsed.get("plans") or [])}
+    result = await llm.complete_json(
+        "", prompt,
+        providers=TEXT_CHAIN, timeout=40, total_timeout=75, max_tokens=6000, schema=_PLANS_SCHEMA,
+        accept=lambda parsed: bool(_rank_plans(parsed.get("plans") or [])),
+        label="plans",
+    )
+    if result is None:
+        raise RuntimeError(NO_MODEL)
+    parsed, provider = result
+    return {"season": str(facts.get("season") or "fall"), "plans": _rank_plans(parsed.get("plans") or []), "model": provider}
 
 
 def _rank_plans(raw: list[Any]) -> list[dict[str, Any]]:
-    keys = ("optimal", "energy", "feasibility", "cost", "risk", "people")
+    keys = _SCORES
     plans = []
     for item in raw:
         if not isinstance(item, dict):

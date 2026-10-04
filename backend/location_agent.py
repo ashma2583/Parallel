@@ -32,6 +32,7 @@ from typing import Any
 
 import httpx
 
+import llm
 from voice import _strip_fence, _xai_key
 
 log = logging.getLogger("parallel.location")
@@ -81,8 +82,6 @@ async def research_location(query: str, refresh: bool = False) -> dict[str, Any]
 
 async def _research(query: str) -> dict[str, Any]:
     key = _xai_key()
-    if not key:
-        raise RuntimeError("XAI_API_KEY is not set")
     model = os.getenv("GROK_RESEARCH_MODEL") or os.getenv("GROK_MODEL", "grok-4")
     prompt = (
         "You research one place for a campus emergency desk. Use web search.\n"
@@ -118,13 +117,19 @@ async def _research(query: str) -> dict[str, Any]:
         "power.how_it_is_fed is one or two sentences on where the campus's electricity comes from.\n\n"
         f"Place: {query.strip()}"
     )
-    body = await _complete(model, key, prompt)
-    if body is None and model != "grok-4.7":
-        body = await _complete("grok-4.7", key, prompt)
+    body = None
+    if key:
+        body = await _grok_research(model, key, prompt)
+        if body is None and model != "grok-4.7":
+            body = await _grok_research("grok-4.7", key, prompt)
     if body is None:
-        raise RuntimeError("location research failed")
+        body = await _claude_research(prompt)
+    if body is None:
+        raise RuntimeError("location research failed" if key else "XAI_API_KEY is not set")
     parsed = _json_object(body["content"])
     found = _clean(parsed, body.get("citations") or [])
+    if body.get("model"):
+        found["model"] = body["model"]
     try:
         return await _ground(query, found)
     except Exception as exc:  # noqa: BLE001 - the map check must not lose the research
@@ -133,6 +138,27 @@ async def _research(query: str) -> dict[str, Any]:
             building["located"] = "model"
         found["placement"] = {"checked": False, "note": "OpenStreetMap could not be reached, so positions are the model's own."}
         return found
+
+
+async def _grok_research(model: str, key: str, prompt: str) -> dict[str, Any] | None:
+    """Grok with web search. A timeout or network error is a miss, not a crash."""
+    try:
+        return await _complete(model, key, prompt)
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        log.warning("grok research failed for %s: %s", model, type(exc).__name__)
+        return None
+
+
+async def _claude_research(prompt: str) -> dict[str, Any] | None:
+    """Fallback when Grok is down or unkeyed: Claude answers from what it knows, without web
+    search. Every building is still checked against OpenStreetMap afterwards, and one that
+    cannot be found is dropped, so a wrong name costs a building, not a wrong pin."""
+    prompt = prompt.replace("Use web search.\n", "Answer from what you know; if unsure of a building, leave it out.\n")
+    prompt = prompt.replace("Search at most twice, then answer. ", "")
+    result = await llm.complete_text("", prompt, providers=["claude"], timeout=75, total_timeout=75, max_tokens=4000, label="location")
+    if result is None:
+        return None
+    return {"content": result[0], "citations": [], "model": "claude"}
 
 
 async def _complete(model: str, key: str, prompt: str) -> dict[str, Any] | None:

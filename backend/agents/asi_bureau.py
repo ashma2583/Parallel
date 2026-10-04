@@ -2,8 +2,10 @@
 PARALLEL Coordinator: a Fetch.ai uAgent that speaks the Agent Chat Protocol and
 drives the campus digital-twin engine over HTTP.
 
-Chat flow (all numbers come from the simulator, ASI:One only parses and phrases):
-  scenario text -> ASI:One asi1-mini parses it (8 s cap, keyword fallback)
+Chat flow (all numbers come from the simulator, the language model only parses and phrases):
+  scenario text -> ASI:One asi1-mini parses it; if that is down, slow or unkeyed the same
+                   question goes to Grok, then Claude (llm.py, 8 s each, 18 s total),
+                   then the keyword parser
                 -> POST /hazards/apply {id}  or  POST /disrupt {node_ids, fail}
                 -> POST /branch {ticks: 8}
                 -> top 3 policies ranked by essential_served, then people_dark,
@@ -11,6 +13,9 @@ Chat flow (all numbers come from the simulator, ASI:One only parses and phrases)
   "adopt N"     -> POST /strategy {strategy}  (or POST /disrupt restore for the Repair Crew
                    option) -> live summary from /state and /briefing
   "status", "reset", "help" are handled too.
+
+The two-sentence headline follows the same chain, ASI:One -> Grok -> Claude -> template,
+and any number the model writes that is not in the simulator facts rejects its answer.
 
 Specialist logic (Energy Planner, Transit Planner, Repair Crew) is plain
 functions in agents/planners.py.
@@ -60,14 +65,16 @@ from uagents_core.contrib.protocols.chat import (  # noqa: E402
 )
 from uagents_core.registration import RegistrationRequest  # noqa: E402
 
+import llm  # noqa: E402
 from agents import planners  # noqa: E402
 
 NAME = "PARALLEL Coordinator"
 PORT = int(os.getenv("COORDINATOR_PORT", "8120"))
 ENGINE_URL = os.getenv("ENGINE_URL", "http://127.0.0.1:8000").rstrip("/")
-ASI_URL = "https://api.asi1.ai/v1/chat/completions"
 ASI_MODEL = os.getenv("ASI_MODEL", "asi1-mini")
+LLM_CHAIN = ("asi", "grok", "claude")  # then keywords / template
 LLM_TIMEOUT_S = 8.0
+LLM_TOTAL_S = 18.0
 ENGINE_TIMEOUT_S = 20.0
 BRANCH_TICKS = 8
 
@@ -120,32 +127,10 @@ async def engine(method: str, path: str, body: dict | None = None) -> Any:
     return r.json()
 
 
-# --------------------------------------------------------------------- ASI:One
-async def asi_chat(messages: list[dict], *, json_mode: bool = False, max_tokens: int = 200) -> str | None:
-    """One ASI:One call, hard-capped at LLM_TIMEOUT_S overall. None on any failure."""
-    key = os.getenv("ASI_ONE_API_KEY")
-    if not key:
-        return None
-    body: dict[str, Any] = {
-        "model": ASI_MODEL,
-        "messages": messages,
-        "temperature": 0.1,
-        "max_tokens": max_tokens,
-    }
-    if json_mode:
-        body["response_format"] = {"type": "json_object"}
-
-    async def _call() -> str:
-        async with httpx.AsyncClient(timeout=LLM_TIMEOUT_S) as c:
-            r = await c.post(ASI_URL, headers={"Authorization": f"Bearer {key}"}, json=body)
-        r.raise_for_status()
-        return (r.json()["choices"][0]["message"]["content"] or "").strip()
-
-    try:
-        out = await asyncio.wait_for(_call(), LLM_TIMEOUT_S)
-        return out or None
-    except Exception:
-        return None
+# ------------------------------------------------------------------ language model
+def model_label(provider: str) -> str:
+    """Name reported in meta and logs: the ASI model id for ASI:One, else grok / claude."""
+    return ASI_MODEL if provider == "asi" else provider
 
 
 _NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
@@ -162,29 +147,29 @@ def _numbers(text: str) -> set[float]:
 
 
 async def phrase(facts: str, fallback: str) -> tuple[str, str]:
-    """Two-sentence headline from ASI:One using only FACTS; fallback if it strays.
+    """Two-sentence headline from the model chain using only FACTS; fallback if it strays.
 
-    Returns (text, source). Any number in the model's text that is not in FACTS
-    rejects the whole answer, so the headline can never contradict the simulator.
+    Returns (text, source). Any number in a model's text that is not in FACTS
+    rejects that answer and the next provider is asked, so the headline can
+    never contradict the simulator. If no provider gives a clean one, the
+    simulator-built template is used.
     """
-    out = await asi_chat(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "You are the PARALLEL Coordinator for a university campus digital twin. "
-                    "Write at most two plain sentences for an operations lead. Use ONLY the "
-                    "numbers given in FACTS, never invent or round numbers, no lists, no markdown."
-                ),
-            },
-            {"role": "user", "content": f"FACTS:\n{facts}"},
-        ],
-        max_tokens=140,
+    allowed = _numbers(facts) | {1.0, 2.0, 3.0}
+
+    def clean(text: str) -> bool:
+        return bool(text.strip()) and _numbers(" ".join(text.split())) <= allowed
+
+    result = await llm.complete_text(
+        "You are the PARALLEL Coordinator for a university campus digital twin. "
+        "Write at most two plain sentences for an operations lead. Use ONLY the "
+        "numbers given in FACTS, never invent or round numbers, no lists, no markdown.",
+        f"FACTS:\n{facts}",
+        providers=LLM_CHAIN, timeout=LLM_TIMEOUT_S, total_timeout=LLM_TOTAL_S, max_tokens=140,
+        accept=clean, label="phrase",
     )
-    if out:
-        out = " ".join(out.split())
-        if _numbers(out) <= (_numbers(facts) | {1.0, 2.0, 3.0}):
-            return out, ASI_MODEL
+    if result:
+        text, provider = result
+        return " ".join(text.split()), model_label(provider)
     return fallback, "template"
 
 
@@ -261,50 +246,50 @@ RESET_RE = re.compile(r"^\W*(reset|start over|clear|restore all|back to normal)\
 HELP_RE = re.compile(r"^\W*(help|\?|hi|hello|hey|what can you do|who are you|options\?*)\W*$")
 
 
-async def asi_parse(text: str, hazards: list[dict], nodes: list[dict]) -> dict | None:
+def _usable_parse(j: dict, hazard_ids: set[str], node_ids: set[str]) -> bool:
+    """A parse the flow can act on. 'other' counts: the model said it is not a scenario."""
+    intent = str(j.get("intent") or "other").lower()
+    if intent == "scenario":
+        nids = [x for x in (j.get("node_ids") or []) if isinstance(x, str) and x in node_ids]
+        return (isinstance(j.get("hazard_id"), str) and j["hazard_id"] in hazard_ids) or bool(nids)
+    return intent in {"adopt", "status", "reset", "help", "other"}
+
+
+async def llm_parse(text: str, hazards: list[dict], nodes: list[dict]) -> tuple[dict, str] | None:
+    """(parsed message, provider) from the first provider with a usable parse, else None."""
     hz = "; ".join(f"{h['id']} ({h.get('name', '')})" for h in hazards)
     nd = "; ".join(f"{n['id']} ({n['name']})" for n in nodes)
-    out = await asi_chat(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "Convert one message to a campus power assistant into JSON only: "
-                    '{"intent": "scenario"|"adopt"|"status"|"reset"|"help"|"other", '
-                    '"hazard_id": string|null, "node_ids": [string], "option": integer|null}. '
-                    "Use scenario when the user describes a storm or hazard or says equipment "
-                    "failed or tripped. hazard_id must be one of HAZARDS, node_ids must be from "
-                    "NODES, and use node_ids only when no hazard fits. Use other for gibberish "
-                    f"or unrelated text.\nHAZARDS: {hz}\nNODES: {nd}"
-                ),
-            },
-            {"role": "user", "content": text[:600]},
-        ],
-        json_mode=True,
-        max_tokens=120,
+    hazard_ids = {h["id"] for h in hazards}
+    node_ids = {n["id"] for n in nodes}
+    return await llm.complete_json(
+        "Convert one message to a campus power assistant into JSON only: "
+        '{"intent": "scenario"|"adopt"|"status"|"reset"|"help"|"other", '
+        '"hazard_id": string|null, "node_ids": [string], "option": integer|null}. '
+        "Use scenario when the user describes a storm or hazard or says equipment "
+        "failed or tripped. hazard_id must be one of HAZARDS, node_ids must be from "
+        "NODES, and use node_ids only when no hazard fits. Use other for gibberish "
+        f"or unrelated text.\nHAZARDS: {hz}\nNODES: {nd}",
+        text[:600],
+        providers=LLM_CHAIN, timeout=LLM_TIMEOUT_S, total_timeout=LLM_TOTAL_S, max_tokens=120,
+        accept=lambda j: _usable_parse(j, hazard_ids, node_ids), label="coordinator-parse",
     )
-    if not out:
-        return None
-    try:
-        j = json.loads(out[out.index("{"): out.rindex("}") + 1])
-    except (ValueError, json.JSONDecodeError):
-        return None
-    return j if isinstance(j, dict) else None
 
 
 async def parse_scenario(text: str, hazards: list[dict], nodes: list[dict]) -> tuple[dict, str]:
     hazard_ids = {h["id"] for h in hazards}
     node_ids = {n["id"] for n in nodes}
-    j = await asi_parse(text, hazards, nodes)
-    if j:
+    found = await llm_parse(text, hazards, nodes)
+    if found:
+        j, provider = found
+        src = model_label(provider)
         intent = str(j.get("intent") or "other").lower()
-        hid = j.get("hazard_id") if j.get("hazard_id") in hazard_ids else None
+        hid = j["hazard_id"] if isinstance(j.get("hazard_id"), str) and j["hazard_id"] in hazard_ids else None
         nids = [x for x in (j.get("node_ids") or []) if isinstance(x, str) and x in node_ids]
         opt = j.get("option") if isinstance(j.get("option"), int) else None
         if intent == "scenario" and (hid or nids):
-            return {"intent": "scenario", "hazard_id": hid, "node_ids": [] if hid else nids}, ASI_MODEL
+            return {"intent": "scenario", "hazard_id": hid, "node_ids": [] if hid else nids}, src
         if intent in {"adopt", "status", "reset", "help"}:
-            return {"intent": intent, "option": opt}, ASI_MODEL
+            return {"intent": intent, "option": opt}, src
     kw = keyword_parse(text, hazard_ids, nodes)
     return kw, "keywords"
 
