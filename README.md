@@ -1,5 +1,10 @@
 # PARALLEL
 
+![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
+![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
+
+**Fetch.ai agent:** PARALLEL coordinator, `agent1qgx5x29ews09d95fph5uz32vw7wjj9zh8gkf79smvcpkw3e5waexz7vjss2` ([setup and evidence](docs/fetch.md))
+
 **See what your decision does before you make it.**
 
 An AI-assisted campus resilience simulator built at MHacks 2026. Describe a disruption, test five response policies, inspect the consequences and apply a policy to the live simulation.
