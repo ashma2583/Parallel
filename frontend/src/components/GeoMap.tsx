@@ -1,12 +1,13 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { Map, Marker, NavigationControl } from '@vis.gl/react-maplibre'
-import { setWorkerUrl, type Map as MaplibreMap } from 'maplibre-gl'
+import { setWorkerUrl, type ExpressionSpecification, type Map as MaplibreMap } from 'maplibre-gl'
+import type { Feature, FeatureCollection, GeoJsonProperties, LineString } from 'geojson'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Briefing, LocationSurvey, ProposalPin } from '../lib/api'
 import type { SurveyGraphModel } from '../lib/surveyGraph'
 import { BACKEND_URL } from '../config'
-import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
+import { CAMPUSES, MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 import type { SimEdge, SimNode } from '../lib/sim'
 import { splitByClosures } from '../lib/weather/geo'
 import type { BusLine, ClosedRoute, LngLat, WeatherRequest, WeatherState } from '../lib/weather/types'
@@ -30,8 +31,20 @@ interface BusCollection {
 
 const EMPTY: BusCollection = { type: 'FeatureCollection', features: [] }
 
+/** 2D raster opens first: it loads fast and is the path storm closures are tested on. The layer panel turns 3D on. */
+const DEFAULT_3D = false
+
+/** The app theme, from the landing page's saved choice or the system. */
+function appDark(): boolean {
+  const theme = document.documentElement.dataset.theme
+  if (theme) return theme === 'dark'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
 /** Core U-M lines between the campuses. The full list does not change when a building fails. */
 const USUAL_RECOMMENDED = new Set(['CN', 'CS', 'BB', 'NW'])
+
+const UMICH = CAMPUSES.find((item) => item.id === 'umich') ?? CAMPUSES[0]
 
 /** City buildings are off this map. The view is the university. */
 const CITY = new Set(['city_hall', 'blake', 'fire_1'])
@@ -114,6 +127,8 @@ interface Props {
   onWeatherStatus?: (status: WeatherStatus) => void
   /** Pull engine state after a write. */
   onChanged?: () => void
+  /** The campus picker or a school marker moved the map to another campus. */
+  onCampusChange?: () => void
 }
 
 export function GeoMap({
@@ -137,6 +152,7 @@ export function GeoMap({
   onStorm,
   onWeatherStatus,
   onChanged,
+  onCampusChange,
 }: Props) {
   const [map, setMap] = useState<MaplibreMap | null>(null)
   const [buses, setBuses] = useState<BusCollection>(EMPTY)
@@ -144,8 +160,20 @@ export function GeoMap({
   const [showRoads, setShowRoads] = useState(false)
   const [showBuses, setShowBuses] = useState(true)
   const [showRecommended, setShowRecommended] = useState(true)
-  const [threeD, setThreeD] = useState(false)
+  const [showMotion, setShowMotion] = useState(true)
+  const [showCampusPower, setShowCampusPower] = useState(true)
+  const [showCampusLandmarks, setShowCampusLandmarks] = useState(true)
+  const [threeD, setThreeD] = useState(DEFAULT_3D)
+  // The map follows the app theme; the Night map toggle overrides it until the theme changes again.
+  const [mapTheme, setMapTheme] = useState<'day' | 'night'>(() => (appDark() ? 'night' : 'day'))
+  const mapThemeRef = useRef(mapTheme)
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
+  const dayPaintValues = useRef(new globalThis.Map<string, string | ExpressionSpecification>())
+  const [campusId, setCampusId] = useState<(typeof CAMPUSES)[number]['id']>('umich')
+  const keepCameraOnAutomaticCampusChange = useRef(false)
+  const [campusOverview, setCampusOverview] = useState(false)
+  const [showSchoolMarkers, setShowSchoolMarkers] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState(14)
   // While the basemap switches the map is blank, so weather drawn on it would float on nothing.
   const [restyling, setRestyling] = useState(false)
   const [styledFor, setStyledFor] = useState(threeD)
@@ -159,6 +187,18 @@ export function GeoMap({
     return () => window.clearTimeout(timer)
   }, [restyling])
   const [focus, setFocus] = useState<string | null>(null)
+  const campusChangeRef = useRef(onCampusChange)
+  const surveyRef = useRef(survey)
+  useEffect(() => {
+    campusChangeRef.current = onCampusChange
+    surveyRef.current = survey
+  })
+  const [showLayerPanel, setShowLayerPanel] = useState(true)
+  const [showBusPanel, setShowBusPanel] = useState(true)
+  const campus = CAMPUSES.find((item) => item.id === campusId) ?? CAMPUSES[0]
+  const isUmich = campusId === 'umich'
+  // U-M at campus scale: the only place the simulation and its weather run.
+  const onCampus = isUmich && !campusOverview
 
   useEffect(() => {
     let stop = false
@@ -281,7 +321,7 @@ export function GeoMap({
     observer.observe(toggles)
     if (dock instanceof HTMLElement) observer.observe(dock)
     return () => observer.disconnect()
-  }, [dockOpen])
+  }, [dockOpen, showLayerPanel, onCampus])
 
   // A legend taller than its room scrolls; fade its bottom edge so a cut row reads as more below, not a glitch.
   const legendRef = useRef<HTMLDivElement>(null)
@@ -301,10 +341,26 @@ export function GeoMap({
   })
 
   // Storms are drawn at campus scale. Opening the dock from the city view moves in to campus.
+  // Opened from another campus or the national view, go home to U-M first.
+  const awayRef = useRef({ campusId, campusOverview })
   useEffect(() => {
-    if (!map || !dockOpen || survey || map.getZoom() >= 13) return
+    awayRef.current = { campusId, campusOverview }
+  })
+  useEffect(() => {
+    if (!map || !dockOpen || survey) return
+    const away = awayRef.current
+    if (away.campusId !== 'umich' || away.campusOverview) {
+      setCampusId('umich')
+      if (away.campusOverview) map.easeTo({ center: UMICH.center, zoom: UMICH.zoom, pitch: 0, bearing: 0, duration: 900 })
+      return
+    }
+    if (map.getZoom() >= 13) return
     map.easeTo({ center: [-83.728, 42.2845], zoom: 13.5, duration: 700 })
   }, [map, dockOpen, survey])
+  // Leaving U-M folds the dock; it is hidden there and would reopen over the next campus.
+  useEffect(() => {
+    if (!onCampus && dockRef.current.open) dockRef.current.onOpen(false)
+  }, [onCampus])
 
   // Weather takes lines and roads out. They stay on the map, drawn as broken.
   const [power, cutPower] = useMemo(() => splitLinks(allPower, new Set(cutEdges.map((m) => m.id))), [allPower, cutEdges])
@@ -370,12 +426,51 @@ export function GeoMap({
   )
 
   const legendShort = legendRoom !== null && legendRoom.height < 72
-  const legend = useMemo(
-    () =>
-      catalog
+  // Buses run only on open stretches: a suspended line has none, a storm-closed or dark-stop stretch is skipped.
+  const motionRoutes = useMemo(() => {
+    const full = new globalThis.Map(catalog.map((feature) => [feature.properties.id, lineMeters(feature.geometry.coordinates)]))
+    return drawnBuses.flatMap((feature, index) => {
+      const coordinates = feature.geometry.coordinates
+      if (feature.properties.skipped || coordinates.length < 2) return []
+      const share = lineMeters(coordinates) / (full.get(feature.properties.id) || 1)
+      if (share < 0.04) return []
+      return [{
+        id: `${feature.properties.id}#${index}`,
+        name: feature.properties.name,
+        color: feature.properties.color,
+        coordinates,
+        share,
+      }]
+    })
+  }, [catalog, drawnBuses])
+
+  const legend = isUmich
+    ? catalog
         .map((feature) => feature.properties)
-        .sort((a, b) => a.agency.localeCompare(b.agency) || a.name.localeCompare(b.name)),
-    [catalog],
+        .sort((a, b) => a.agency.localeCompare(b.agency) || a.name.localeCompare(b.name))
+    : campus.routes.map((route) => ({
+        id: route.id,
+        name: route.name,
+        agency: campus.name,
+        color: '#38bdf8',
+        dashed: false,
+      }))
+  const campusRouteFeatures = campus.routes.map((route) => ({
+    type: 'Feature' as const,
+    properties: { id: route.id, name: route.name, color: '#38bdf8', dashed: false },
+    geometry: { type: 'LineString' as const, coordinates: route.coordinates },
+  }))
+  const campusPowerFeatures = campus.landmarks.map((landmark, index) => ({
+    type: 'Feature' as const,
+    properties: { id: `${campus.id}-power-${index}`, color: '#f59e0b', dashed: true },
+    geometry: {
+      type: 'LineString' as const,
+      coordinates: [campus.center, landmark.point],
+    },
+  }))
+  const activeMotionRoutes = useMemo<MotionRoute[]>(
+    () => (isUmich ? motionRoutes : campus.routes.map((route) => ({ ...route, color: '#38bdf8' }))),
+    [isUmich, motionRoutes, campus],
   )
 
   function onLoad(event: { target: MaplibreMap }) {
@@ -416,22 +511,130 @@ export function GeoMap({
   }, [map, nodes, selectedId, coolingIds, active])
 
   useEffect(() => {
+    mapThemeRef.current = mapTheme
+  }, [mapTheme])
+
+  useEffect(() => {
+    const follow = () => setMapTheme(appDark() ? 'night' : 'day')
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const observer = new MutationObserver(follow)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    media.addEventListener('change', follow)
+    return () => {
+      observer.disconnect()
+      media.removeEventListener('change', follow)
+    }
+  }, [])
+
+  // Inline, so it replaces the theme filter in index.css rather than stacking a second inversion.
+  useEffect(() => {
+    if (!map) return
+    map.getCanvas().style.filter = basemap === 'raster'
+      ? mapTheme === 'night'
+        ? 'invert(1) hue-rotate(180deg) brightness(0.75) contrast(0.95) saturate(0.6)'
+        : 'saturate(0.45) contrast(0.95) brightness(1.02)'
+      : ''
+  }, [map, basemap, mapTheme])
+
+  useEffect(() => {
+    if (!map) return
+    const updateOverview = () => {
+      const zoom = map.getZoom()
+      const next = zoom <= 5.5
+      setCampusOverview((current) => current === next ? current : next)
+      setShowSchoolMarkers(zoom <= 9.5)
+      setZoomLevel(zoom)
+    }
+    updateOverview()
+    map.on('zoom', updateOverview)
+    return () => {
+      map.off('zoom', updateOverview)
+    }
+  }, [map])
+
+  useEffect(() => {
+    if (!map) return
+    const updateCampusFromMapCenter = () => {
+      const zoom = map.getZoom()
+      // A researched place is shown wherever it is; it does not switch campus.
+      if (zoom < 8 || surveyRef.current) return
+
+      const center = map.getCenter()
+      const candidates = CAMPUSES.flatMap((school) => {
+        const distance = distanceBetweenCoordinatesKm(
+          [center.lng, center.lat],
+          school.center,
+        )
+        return distance <= 6 ? [{ school, distance }] : []
+      })
+      if (candidates.length === 0) return
+
+      const nearestDistance = Math.min(...candidates.map(({ distance }) => distance))
+      const priority = (school: (typeof CAMPUSES)[number]) =>
+        school.collection === 'featured' ? 3 : school.prominent || school.collection === 'extra' ? 2 : 1
+      const contenders = candidates
+        .filter(({ distance }) => distance <= nearestDistance + 0.75)
+        .sort((a, b) => priority(b.school) - priority(a.school) || a.distance - b.distance)
+      let nextCampus = contenders[0]
+
+      const currentCampus = candidates.find(({ school }) => school.id === campusId)
+      if (
+        currentCampus &&
+        priority(currentCampus.school) >= priority(nextCampus.school) &&
+        currentCampus.distance <= nextCampus.distance + 0.5
+      ) {
+        nextCampus = currentCampus
+      }
+
+      if (nextCampus.school.id !== campusId) {
+        keepCameraOnAutomaticCampusChange.current = true
+        setCampusId(nextCampus.school.id)
+        campusChangeRef.current?.()
+      }
+    }
+
+    // Only after a move: checking on every campus change would snap a picked campus back to the one under the old view.
+    map.on('moveend', updateCampusFromMapCenter)
+    map.on('zoomend', updateCampusFromMapCenter)
+    return () => {
+      map.off('moveend', updateCampusFromMapCenter)
+      map.off('zoomend', updateCampusFromMapCenter)
+    }
+  }, [map, campusId])
+
+  useEffect(() => {
+    if (!map || !campusOverview) return
+    const longitudes = CAMPUSES.map((item) => item.center[0])
+    const latitudes = CAMPUSES.map((item) => item.center[1])
+    map.fitBounds(
+      [
+        [Math.min(...longitudes), Math.min(...latitudes)],
+        [Math.max(...longitudes), Math.max(...latitudes)],
+      ],
+      { padding: 48, duration: 700, maxZoom: 4.5 },
+    )
+  }, [map, campusOverview])
+
+  useEffect(() => {
     if (!map) return
     const apply = () => {
       setRestyling(false)
       const vector = Boolean(map.getSource('openmaptiles'))
       setBasemap(vector ? 'vector' : 'raster')
       if (threeD && vector) {
-        addBuildings(map)
+        addBuildings(map, mapThemeRef.current)
+        applyMapTheme(map, mapThemeRef.current, dayPaintValues.current)
+      }
+      if (keepCameraOnAutomaticCampusChange.current) {
+        keepCameraOnAutomaticCampusChange.current = false
+      } else {
         map.easeTo({
-          pitch: 60,
-          bearing: -24,
-          zoom: Math.max(map.getZoom(), 15.4),
-          center: [-83.7385, 42.2762],
+          pitch: threeD && vector ? 60 : 0,
+          bearing: threeD && vector ? -24 : 0,
+          zoom: campus.zoom,
+          center: campus.center,
           duration: 800,
         })
-      } else if (!threeD && !vector && map.getPitch() > 1) {
-        map.easeTo({ pitch: 0, bearing: 0, zoom: 12.4, center: [-83.728, 42.286], duration: 600 })
       }
     }
     if (map.isStyleLoaded()) apply()
@@ -439,7 +642,21 @@ export function GeoMap({
     return () => {
       map.off('style.load', apply)
     }
-  }, [map, threeD])
+  }, [map, threeD, campus])
+
+  useEffect(() => {
+    if (!map || basemap !== 'vector') return
+    const apply = () => {
+      if (!map.isStyleLoaded()) return
+      applyMapTheme(map, mapTheme, dayPaintValues.current)
+      if (threeD) addBuildings(map, mapTheme)
+    }
+    apply()
+    map.on('style.load', apply)
+    return () => {
+      map.off('style.load', apply)
+    }
+  }, [map, basemap, mapTheme, threeD])
 
   // The map stays mounted behind the grid view, so clearing a researched place has to bring the camera home.
   const surveyed = useRef(false)
@@ -470,10 +687,11 @@ export function GeoMap({
     )
   }, [map, survey])
 
+  // Away from U-M the sim lines are emptied, not left behind from the last visit.
   useEffect(() => {
     if (!map || basemap !== 'vector') return
-    const ground = (features: { geometry: { coordinates: number[][] }; properties?: Record<string, unknown> }[]) =>
-      features.map((feature) => ({
+    const ground = (features: Feature<LineString, GeoJsonProperties>[]) =>
+      (onCampus ? features : []).map((feature) => ({
         ...feature,
         properties: {
           ...feature.properties,
@@ -524,31 +742,195 @@ export function GeoMap({
         'line-opacity': 0.95,
       },
     )
-  }, [map, basemap, showRoads, showPower, roads, power, cutPower, shutRoads, drawnBuses, focus])
+  }, [map, basemap, showRoads, showPower, roads, power, cutPower, shutRoads, drawnBuses, focus, onCampus])
 
   return (
     <div ref={rootRef} className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : storm.armed && !map ? 'cursor-progress' : ''}`}>
-      <div ref={togglesRef} className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-        <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />
-        <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
-        <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
-        <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
-        <Toggle label="3D view" checked={threeD} onChange={setThreeD} />
-      </div>
+      <label className="absolute right-4 top-3.5 z-10 flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-xs text-muted shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+        Campus
+        <select
+          aria-label="Select campus"
+          value={campusId}
+          onChange={(event) => {
+            setCampusId(event.target.value as typeof campusId)
+            onCampusChange?.()
+          }}
+          className="max-w-52 bg-panel text-text outline-none"
+        >
+          <optgroup label="Featured campuses">
+            {CAMPUSES.filter((item) => item.collection === 'featured').map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Nearby schools">
+            {CAMPUSES.filter((item) => item.collection === 'nearby').map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Extra previews · not a verified MHacks invite list">
+            {CAMPUSES.filter((item) => item.collection === 'extra').map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </optgroup>
+        </select>
+      </label>
+      {!isUmich && (
+        <div className="absolute right-4 top-16 z-10 flex max-w-64 items-center gap-2.5 rounded-lg border border-line bg-panel/95 px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-white p-1">
+            {campus.logo && (
+              <img
+                src={campus.logo}
+                alt=""
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none'
+                  event.currentTarget.nextElementSibling?.classList.remove('hidden')
+                }}
+                className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain"
+              />
+            )}
+            <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-5 w-5 text-slate-600 ${campus.logo ? 'hidden' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6M8 10h.01M12 10h.01M16 10h.01" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-xs font-semibold text-text">{campus.name}</div>
+            <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wide text-muted">
+              {campus.landmarks.length} landmarks · {campus.routes.length} illustrative routes
+            </div>
+            <div className="mt-0.5 text-[9px] text-muted">Preview only · simulation remains U-M</div>
+          </div>
+        </div>
+      )}
+      {showLayerPanel ? (
+        <div ref={togglesRef} className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <div className="mb-1 flex items-center justify-between gap-5 border-b border-line pb-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Map layers</span>
+            <button type="button" aria-label="Hide map layers panel" onClick={() => setShowLayerPanel(false)} className="text-sm leading-none text-muted hover:text-text">×</button>
+          </div>
+          {isUmich && <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />}
+          {isUmich && <Toggle label="Road links" checked={showRoads} onChange={setShowRoads} />}
+          {isUmich ? (
+            <>
+              <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
+              <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
+              <Toggle label="Moving buses" checked={showMotion} onChange={setShowMotion} />
+            </>
+          ) : (
+            <>
+              <Toggle label="Campus landmarks" checked={showCampusLandmarks} onChange={setShowCampusLandmarks} />
+              <Toggle label="Illustrative energy links" checked={showCampusPower} onChange={setShowCampusPower} />
+              <Toggle label="Illustrative shuttle routes" checked={showBuses} onChange={setShowBuses} />
+              <Toggle label="Illustrative route movement" checked={showMotion} onChange={setShowMotion} />
+            </>
+          )}
+          <Toggle label="3D buildings" checked={threeD} onChange={setThreeD} />
+          <Toggle
+            label="Night map"
+            checked={mapTheme === 'night'}
+            onChange={(enabled) => setMapTheme(enabled ? 'night' : 'day')}
+          />
+        </div>
+      ) : (
+        <button ref={togglesRef as Ref<HTMLButtonElement>} type="button" onClick={() => setShowLayerPanel(true)} className="absolute left-4 top-3.5 z-10 rounded-md border border-line bg-panel/95 px-3 py-2 text-xs text-text shadow">
+          Show map layers
+        </button>
+      )}
       <Map
         mapStyle={threeD ? VECTOR_STYLE : MAP_STYLE}
-        initialViewState={{ longitude: -83.728, latitude: 42.286, zoom: 12.4, pitch: 0 }}
+        initialViewState={
+          threeD
+            ? { longitude: campus.center[0], latitude: campus.center[1], zoom: campus.zoom, pitch: 60, bearing: -24 }
+            : { longitude: campus.center[0], latitude: campus.center[1], zoom: campus.zoom, pitch: 0 }
+        }
         maxPitch={70}
         style={{ width: '100%', height: '100%' }}
         onLoad={onLoad}
         onClick={(event) => {
-          if (!placing || !onPlace) return
+          if (!isUmich || !placing || !onPlace) return
           onPlace(event.lngLat.lng, event.lngLat.lat)
         }}
         cursor={placing ? 'crosshair' : undefined}
       >
         <NavigationControl position="bottom-right" showCompass />
-        {nodes.map((node) => {
+        {showSchoolMarkers ? CAMPUSES.map((school) => {
+          const compact = zoomLevel > 5.5
+          const expandOnHover = compact || (school.collection === 'nearby' && !school.prominent)
+          return (
+          <Marker
+            key={`campus-${school.id}`}
+            longitude={school.center[0]}
+            latitude={school.center[1]}
+            anchor="center"
+            style={{ zIndex: school.collection !== 'nearby' || school.prominent ? 20 : 1 }}
+          >
+            <div className="group relative">
+              <button
+                type="button"
+                title={school.name}
+                aria-label={`Open ${school.name} map`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setCampusId(school.id)
+                  onCampusChange?.()
+                }}
+                className={`relative flex items-center justify-center overflow-hidden border-2 border-white p-1 font-sans text-[9px] font-bold shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-all duration-150 hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 ${
+                  compact
+                    ? 'h-2 w-2 rounded-full group-hover:h-10 group-hover:w-10 group-focus-within:h-10 group-focus-within:w-10'
+                    : school.collection !== 'nearby' || school.prominent
+                      ? 'h-12 w-12 rounded-full'
+                      : 'h-3 w-3 rounded-full group-hover:h-10 group-hover:w-10 group-focus-within:h-10 group-focus-within:w-10'
+                }`}
+                style={{
+                  backgroundColor: compact ? school.badgeColor ?? '#334155' : school.logo ? '#fff' : school.badgeColor ?? '#334155',
+                  color: compact || !school.logo ? '#fff' : '#1e293b',
+                }}
+              >
+                {school.logo && (
+                  <img
+                    src={school.logo}
+                    alt=""
+                    onError={(event) => {
+                      event.currentTarget.style.display = 'none'
+                      event.currentTarget.nextElementSibling?.classList.remove('hidden')
+                    }}
+                    className={`absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain ${
+                      expandOnHover
+                        ? 'hidden group-hover:block group-focus-within:block'
+                        : ''
+                    }`}
+                  />
+                )}
+                <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-5 w-5 ${
+                  school.logo
+                    ? `hidden ${expandOnHover ? 'group-hover:block group-focus-within:block' : ''}`
+                    : expandOnHover
+                      ? 'hidden group-hover:block group-focus-within:block'
+                      : ''
+                }`} fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6M8 10h.01M12 10h.01M16 10h.01" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-56 -translate-x-1/2 rounded border border-line bg-panel px-2.5 py-1.5 text-center text-[11px] font-medium text-text opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                {school.name}
+              </span>
+            </div>
+          </Marker>
+        )}) : showCampusLandmarks && campus.landmarks.map((landmark) => (
+          <Marker key={`${campus.id}-${landmark.name}`} longitude={landmark.point[0]} latitude={landmark.point[1]} anchor="center">
+            <CampusDot label={landmark.name} title={`${landmark.name} · ${campus.name}`} />
+          </Marker>
+        ))}
+        {!campusOverview && !isUmich && showCampusPower && (
+          <Marker longitude={campus.center[0]} latitude={campus.center[1]} anchor="center">
+            <CampusDot
+              label={`Illustrative central energy hub · ${campus.name}`}
+              title="Illustrative energy hub; not verified campus infrastructure"
+              ring="#f59e0b"
+              bolt
+            />
+          </Marker>
+        )}
+        {!campusOverview && isUmich && nodes.map((node) => {
           const place = PLACES[node.id]
           if (!place || CITY.has(node.id)) return null
           const color = statusColor(node.status)
@@ -567,11 +949,9 @@ export function GeoMap({
                 style={armed ? { pointerEvents: 'none' } : undefined}
                 title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
               >
-                <span
-                  data-place-dot
-                  className={`h-3.5 w-3.5 rounded-full border-2 border-ink ${selected ? 'ring-1 ring-text' : ''}`}
-                  style={{ background: color, boxShadow: `0 0 12px ${color}` }}
-                />
+                <span data-place-dot className="flex">
+                  <CampusDot label={`${place.short} · ${node.status}${cooling ? ' · cooling center' : ''}`} ring={color} selected={selected} bolt />
+                </span>
                 {/* Central campus is dense: label only what needs attention, the rest on hover. */}
                 <span
                   data-place-name
@@ -587,7 +967,7 @@ export function GeoMap({
             </Marker>
           )
         })}
-        {draftPoint && (
+        {!campusOverview && isUmich && draftPoint && (
           <Marker longitude={draftPoint.lng} latitude={draftPoint.lat} anchor="bottom">
             <div className="flex flex-col items-center">
               <span className="mb-0.5 text-[9px] font-bold tracking-wide text-warn">PIN</span>
@@ -598,7 +978,7 @@ export function GeoMap({
             </div>
           </Marker>
         )}
-        {proposals.map((pin) => {
+        {!campusOverview && isUmich && proposals.map((pin) => {
           const color = statusColor(pin.status)
           return (
             <Marker key={pin.id} longitude={pin.lng} latitude={pin.lat} anchor="bottom">
@@ -615,7 +995,7 @@ export function GeoMap({
             </Marker>
           )
         })}
-        {surveyGraph?.nodes.map((building) => {
+        {!campusOverview && surveyGraph?.nodes.map((building) => {
           const down = surveyDark?.has(building.id) ?? false
           const color = down ? 'var(--color-down)' : 'var(--color-ok)'
           return (
@@ -633,7 +1013,7 @@ export function GeoMap({
           )
         })}
       </Map>
-      {proposals.length > 0 && (
+      {isUmich && proposals.length > 0 && (
         <LineOverlay
           map={map}
           features={proposals.flatMap((pin) => {
@@ -654,7 +1034,7 @@ export function GeoMap({
           width={2}
         />
       )}
-      {surveyGraph && (
+      {!campusOverview && surveyGraph && (
         <LineOverlay
           map={map}
           features={surveyGraph.edges.flatMap((edge) => {
@@ -681,7 +1061,7 @@ export function GeoMap({
           width={2}
         />
       )}
-      {legend.length > 0 && !survey && (
+      {!campusOverview && legend.length > 0 && (!isUmich || !survey) && showBusPanel && (
         <div
           ref={legendRef}
           className={`absolute left-4 z-10 w-60 overflow-y-auto rounded-md border border-line bg-panel/95 p-2 text-xs text-muted [scrollbar-width:thin] ${
@@ -693,9 +1073,10 @@ export function GeoMap({
           }}
           title={legendShort ? 'Fold the scenario dock away to see every line' : undefined}
         >
-          <div className={`flex items-baseline justify-between px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted ${legendShort ? '' : 'mb-1'}`}>
-            Bus lines
+          <div className={`flex items-baseline justify-between gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted ${legendShort ? '' : 'mb-1'}`}>
+            <span className="flex-1">{isUmich ? 'Bus lines' : 'Illustrative routes'}</span>
             {legendShort && <span className="font-mono font-normal normal-case tracking-normal text-faint">{legend.length} lines</span>}
+            <button type="button" aria-label="Hide bus lines panel" onClick={() => setShowBusPanel(false)} className="text-sm leading-none text-muted hover:text-text">×</button>
           </div>
           {!legendShort && legend.map((route) => {
             const out = closedLines[route.id]
@@ -726,7 +1107,7 @@ export function GeoMap({
                     <span className="-ml-0.5 shrink-0">· reroute</span>
                   ) : null}
                 </button>
-                <button
+                {isUmich && <button
                   type="button"
                   onClick={() => storm.toggleRoute(route.id, route.name)}
                   title={out === 'suspended' ? `Put ${route.name} back in service` : `Take ${route.name} out of service`}
@@ -738,18 +1119,33 @@ export function GeoMap({
                   }`}
                 >
                   {out === 'suspended' ? 'restore' : 'suspend'}
-                </button>
+                </button>}
               </div>
             )
           })}
         </div>
       )}
-      <WeatherCanvas map={map} {...storm.canvas} marks={marks} lightMap={basemap === 'vector'} hidden={restyling} />
-      {/* Box-less wrapper so the dock can be measured without changing how it is placed. */}
-      <div ref={dockBox} className="contents">
-        <WeatherDock {...storm.dock} />
-      </div>
-      {basemap !== 'vector' && (
+      {!campusOverview && legend.length > 0 && (!isUmich || !survey) && !showBusPanel && (
+        <button
+          type="button"
+          onClick={() => setShowBusPanel(true)}
+          className={`absolute left-4 z-10 rounded-md border border-line bg-panel/95 px-3 py-2 text-xs text-text shadow ${legendRoom ? '' : 'bottom-8'}`}
+          style={legendRoom ? { top: legendRoom.top } : undefined}
+        >
+          Show bus lines
+        </button>
+      )}
+      {/* Weather is a U-M scenario: other campuses and the national view are previews. */}
+      {onCampus && (
+        <>
+          <WeatherCanvas map={map} {...storm.canvas} marks={marks} lightMap={mapTheme === 'day'} hidden={restyling} />
+          {/* Box-less wrapper so the dock can be measured without changing how it is placed. */}
+          <div ref={dockBox} className="contents">
+            <WeatherDock {...storm.dock} />
+          </div>
+        </>
+      )}
+      {onCampus && basemap !== 'vector' && (
         <>
           <LineOverlay map={map} features={showRoads ? roads.features : []} color="#94a3b8" width={2} dash="6 6" />
           <LineOverlay map={map} features={showRoads ? shutRoads.features : []} color="#ef4444" width={2} dash="3 4" />
@@ -758,7 +1154,182 @@ export function GeoMap({
           <LineOverlay map={map} features={drawnBuses} width={focus ? 2 : 3} focus={focus} />
         </>
       )}
+      {!campusOverview && !isUmich && showBuses && (
+        <LineOverlay map={map} features={campusRouteFeatures} width={3} focus={focus} />
+      )}
+      {!campusOverview && !isUmich && showCampusPower && (
+        <LineOverlay map={map} features={campusPowerFeatures} width={2} dash="5 6" />
+      )}
+      {!campusOverview && showMotion && activeMotionRoutes.length > 0 && (
+        <TransitMotion map={map} routes={activeMotionRoutes} />
+      )}
+      {!campusOverview && !isUmich && (showCampusPower || (showMotion && activeMotionRoutes.length > 0)) && (
+        <div className="pointer-events-none absolute bottom-3 left-1/2 z-[2] -translate-x-1/2 whitespace-nowrap rounded bg-ink/85 px-2 py-1 font-mono text-[10px] text-text">
+          ILLUSTRATIVE CAMPUS LAYERS · NOT VERIFIED INFRASTRUCTURE OR LIVE TRANSIT
+        </div>
+      )}
     </div>
+  )
+}
+
+interface MotionRoute {
+  id: string
+  name: string
+  color: string
+  coordinates: [number, number][]
+  /** Part of the whole line this stretch is, so a short open stretch is not crawled along. */
+  share?: number
+}
+
+function lineMeters(coords: readonly [number, number][]) {
+  let total = 0
+  for (let i = 1; i < coords.length; i++) total += metersApart(coords[i], { lng: coords[i - 1][0], lat: coords[i - 1][1] })
+  return total
+}
+
+interface ProjectedRoute {
+  route: MotionRoute
+  points: { x: number; y: number }[]
+  distances: number[]
+  total: number
+  duration: number
+  phaseOffset: number
+}
+
+function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: readonly MotionRoute[] }) {
+  const vehicleRefs = useRef(new globalThis.Map<string, SVGGElement>())
+  const elapsedRef = useRef(0)
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  )
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReducedMotion(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    if (!map || routes.length === 0) return
+
+    let frame = 0
+    let projected: ProjectedRoute[] = []
+    let startedAt: number | null = null
+    let playing = false
+    const vehicles = vehicleRefs.current
+    const animationTime = () =>
+      elapsedRef.current + (startedAt === null ? 0 : performance.now() - startedAt)
+    const projectRoutes = () => {
+      const width = map.getCanvas().clientWidth
+      const height = map.getCanvas().clientHeight
+      projected = routes.flatMap((route) => {
+        const phaseOffset = route.id.split('').reduce((hash, character) => hash + character.charCodeAt(0), 0) % 60_000
+        const points = route.coordinates.map((coordinate) => map.project(coordinate))
+        const distances = [0]
+        for (let i = 1; i < points.length; i++) {
+          distances.push(distances[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y))
+        }
+        const total = distances[distances.length - 1]
+        if (total <= 0) return []
+        const visible = points.some((point) => point.x >= -20 && point.x <= width + 20 && point.y >= -20 && point.y <= height + 20)
+        if (!visible) return []
+        const duration = (150_000 + (phaseOffset % 4) * 18_000) * Math.min(1, Math.max(0.12, route.share ?? 1))
+        return [{ route, points, distances, total, duration, phaseOffset }]
+      })
+    }
+
+    const draw = (time: number) => {
+      for (let index = 0; index < projected.length; index++) {
+        const path = projected[index]
+        const phase = ((time + path.phaseOffset) % (path.duration * 2)) / path.duration
+        const fraction = phase <= 1 ? phase : 2 - phase
+        const target = fraction * path.total
+        let segment = path.distances.findIndex((value) => value >= target)
+        if (segment <= 0) segment = 1
+        const segmentStart = path.distances[segment - 1]
+        const segmentLength = path.distances[segment] - segmentStart
+        const progress = segmentLength > 0 ? (target - segmentStart) / segmentLength : 0
+        const from = path.points[segment - 1]
+        const to = path.points[segment]
+        const x = from.x + (to.x - from.x) * progress
+        const y = from.y + (to.y - from.y) * progress
+        const heading = Math.atan2((phase <= 1 ? to.y : from.y) - y, (phase <= 1 ? to.x : from.x) - x) * (180 / Math.PI)
+        const vehicle = vehicles.get(path.route.id)
+        if (vehicle) {
+          vehicle.style.visibility = 'visible'
+          vehicle.setAttribute('transform', `translate(${x} ${y}) rotate(${heading})`)
+        }
+      }
+      const visibleIds = new Set(projected.map((path) => path.route.id))
+      for (const [id, vehicle] of vehicles) {
+        if (!visibleIds.has(id)) vehicle.style.visibility = 'hidden'
+      }
+    }
+
+    const pause = () => {
+      if (startedAt !== null) {
+        elapsedRef.current += performance.now() - startedAt
+        startedAt = null
+      }
+      playing = false
+      if (frame) cancelAnimationFrame(frame)
+      frame = 0
+    }
+    const tick = () => {
+      draw(reducedMotion ? 12_000 : animationTime())
+      if (playing && !reducedMotion) frame = requestAnimationFrame(tick)
+    }
+    const resume = () => {
+      if (playing) return
+      projectRoutes()
+      if (startedAt === null) startedAt = performance.now()
+      playing = true
+      draw(reducedMotion ? 12_000 : animationTime())
+      if (!reducedMotion) frame = requestAnimationFrame(tick)
+    }
+    const redrawAfterMapRender = () => {
+      projectRoutes()
+      draw(reducedMotion ? 12_000 : animationTime())
+    }
+
+    resume()
+    map.on('movestart', pause)
+    map.on('moveend', resume)
+    map.on('render', redrawAfterMapRender)
+    return () => {
+      pause()
+      for (const vehicle of vehicles.values()) vehicle.style.visibility = 'hidden'
+      elapsedRef.current = animationTime()
+      startedAt = null
+      map.off('render', redrawAfterMapRender)
+      map.off('movestart', pause)
+      map.off('moveend', resume)
+    }
+  }, [map, routes, reducedMotion])
+
+  if (!map || routes.length === 0) return null
+  return (
+    <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[2] h-full w-full overflow-hidden">
+      {routes.map((route) => (
+        <g
+          key={route.id}
+          ref={(element) => {
+            if (element) vehicleRefs.current.set(route.id, element)
+            else vehicleRefs.current.delete(route.id)
+          }}
+          style={{ visibility: 'hidden' }}
+          aria-label={`${route.name} illustrative vehicle`}
+        >
+          <title>{`${route.name} · illustrative movement, not live tracking`}</title>
+          <circle r="10" fill="#0b1424" stroke={route.color} strokeWidth="2" />
+          <rect x="-6.5" y="-4" width="13" height="8" rx="2" fill={route.color} />
+          <path d="M -3 -2.5 h2.5 v2.5 h-2.5 z M 1 -2.5 h2.5 v2.5 h-2.5 z" fill="#0b1424" />
+          <circle cx="-3.5" cy="4" r="1" fill="#e6edf7" />
+          <circle cx="3.5" cy="4" r="1" fill="#e6edf7" />
+        </g>
+      ))}
+    </svg>
   )
 }
 
@@ -780,57 +1351,48 @@ function LineOverlay({
   dash?: string
   focus?: string | null
 }) {
-  const [paths, setPaths] = useState<{ d: string; color: string; dash?: string; opacity: number; width: number }[]>([])
+  const pathRefs = useRef<(SVGPathElement | null)[]>([])
 
   useEffect(() => {
     if (!map) return
     const redraw = () => {
-      setPaths(
-        features.flatMap((feature) => {
-          const points = feature.geometry.coordinates.map((pair) => {
-            const point = map.project([pair[0], pair[1]])
-            return `${point.x.toFixed(1)},${point.y.toFixed(1)}`
-          })
-          if (points.length < 2) return []
-          const id = feature.properties?.id
-          const selected = !focus || focus === id
-          return [
-            {
-              d: `M ${points.join(' L ')}`,
-              color: feature.properties?.color ?? color ?? '#e2e8f0',
-              dash: feature.properties?.dashed ? '5 5' : dash,
-              opacity: selected ? 1 : 0.15,
-              width: selected && focus === id ? width + 2 : width,
-            },
-          ]
-        }),
-      )
+      features.forEach((feature, index) => {
+        const path = pathRefs.current[index]
+        if (!path) return
+        const points = feature.geometry.coordinates.map((pair) => {
+          const point = map.project([pair[0], pair[1]])
+          return `${point.x.toFixed(1)},${point.y.toFixed(1)}`
+        })
+        path.setAttribute('d', points.length >= 2 ? `M ${points.join(' L ')}` : '')
+      })
     }
     redraw()
-    map.on('move', redraw)
-    map.on('resize', redraw)
+    map.on('render', redraw)
     return () => {
-      map.off('move', redraw)
-      map.off('resize', redraw)
+      map.off('render', redraw)
     }
   }, [map, features, color, width, dash, focus])
 
-  if (!map || paths.length === 0) return null
+  if (!map || features.length === 0) return null
   return (
-    <svg className="pointer-events-none absolute inset-0 z-[1] h-full w-full">
-      {paths.map((path, index) => (
-        <path
-          key={index}
-          d={path.d}
-          fill="none"
-          stroke={path.color}
-          strokeWidth={path.width}
-          strokeDasharray={path.dash}
-          strokeOpacity={path.opacity}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-      ))}
+    <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] h-full w-full">
+      {features.map((feature, index) => {
+        const id = feature.properties?.id
+        const selected = !focus || focus === id
+        return (
+          <path
+            key={`${id ?? 'route'}-${index}`}
+            ref={(element) => { pathRefs.current[index] = element }}
+            fill="none"
+            stroke={feature.properties?.color ?? color ?? '#e2e8f0'}
+            strokeWidth={selected && focus === id ? width + 2 : width}
+            strokeDasharray={feature.properties?.dashed ? '5 5' : dash}
+            strokeOpacity={selected ? 1 : 0.15}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        )
+      })}
     </svg>
   )
 }
@@ -939,10 +1501,40 @@ function lineFeature(
   }
 }
 
-function addBuildings(map: MaplibreMap) {
+function distanceBetweenCoordinatesKm(
+  [fromLng, fromLat]: readonly [number, number],
+  [toLng, toLat]: readonly [number, number],
+) {
+  const radians = Math.PI / 180
+  const latitudeDelta = (toLat - fromLat) * radians
+  const longitudeDelta = (toLng - fromLng) * radians
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(fromLat * radians) * Math.cos(toLat * radians) *
+      Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+}
+
+function addBuildings(map: MaplibreMap, theme: 'day' | 'night') {
   if (!map.getSource('openmaptiles')) return
   if (map.getLayer('building')) map.setLayoutProperty('building', 'visibility', 'none')
-  if (map.getLayer('buildings-3d')) return
+  const buildingColor: string | ExpressionSpecification = theme === 'night'
+    ? '#26394d'
+    : [
+        'interpolate',
+        ['linear'],
+        ['coalesce', ['get', 'render_height'], 8],
+        0,
+        '#efe6da',
+        12,
+        '#d9cfc3',
+        30,
+        '#b7aa9c',
+      ]
+  if (map.getLayer('buildings-3d')) {
+    map.setPaintProperty('buildings-3d', 'fill-extrusion-color', buildingColor)
+    return
+  }
   const before = map.getStyle().layers?.find((layer) => layer.type === 'symbol')?.id
   map.addLayer(
     {
@@ -953,17 +1545,7 @@ function addBuildings(map: MaplibreMap) {
       minzoom: 13,
       filter: ['!=', ['get', 'hide_3d'], true],
       paint: {
-        'fill-extrusion-color': [
-          'interpolate',
-          ['linear'],
-          ['coalesce', ['get', 'render_height'], 8],
-          0,
-          '#efe6da',
-          12,
-          '#d9cfc3',
-          30,
-          '#b7aa9c',
-        ],
+        'fill-extrusion-color': buildingColor,
         'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
         'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
         'fill-extrusion-opacity': 1,
@@ -973,13 +1555,87 @@ function addBuildings(map: MaplibreMap) {
   )
 }
 
+function applyMapTheme(
+  map: MaplibreMap,
+  theme: 'day' | 'night',
+  dayValues: globalThis.Map<string, string | ExpressionSpecification>,
+) {
+  const night = theme === 'night'
+  const setColor = (
+    layerId: string,
+    property: 'background-color' | 'fill-color' | 'line-color' | 'text-color' | 'text-halo-color',
+    nightColor: string,
+  ) => {
+    const key = `${layerId}:${property}`
+    const current = map.getPaintProperty(layerId, property) as string | ExpressionSpecification | undefined
+    if (!dayValues.has(key)) {
+      if (current === undefined) return
+      dayValues.set(key, current)
+    }
+    const color = night ? nightColor : dayValues.get(key)
+    if (!color) return
+    switch (property) {
+      case 'background-color':
+        map.setPaintProperty(layerId, 'background-color', color)
+        break
+      case 'fill-color':
+        map.setPaintProperty(layerId, 'fill-color', color)
+        break
+      case 'line-color':
+        map.setPaintProperty(layerId, 'line-color', color)
+        break
+      case 'text-color':
+        map.setPaintProperty(layerId, 'text-color', color)
+        break
+      case 'text-halo-color':
+        map.setPaintProperty(layerId, 'text-halo-color', color)
+        break
+    }
+  }
+
+  for (const layer of map.getStyle().layers ?? []) {
+    if (layer.type === 'background') {
+      setColor(layer.id, 'background-color', '#091421')
+      continue
+    }
+    if (layer.type === 'fill') {
+      const sourceLayer = 'source-layer' in layer ? layer['source-layer'] : undefined
+      const color = sourceLayer === 'water'
+        ? '#12385c'
+        : sourceLayer === 'park' || sourceLayer === 'landcover'
+          ? '#18362f'
+          : sourceLayer === 'landuse'
+            ? '#1b2735'
+            : '#253244'
+      setColor(layer.id, 'fill-color', color)
+    } else if (layer.type === 'line') {
+      const sourceLayer = 'source-layer' in layer ? layer['source-layer'] : undefined
+      const casing = layer.id.includes('casing')
+      const majorRoad = /motorway|trunk|primary/.test(layer.id)
+      const color = sourceLayer === 'waterway'
+        ? '#23517b'
+        : sourceLayer === 'transportation'
+          ? casing ? '#172333' : majorRoad ? '#75859b' : '#47596e'
+          : '#536479'
+      setColor(layer.id, 'line-color', color)
+    } else if (layer.type === 'symbol') {
+      setColor(layer.id, 'text-color', '#d7e2ed')
+      setColor(layer.id, 'text-halo-color', '#111e2c')
+    }
+  }
+
+  map.setLight(night
+    ? { anchor: 'viewport', color: '#b7c9e2', intensity: 0.28, position: [1.5, 210, 35] }
+    : { anchor: 'viewport', color: '#fff3d7', intensity: 0.72, position: [1.15, 210, 45] })
+}
+
 function setGroundLines(
   map: MaplibreMap,
   id: string,
-  features: { geometry: { coordinates: number[][] }; properties?: Record<string, unknown> }[],
+  features: Feature<LineString, GeoJsonProperties>[],
   paint: Record<string, unknown>,
 ) {
-  const data = { type: 'FeatureCollection' as const, features }
+  const data: FeatureCollection<LineString, GeoJsonProperties> = { type: 'FeatureCollection', features }
   const before = map.getLayer('buildings-3d') ? 'buildings-3d' : undefined
   const source = map.getSource(id) as { setData?: (next: typeof data) => void } | undefined
   if (source?.setData) {
@@ -1013,6 +1669,29 @@ function Toggle({
       <input type="checkbox" className="accent-branch" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       {label}
     </label>
+  )
+}
+
+function CampusDot({ label, ring = '#38bdf8', selected = false, bolt = false, title }: {
+  label: string
+  ring?: string
+  selected?: boolean
+  bolt?: boolean
+  title?: string
+}) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={title ?? label}
+      tabIndex={bolt ? 0 : undefined}
+      className={`flex h-4 w-4 items-center justify-center rounded-full border-2 bg-sky-600 shadow-[0_0_8px_rgba(56,189,248,0.55)] transition-transform duration-150 ${
+        selected ? 'scale-125' : ''
+      } ${bolt ? 'hover:scale-150 focus-visible:scale-150' : ''}`}
+      style={{ borderColor: ring }}
+    >
+      {bolt && <svg aria-hidden="true" viewBox="0 0 12 16" className="h-2.5 w-2 text-white" fill="currentColor"><path d="M7.1 0 1.8 8h3.5L4.7 16l5.5-9H6.7L7.1 0Z" /></svg>}
+    </span>
   )
 }
 

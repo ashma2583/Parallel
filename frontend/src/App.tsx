@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BranchPanel } from './components/BranchPanel'
+import { CityCanvas } from './components/CityCanvas'
 import { GeoMap, type GeoMapHandle, type WeatherStatus } from './components/GeoMap'
 import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
@@ -26,7 +27,7 @@ const RUNNING: Scenario = { label: 'Scenario running', detail: 'Reset stops it' 
 export default function App() {
   const sim = useSim()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [view, setView] = useState<View>('grid')
+  const [view, setView] = useState<View>('map')
   const [branching, setBranching] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
   const [scenario, setScenario] = useState<Label | null>(null)
@@ -238,9 +239,25 @@ export default function App() {
                     })
                   }
                   onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
+                  onCampusChange={() => {
+                    setSelectedId(null)
+                    setPlacing(null)
+                    setDraftPoint(null)
+                  }}
                 />
               </div>
             )}
+            {view === 'city' &&
+              (surveyModel ? (
+                <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
+              ) : (
+                <CityCanvas
+                  nodes={nodes}
+                  edges={sim.edges}
+                  selectedId={selectedId}
+                  onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
+                />
+              ))}
             {view === 'grid' &&
               (surveyModel ? (
                 <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
@@ -365,7 +382,7 @@ export default function App() {
                     onClear={() => {
                       setSurvey(null)
                       setSurveyFailed([])
-                      setView('grid')
+                      setView('city')
                     }}
                     graph={surveyModel}
                     dark={surveyDark}
