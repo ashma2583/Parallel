@@ -5,15 +5,42 @@ import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
 import { LocationPanel } from './components/LocationPanel'
 import { PlanBuilding, type PlanDraft } from './components/PlanBuilding'
-import { ScenarioStrip, type Scenario } from './components/ScenarioStrip'
+import { HEAT_WAVE, ScenarioStrip, runScenario, type Scenario } from './components/ScenarioStrip'
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
-import { proposeBuilding, removeProposal, type Branch, type LocationSurvey, type ProposalImpact } from './lib/api'
+import { proposeBuilding, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type ProposalImpact } from './lib/api'
 import { isDisrupted, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
+
+// Survives React's strict-mode remount so the heat wave is not applied twice.
+let heatWaveStarted = false
+
+function formatMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${rest} min`
+  if (rest === 0) return `${hours} hr`
+  return `${hours} hr ${rest} min`
+}
+
+function HeatWaveBanner({ wave }: { wave: Briefing['heat_wave'] }) {
+  const building = wave && wave.step > 0 && wave.step < wave.span
+  const plant = wave ? Math.round(wave.plant * 100) : 100
+  const line = !wave || wave.step === 0
+    ? 'The heat wave is just starting. Plant output falls over the next 4 hours. You can keep the dorms or the classrooms. The hospital stays on.'
+    : building
+      ? `Heat has been building for ${formatMinutes(wave.minutes)} of ${formatMinutes(wave.total_minutes)}. Central plant at ${plant}%, still falling toward 35%. You can keep the dorms or the classrooms. The hospital stays on.`
+      : 'Central plant at 35%. You can keep the dorms or the classrooms. The hospital stays on.'
+  return (
+    <div className="border-b border-line bg-ink px-4 py-2.5">
+      <p className="text-base font-medium">{line}</p>
+      <p className="mt-1 text-sm text-muted">The three intakes, these buildings, and the U-M bus lines are real. The kilowatts are a scaled model. One tick is 4 minutes of the afternoon.</p>
+    </div>
+  )
+}
 
 export default function App() {
   const sim = useSim()
@@ -22,6 +49,8 @@ export default function App() {
   const [branching, setBranching] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
   const [scenario, setScenario] = useState<Scenario | null>(null)
+  const [extras, setExtras] = useState(false)
+  const [demo] = useState(() => new URLSearchParams(window.location.search).get('demo') === 'heat-wave')
 
   // A researched place, shown in place of the campus until it is cleared.
   const [survey, setSurvey] = useState<LocationSurvey | null>(null)
@@ -79,6 +108,22 @@ export default function App() {
   }
 
   useEffect(() => {
+    const demo = new URLSearchParams(window.location.search).get('demo') === 'heat-wave'
+    if (!demo || heatWaveStarted || sim.nodes.length === 0) return
+    heatWaveStarted = true
+    void (async () => {
+      try {
+        if (isDisrupted(sim.nodes)) await resetSim()
+        await runScenario(HEAT_WAVE)
+        setScenario(HEAT_WAVE)
+        sim.refresh()
+      } catch {
+        heatWaveStarted = false
+      }
+    })()
+  }, [sim.nodes.length, sim.refresh])
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeBranch()
     }
@@ -95,7 +140,7 @@ export default function App() {
 
   return (
     <div className="grid h-full min-h-[640px] grid-cols-[minmax(0,1fr)] grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-ink text-text">
-      <TopBar sim={sim} nodes={nodes} step={step} onStep={onStep} view={view} onView={setView} />
+      <TopBar sim={sim} nodes={nodes} step={step} onStep={onStep} view={view} onView={setView} extras={extras} onExtras={setExtras} />
 
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_340px] min-[1100px]:grid-cols-[minmax(0,1fr)_400px]">
         <main className="relative flex min-w-0 flex-col">
@@ -106,6 +151,10 @@ export default function App() {
             onScenario={setScenario}
             onChanged={sim.refresh}
           />
+
+          {scenario?.label === HEAT_WAVE.label && (
+            <HeatWaveBanner wave={sim.briefing?.heat_wave} />
+          )}
 
           <div className="relative min-h-0 flex-1 overflow-hidden">
             {sim.nodes.length === 0 ? (
@@ -121,6 +170,7 @@ export default function App() {
                 coolingIds={coolingIds}
                 shelterKind={shelterKind}
                 useRouteIds={useRouteIds}
+                showExtras={extras}
                 reroutes={sim.briefing?.buses.reroute ?? []}
                 survey={survey}
                 surveyGraph={surveyModel}
@@ -180,9 +230,10 @@ export default function App() {
           </div>
         </main>
 
-        <aside className="flex min-h-0 flex-col border-l border-line bg-panel">
+        <aside className={`flex min-h-0 flex-col border-l border-line bg-panel ${demo ? 'demo-rail' : ''}`}>
           {branching ? (
             <BranchPanel
+              demo={demo}
               onPreview={setPreview}
               onClose={closeBranch}
               onAdopted={() => {
@@ -194,6 +245,8 @@ export default function App() {
             <LivePanel
               sim={sim}
               disrupted={disrupted}
+              extras={extras}
+              demo={demo}
               onBranch={() => setBranching(true)}
               onCommand={(result) => {
                 if (result.policy.action === 'reset') setScenario(null)

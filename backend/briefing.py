@@ -55,10 +55,11 @@ def build_briefing(graph: CampusGraph, preference: str, season: str = "fall") ->
         "displaced": displaced,
         "priority": _priority(nodes, preference, displaced),
         "buses": _buses(nodes),
-        "shelter": (shelter := _shelter(nodes, displaced, season)),
+        "shelter": (shelter := _shelter(nodes, displaced, season, cooling=graph.heat_wave is not None or season == "summer")),
         # Same places, so older clients that still read "cooling" keep working.
         "cooling": {"answer": shelter["answer"], "open": shelter["open"], "places": shelter["places"]},
         "systems": _systems(nodes),
+        "heat_wave": graph.heat_wave_view(),
     }
 
 
@@ -120,9 +121,10 @@ def _buses(nodes: list[Node]) -> dict:
     return {"answer": answer, "reroute": broken}
 
 
-def _shelter(nodes: list[Node], displaced: int, season: str) -> dict:
-    """Summer uses cooling centers. The rest of the school year uses warming centers."""
-    cooling = season == "summer"
+def _shelter(nodes: list[Node], displaced: int, season: str, *, cooling: bool | None = None) -> dict:
+    """Summer uses cooling centers. A heat wave does too. The rest of the year uses warming centers."""
+    if cooling is None:
+        cooling = season == "summer"
     kind = "cooling" if cooling else "warming"
     centers = [
         n for n in nodes

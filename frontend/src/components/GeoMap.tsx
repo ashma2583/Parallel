@@ -69,6 +69,8 @@ interface Props {
   coolingIds?: readonly string[]
   shelterKind?: 'cooling' | 'warming'
   useRouteIds?: readonly string[]
+  /** 3D and the rest of the map tools stay off the opening path. */
+  showExtras?: boolean
   reroutes?: Briefing['buses']['reroute']
   survey?: LocationSurvey | null
   surveyGraph?: SurveyGraphModel | null
@@ -88,6 +90,7 @@ export function GeoMap({
   coolingIds = [],
   shelterKind = 'warming',
   useRouteIds = [],
+  showExtras = false,
   survey = null,
   surveyGraph = null,
   surveyDark,
@@ -286,7 +289,7 @@ export function GeoMap({
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
         <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
-        <Toggle label="3D view" checked={threeD} onChange={setThreeD} />
+        {showExtras && <Toggle label="3D view" checked={threeD} onChange={setThreeD} />}
         <label className="mt-1 flex items-center gap-2">
           Map
           <input
@@ -332,8 +335,8 @@ export function GeoMap({
                 className="group flex flex-col items-center"
                 title={`${node.name} · ${node.status}${flow === 'go' ? ' · go here' : flow === 'leave' ? ' · leave' : ''}`}
               >
-                {flow === 'go' && <span className="mb-0.5 text-[9px] font-bold tracking-wide text-[#e879f9]">GO</span>}
-                {flow === 'leave' && <span className="mb-0.5 text-[9px] font-bold tracking-wide text-[#fb923c]">LEAVE</span>}
+                {flow === 'go' && <span className="mb-0.5 text-xs font-bold tracking-wide text-[#e879f9]">GO · {shelterKind === 'cooling' ? 'COOL' : 'WARM'}</span>}
+                {flow === 'leave' && <span className="mb-0.5 text-xs font-bold tracking-wide text-[#fb923c]">LEAVE</span>}
                 <span
                   className={`rounded-full border-2 border-ink ${selected ? 'ring-1 ring-text' : ''}`}
                   style={{
@@ -350,13 +353,13 @@ export function GeoMap({
                 />
                 {/* Central campus is dense: label only what needs attention, the rest on hover. */}
                 <span
-                  className={`mt-1 max-w-32 truncate rounded-sm bg-ink/85 px-1.5 py-0.5 text-[10px] font-medium text-text ${
+                  className={`mt-1 max-w-40 truncate rounded-sm bg-ink/90 px-2 py-1 text-xs font-semibold text-text ${
                     selected || cooling || flow || node.status !== 'Green' ? '' : 'invisible group-hover:visible'
                   }`}
                 >
                   {place.short}
                   {flow === 'go' && (
-                    <span className="ml-1 text-[#e879f9]">{shelterKind === 'cooling' ? 'cool' : 'warm'}</span>
+                    <span className="ml-1 text-[#e879f9]">{shelterKind === 'cooling' ? 'COOL' : 'WARM'}</span>
                   )}
                 </span>
               </button>

@@ -128,6 +128,32 @@ button:disabled {
   animation: rise 0.3s ease-out both;
 }
 
+@keyframes demo-rail {
+  0%,
+  100% {
+    box-shadow: inset 4px 0 0 var(--color-branch);
+  }
+  50% {
+    box-shadow: inset 4px 0 0 color-mix(in srgb, var(--color-branch) 25%, transparent);
+  }
+}
+.demo-rail {
+  animation: demo-rail 1.8s ease-in-out infinite;
+}
+
+@keyframes demo-button {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-branch) 60%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+.demo-button {
+  animation: demo-button 1.8s ease-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .power-flow,
   .node-halo,

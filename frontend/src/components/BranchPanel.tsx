@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { adoptStrategy, runBranches, type Branch, type BranchResult } from '../lib/api'
+import { adoptStrategy, fetchVerdict, runBranches, type Branch, type BranchResult } from '../lib/api'
 import { STATUS_COLOR, fmtPeople } from '../lib/status'
 
 interface Props {
+  /** Heat-wave demo: point at hover, Best, and Adopt. */
+  demo?: boolean
   /** The branch under the pointer, so the map can show its end state. Null when none. */
   onPreview: (branch: Branch | null) => void
   onClose: () => void
@@ -11,12 +13,13 @@ interface Props {
 
 const points = (ratio: number) => Math.round(ratio * 1000) / 10
 
-/** Highest essential service wins; fewer people moved breaks a tie. */
+/** Most people in a lit shelter wins. Fewer people left in the dark breaks a tie. */
 function best(branches: Branch[]): string | undefined {
   return [...branches].sort(
     (a, b) =>
-      b.metrics.essential_served - a.metrics.essential_served ||
-      a.metrics.people_relocated - b.metrics.people_relocated,
+      b.metrics.people_in_shelter - a.metrics.people_in_shelter ||
+      a.metrics.people_dark - b.metrics.people_dark ||
+      b.metrics.shelter_kw - a.metrics.shelter_kw,
   )[0]?.id
 }
 
@@ -26,18 +29,49 @@ const essentialColor = (ratio: number) => (ratio >= 0.999 ? STATUS_COLOR.Green :
  * Right panel while branching. The engine forks the live state and runs every
  * response policy forward on its own copy; each row is one outcome.
  */
-export function BranchPanel({ onPreview, onClose, onAdopted }: Props) {
+export function BranchPanel({ demo = false, onPreview, onClose, onAdopted }: Props) {
   const [result, setResult] = useState<BranchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [opened, setOpened] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
   const [adopting, setAdopting] = useState<string | null>(null)
+  const [verdict, setVerdict] = useState<string | null>(null)
+  const [cue, setCue] = useState(demo)
 
   useEffect(() => {
     runBranches()
       .then(setResult)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [])
+
+  useEffect(() => {
+    if (!result) return
+    const winnerId = best(result.branches)
+    if (!winnerId) return
+    const kind = (result.shelter ?? (result.season === 'summer' ? 'cooling' : 'warming')) === 'cooling' ? 'cooling center' : 'warming center'
+    const winner = result.branches.find((b) => b.id === winnerId)
+    if (winner) {
+      const dark = winner.metrics.people_dark
+      setVerdict(
+        `${winner.label} keeps ${fmtPeople(winner.metrics.people_in_shelter)} people in a lit ${kind}, with ${Math.round(winner.metrics.shelter_kw).toLocaleString()} kW serving those buildings. ${fmtPeople(winner.metrics.people_relocated)} people had to leave where they started. ${dark ? `${fmtPeople(dark)} people are still in a dark building.` : 'Nobody is left in a dark building; the transit agent has moved them.'}`,
+      )
+    }
+    void fetchVerdict({
+      season: result.season,
+      shelter: result.shelter ?? (result.season === 'summer' ? 'cooling' : 'warming'),
+      winner: winnerId,
+      policies: result.branches.map((b) => ({
+        id: b.id,
+        label: b.label,
+        people_dark: b.metrics.people_dark,
+        people_in_shelter: b.metrics.people_in_shelter,
+        people_relocated: b.metrics.people_relocated,
+        shelter_kw: b.metrics.shelter_kw,
+      })),
+    })
+      .then((next) => setVerdict(next.paragraph))
+      .catch(() => {})
+  }, [result])
 
   const adopt = async (id: string) => {
     setAdopting(id)
@@ -59,21 +93,38 @@ export function BranchPanel({ onPreview, onClose, onAdopted }: Props) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-start justify-between gap-3 border-b border-line px-4 pb-3 pt-4">
         <div>
-          <div className="text-[15px] font-semibold">Branch timeline</div>
-          <p className="mt-1 text-xs leading-normal text-muted">
+          <div className="text-[22px] font-semibold">Branch timeline</div>
+          <p className="mt-1 text-[16px] leading-normal text-muted">
             {result
-              ? `Forked at t${result.baseTick}. Each policy ran ${result.ticks} ticks on its own copy of the campus with the same agents and supply. The live campus has not changed.`
+              ? result.throughPeak
+                ? `Forked at t${result.baseTick}. Each policy is run to the peak of the heat wave, ${result.ticks} ticks ahead, on its own copy. The live clock is still earlier.`
+                : `Forked at t${result.baseTick}. Each policy ran ${result.ticks} ticks on its own copy of the campus with the same agents and supply. The live campus has not changed.`
               : 'Forking the live campus and running each response policy…'}
           </p>
         </div>
-        <button type="button" onClick={onClose} className="shrink-0 rounded-md border border-line px-2.5 py-[5px] text-xs text-muted transition hover:text-text">
-          Back to live <span className="font-mono text-[10px]">Esc</span>
+        <button type="button" onClick={onClose} className="shrink-0 rounded-md border border-line px-2.5 py-[5px] text-sm text-muted transition hover:text-text">
+          Back to live <span className="font-mono text-xs">Esc</span>
         </button>
       </div>
 
-      {error && <p className="mx-4 mt-3 text-xs text-down">{error}</p>}
+      {cue && (
+        <div className="border-b border-branch bg-branch/15 px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[16px] font-medium leading-snug">
+              Hover a policy to preview the campus at the peak. <span className="text-branch">Best</span> keeps the most people in a cooling center. Adopt it and the live grid follows.
+            </p>
+            <button type="button" onClick={() => setCue(false)} className="text-[18px] leading-none text-muted" aria-label="Dismiss">
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+      {verdict && (
+        <p className="mx-4 mt-3 rounded-md border border-line bg-ink px-3 py-2 text-[16px] leading-normal">{verdict}</p>
+      )}
+      {error && <p className="mx-4 mt-3 text-sm text-down">{error}</p>}
       {identical && (
-        <p className="mx-4 mt-3 rounded-md border border-line bg-ink px-3 py-2 text-xs text-muted">
+        <p className="mx-4 mt-3 rounded-md border border-line bg-ink px-3 py-2 text-sm text-muted">
           Every policy ends in the same place. Policies only diverge when a feed is short but not dead, so try the heat wave scenario.
         </p>
       )}
@@ -84,7 +135,8 @@ export function BranchPanel({ onPreview, onClose, onAdopted }: Props) {
           const isLive = b.id === result.active
           const open = b.id === openId
           const color = essentialColor(m.essential_served)
-          const delta = live ? points(m.essential_served) - points(live.metrics.essential_served) : 0
+          const shelterKind = result.shelter ?? (result.season === 'summer' ? 'cooling' : 'warming')
+          const delta = live ? m.people_in_shelter - live.metrics.people_in_shelter : 0
           return (
             <div
               key={b.id}
@@ -99,39 +151,37 @@ export function BranchPanel({ onPreview, onClose, onAdopted }: Props) {
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="whitespace-nowrap text-sm font-semibold">{b.label}</span>
+                  <span className="whitespace-nowrap text-[18px] font-semibold">{b.label}</span>
                   {isLive && <span className="rounded-[3px] border border-line px-[5px] py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Live</span>}
                   {b.id === winner && !identical && <span className="rounded-[3px] bg-branch px-[5px] py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-onbranch">Best</span>}
                 </div>
-                <span className="font-mono text-[22px] font-medium leading-none tabular-nums" style={{ color }}>
-                  {points(m.essential_served)}
-                  <span className="text-xs text-muted">%</span>
+                <span className="text-right font-mono leading-none tabular-nums" style={{ color: b.id === winner && !identical ? 'var(--color-branch)' : color }}>
+                  <span className="text-[22px] font-medium">{fmtPeople(m.people_in_shelter)}</span>
+                  <span className="mt-1 block text-xs font-sans text-muted">{shelterKind}</span>
                 </span>
               </div>
-              <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-line">
-                <div className="h-full" style={{ width: `${m.essential_served * 100}%`, background: color }} />
-              </div>
-              <div className="mt-2 flex gap-3.5 whitespace-nowrap font-mono text-[11px] tabular-nums text-muted">
-                <span><span className={m.buildings_dark ? 'text-down' : 'text-text'}>{m.buildings_dark}</span> dark</span>
+              <div className="mt-2 flex flex-wrap gap-3.5 font-mono text-[15px] tabular-nums text-muted">
+                <span><span className={m.people_dark ? 'text-down' : 'text-text'}>{fmtPeople(m.people_dark)}</span> still dark</span>
+                <span><span className="text-text">{Math.round(m.shelter_kw).toLocaleString()} kW</span> at shelters</span>
                 <span><span className="text-text">{fmtPeople(m.people_relocated)}</span> moved</span>
-                <span><span className={m.people_reduced_power ? 'text-warn' : 'text-text'}>{fmtPeople(m.people_reduced_power)}</span> reduced</span>
-                {!isLive && Math.abs(delta) >= 0.05 && (
+                {!isLive && delta !== 0 && (
                   <span className={`ml-auto ${delta > 0 ? 'text-ok' : 'text-down'}`}>
-                    {delta > 0 ? '+' : '−'}{Math.abs(delta).toFixed(1)} pts
+                    {delta > 0 ? '+' : '−'}{fmtPeople(Math.abs(delta))}
                   </span>
                 )}
               </div>
 
               {open && (
                 <>
-                  <p className="mt-2.5 text-xs leading-normal text-muted">{b.description}</p>
+                  <p className="mt-2.5 text-[16px] leading-normal text-muted">{b.description}</p>
                   <dl className="mt-2.5">
                     {([
-                      ['Critical care served', `${points(m.critical_served)}%`, m.critical_served < 0.999],
-                      ['All demand served', `${points(m.total_served)}%`, false],
-                      ['People relocated', fmtPeople(m.people_relocated), false],
+                      ['People in a lit shelter', fmtPeople(m.people_in_shelter), false],
+                      ['Kilowatts at those shelters', `${Math.round(m.shelter_kw).toLocaleString()} kW`, false],
+                      ['Still in a dark building', fmtPeople(m.people_dark), m.people_dark > 0],
+                      ['Essential demand served', `${points(m.essential_served)}%`, false],
                     ] as const).map(([label, value, bad]) => (
-                      <div key={label} className="flex justify-between gap-3 border-t border-line py-[5px] text-xs">
+                      <div key={label} className="flex justify-between gap-3 border-t border-line py-[5px] text-[16px]">
                         <dt className="text-muted">{label}</dt>
                         <dd className={`font-mono tabular-nums ${bad ? 'text-down' : ''}`}>{value}</dd>
                       </div>
@@ -144,7 +194,7 @@ export function BranchPanel({ onPreview, onClose, onAdopted }: Props) {
                       event.stopPropagation()
                       void adopt(b.id)
                     }}
-                    className={`mt-3 w-full rounded-md border px-3 py-2 text-[13px] font-semibold ${
+                    className={`mt-3 w-full rounded-md border px-3 py-2 text-base font-semibold ${
                       isLive ? 'border-line text-muted' : 'border-branch bg-branch text-onbranch disabled:opacity-50'
                     }`}
                   >
@@ -157,8 +207,8 @@ export function BranchPanel({ onPreview, onClose, onAdopted }: Props) {
         })}
       </div>
 
-      <p className="border-t border-line px-4 py-3 text-[11px] leading-normal text-muted">
-        Hover a policy to preview it on the campus. A constraint-based teaching model, not a forecast of the real grid.
+      <p className="border-t border-line px-4 py-3 text-[15px] leading-normal text-muted">
+        Hover a policy to preview who stays lit. The three intakes, the buildings, and the U-M bus lines are real. The kilowatts are a scaled model.
       </p>
     </div>
   )

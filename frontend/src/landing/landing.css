@@ -58,6 +58,8 @@ h1, h2, h3, p { margin: 0; }
 .btn:hover { color: var(--on-accent); filter: brightness(1.08); }
 .btn .arrow { font-family: var(--font-mono); }
 .btn-lg { height: 52px; padding: 0 24px; font-size: 16px; }
+.btn-line { background: transparent; color: var(--text); border: 1px solid var(--hair); }
+.btn-line:hover { color: var(--text); border-color: var(--muted); filter: none; }
 .ghost {
   display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 4px;
   border: 1px solid var(--hair); background: transparent; color: var(--text);

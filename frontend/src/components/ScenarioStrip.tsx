@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { disrupt, resetSim, type DisruptAction } from '../lib/api'
+import { disrupt, resetSim, startHeatWave, type DisruptAction } from '../lib/api'
 
 interface Step {
   nodeIds: string[]
@@ -15,16 +15,14 @@ export interface Scenario {
   steps?: Step[]
 }
 
-const SCENARIOS: Required<Scenario>[] = [
-  {
-    label: 'Heat wave, 95°F',
-    detail: 'Power plant at 35%, north feed at 50%',
-    reason: 'Heat wave derates campus generation',
-    steps: [
-      { nodeIds: ['cpp'], action: 'derate', factor: 0.35 },
-      { nodeIds: ['north_switch'], action: 'derate', factor: 0.5 },
-    ],
-  },
+export const HEAT_WAVE: Required<Scenario> = {
+  label: 'Heat wave, 95°F',
+  detail: 'Output falls for 4 hours, to 35% at the plant and 50% on the north feed',
+  reason: 'Heat wave derates campus generation',
+  steps: [],
+}
+
+const OTHER_SCENARIOS: Required<Scenario>[] = [
   {
     label: 'Central Power Plant trips',
     detail: 'Central campus loses its only feed',
@@ -50,6 +48,16 @@ const SCENARIOS: Required<Scenario>[] = [
     steps: [{ nodeIds: ['cpp', 'uh', 'north_switch'], action: 'fail' }],
   },
 ]
+
+export async function runScenario(scenario: Required<Scenario>) {
+  if (scenario.label === HEAT_WAVE.label) {
+    await startHeatWave()
+    return
+  }
+  for (const step of scenario.steps) {
+    await disrupt(step.nodeIds, step.action, scenario.reason, step.factor)
+  }
+}
 
 interface Props {
   disrupted: boolean
@@ -80,13 +88,16 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, on
 
   const play = (s: Required<Scenario>) =>
     run(async () => {
-      for (const step of s.steps) await disrupt(step.nodeIds, step.action, s.reason, step.factor)
+      await runScenario(s)
+      if (s.label === HEAT_WAVE.label) sessionStorage.setItem('parallel-scenario', 'heat-wave')
+      else sessionStorage.removeItem('parallel-scenario')
       onScenario(s)
     })
 
   const reset = () =>
     run(async () => {
       await resetSim()
+      sessionStorage.removeItem('parallel-scenario')
       onScenario(null)
     })
 
@@ -94,20 +105,32 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, on
     <div className="flex min-h-14 flex-wrap items-center gap-2 border-b border-line bg-panel px-4 py-3">
       {!disrupted ? (
         <>
-          <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Break something</span>
-          {SCENARIOS.map((s) => (
-            <button
-              key={s.label}
-              type="button"
-              disabled={busy}
-              onClick={() => play(s)}
-              title={s.detail}
-              className="whitespace-nowrap rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-medium transition hover:border-down hover:text-down disabled:opacity-50"
-            >
-              {s.label}
-            </button>
-          ))}
-          <span className="ml-1 text-xs text-muted max-[1099px]:hidden">or click any building to fail it</span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => play(HEAT_WAVE)}
+            title={HEAT_WAVE.detail}
+            className="whitespace-nowrap rounded-full bg-down px-3 py-1.5 text-xs font-semibold text-onbranch disabled:opacity-50"
+          >
+            {HEAT_WAVE.label}
+          </button>
+          <details className="text-xs text-muted">
+            <summary className="cursor-pointer px-1">Other outages</summary>
+            <span className="ml-1 inline-flex flex-wrap gap-2 pt-1">
+              {OTHER_SCENARIOS.map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => play(s)}
+                  title={s.detail}
+                  className="whitespace-nowrap rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-medium text-text transition hover:border-down hover:text-down disabled:opacity-50"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </span>
+          </details>
         </>
       ) : (
         <>

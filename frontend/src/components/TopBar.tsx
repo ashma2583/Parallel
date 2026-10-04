@@ -22,9 +22,12 @@ interface Props {
   onStep: (index: number) => void
   view: View
   onView: (view: View) => void
+  /** Clock and the rest of the desk, off the three-minute path until asked for. */
+  extras: boolean
+  onExtras: (extras: boolean) => void
 }
 
-export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
+export function TopBar({ sim, nodes, step, onStep, view, onView, extras, onExtras }: Props) {
   const ready = nodes.length > 0
   const essential = ready ? essentialServed(nodes) : 1
   const essentialColor = essential >= 0.999 ? STATUS_COLOR.Green : essential >= 0.8 ? STATUS_COLOR.Amber : STATUS_COLOR.Red
@@ -85,6 +88,13 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
           <span>unserved <span className={unserved >= 1 ? 'text-down' : 'text-text'}>{ready ? `${Math.round(unserved)} kW` : '—'}</span></span>
         </div>
         <Clock tick={sim.summary?.tick} />
+        <button
+          type="button"
+          onClick={() => onExtras(!extras)}
+          className="text-xs text-muted"
+        >
+          {extras ? 'Less' : 'More'}
+        </button>
         <div className="flex whitespace-nowrap rounded-md border border-line bg-ink p-0.5 text-xs font-medium">
           {(['grid', 'map'] as const).map((v) => (
             <button

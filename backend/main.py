@@ -151,6 +151,22 @@ class ClockRequest(BaseModel):
 PRIORITY_STRATEGY = {"balanced": "tiered", "dorms": "residential", "academic": "academic"}
 
 
+class VerdictPolicy(BaseModel):
+    id: str
+    label: str
+    people_dark: int = 0
+    people_in_shelter: int = 0
+    people_relocated: int = 0
+    shelter_kw: float = 0
+
+
+class VerdictRequest(BaseModel):
+    season: str = "fall"
+    shelter: Literal["cooling", "warming"] | None = None
+    winner: str
+    policies: list[VerdictPolicy]
+
+
 class CommandRequest(BaseModel):
     text: str = Field(..., min_length=1, examples=["The south substation just failed"])
 
@@ -172,6 +188,7 @@ def _state() -> dict:
     body = graph.to_dict()
     body["activity"] = list(runtime.activity)
     body["activity_ticks"] = list(runtime.activity_ticks)
+    body["scenarios"] = runtime.scenario_logs()
     body["strategy"] = runtime.strategy
     return body
 
@@ -377,6 +394,7 @@ async def post_disrupt(req: DisruptRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"Unknown node id(s): {unknown}")
     with runtime.lock:
         runtime.forget_after(graph.tick_count)
+        runtime.begin_scenario(req.reason or f"{req.action} {', '.join(req.node_ids)}")
         for nid in req.node_ids:
             if req.action == "fail":
                 graph.fail_node(nid)
@@ -395,6 +413,21 @@ async def post_disrupt(req: DisruptRequest) -> dict:
     return {"disruption": {"action": req.action, "node_ids": req.node_ids, "reason": req.reason}, **body}
 
 
+@app.post("/heat-wave")
+async def post_heat_wave() -> dict:
+    """Start a four-hour heat build. Each later tick lowers output one step."""
+    with runtime.lock:
+        runtime.paused = False
+        runtime.forget_after(graph.tick_count)
+        runtime.begin_scenario("Heat wave, 95°F")
+        graph.start_heat_wave()
+        runtime.push(["Director: heat wave, 95°F. Plant output falls over the next 4 hours."])
+        body = _state()
+        body["heat_wave"] = graph.heat_wave_view()
+    await publisher.publish(graph)
+    return body
+
+
 @app.post("/reset")
 async def post_reset() -> dict:
     with runtime.lock:
@@ -402,6 +435,7 @@ async def post_reset() -> dict:
         graph.reset()
         runtime.remember(graph)
         runtime.strategy = DEFAULT_STRATEGY
+        runtime.begin_scenario("Campus reset")
         runtime.push(["Director: campus reset"])
         runtime.run_cycle(graph, force=True)
         body = _state()
@@ -418,13 +452,34 @@ def post_branch(req: BranchRequest) -> dict:
     if unknown:
         raise HTTPException(status_code=404, detail=f"Unknown strategy id(s): {unknown}")
     with runtime.lock:
-        branches = run_branches(graph, ids, req.ticks)
+        wave = graph.heat_wave
+        ticks = req.ticks
+        # A heat wave still in progress is compared at its peak, not six seconds in.
+        if wave and wave["step"] < wave["span"]:
+            ticks = max(req.ticks, wave["span"] - wave["step"])
+        cooling = runtime.season == "summer" or graph.heat_wave is not None
+        branches = run_branches(graph, ids, ticks, runtime.season, cooling=cooling)
         return {
             "base_tick": graph.tick_count,
-            "ticks": req.ticks,
+            "ticks": ticks,
             "active": runtime.strategy,
+            "season": runtime.season,
+            "shelter": "cooling" if cooling else "warming",
+            "through_peak": ticks > req.ticks,
             "branches": branches,
         }
+
+
+@app.post("/verdict")
+async def post_verdict(req: VerdictRequest) -> dict:
+    """One paragraph on the winning policy, using only the counts the branch run produced."""
+    facts = {
+        "season": req.season,
+        "shelter": req.shelter,
+        "winner": req.winner,
+        "policies": [p.model_dump() for p in req.policies],
+    }
+    return await voice.write_verdict(facts)
 
 
 @app.post("/strategy")

@@ -8,6 +8,7 @@ throttle keeps them from double-stepping; user actions pass force=True.
 from __future__ import annotations
 
 import asyncio
+import copy
 import threading
 import time
 from collections import deque
@@ -20,9 +21,13 @@ from agents.logic import DEFAULT_STRATEGY, apply_energy, apply_policy, apply_tra
 TICK_SECONDS = 1.0
 
 lock = threading.Lock()
-activity: deque[str] = deque(maxlen=12)
-# Tick each activity line was logged on, kept in step with `activity`.
-activity_ticks: deque[int] = deque(maxlen=12)
+# The live scenario's log. Older scenarios are archived in `scenarios` so a long
+# heat wave does not drop the notes from its first hour.
+activity: list[str] = []
+activity_ticks: list[int] = []
+scenario_id = 1
+scenario_label = "Campus"
+scenarios: list[dict[str, Any]] = []
 revision = 0
 last_cycle = 0.0
 main_loop: asyncio.AbstractEventLoop | None = None
@@ -53,6 +58,7 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
     if not force and now - last_cycle < TICK_SECONDS * 0.85:
         return []
     notes: list[str] = []
+    notes.extend(sim.advance_heat_wave())
     notes.extend(apply_energy(sim, strategy))
     sim.tick()
     notes.extend(apply_transit(sim))
@@ -96,6 +102,10 @@ def recall(sim: CampusGraph, tick: int) -> bool:
         node.status = Status(fields["status"])
         node.failed = fields["failed"]
         node.load_shed = fields["load_shed"]
+        if "derate" in fields:
+            node.derate = fields["derate"]
+    saved_wave = frame.get("heat_wave")
+    sim.heat_wave = copy.deepcopy(saved_wave) if saved_wave else None
     summary = frame["summary"]
     if summary:
         sim.last_tick = TickResult(
@@ -131,11 +141,38 @@ def _capture(sim: CampusGraph) -> dict[str, Any]:
                 "status": node.status.value,
                 "failed": node.failed,
                 "load_shed": node.load_shed,
+                "derate": node.derate,
             }
             for node in sim.nodes.values()
         },
+        "heat_wave": copy.deepcopy(sim.heat_wave) if sim.heat_wave else None,
         "summary": summary,
     }
+
+
+def begin_scenario(label: str) -> None:
+    """Start a fresh log and keep the previous scenario's lines."""
+    global scenario_id, scenario_label
+    if activity:
+        scenarios.append({
+            "id": scenario_id,
+            "label": scenario_label,
+            "lines": list(activity),
+            "ticks": list(activity_ticks),
+        })
+        del scenarios[:-8]
+    scenario_id += 1
+    scenario_label = label
+    activity.clear()
+    activity_ticks.clear()
+
+
+def scenario_logs() -> list[dict[str, Any]]:
+    """Archived scenarios, then the one currently running."""
+    return [
+        *scenarios,
+        {"id": scenario_id, "label": scenario_label, "lines": list(activity), "ticks": list(activity_ticks)},
+    ]
 
 
 def push(lines: list[str]) -> None:
@@ -146,4 +183,10 @@ def push(lines: list[str]) -> None:
 
 
 def snapshot() -> dict[str, Any]:
-    return {"lines": list(activity), "ticks": list(activity_ticks), "agents": agent_status, "strategy": strategy}
+    return {
+        "lines": list(activity),
+        "ticks": list(activity_ticks),
+        "scenarios": scenario_logs(),
+        "agents": agent_status,
+        "strategy": strategy,
+    }
