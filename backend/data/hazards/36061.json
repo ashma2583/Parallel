@@ -1,0 +1,372 @@
+{
+  "fips": "36061",
+  "county": "New York",
+  "state": "NY",
+  "campus": "New York University",
+  "available": true,
+  "nri": {
+    "version": "December 2025",
+    "overall_rating": "Relatively High",
+    "source_url": "https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/National_Risk_Index_Counties/FeatureServer/0/query?where=STCOFIPS%3D%2736061%27&outFields=*&f=json"
+  },
+  "hazards": [
+    {
+      "id": "flash_flood",
+      "name": "Flash flood",
+      "nri_risk_rating": "Very High",
+      "annual_frequency": null,
+      "frequency_note": "about 1.9 a year reported in the county (57 in 1996-2026)",
+      "storm_events": {
+        "count": 57,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2021-09-01",
+        "summary": "Flash flooding resulted in an estimated $60 million in damages across Manhattan, and an estimated $300 million city-wide.",
+        "magnitude": null,
+        "damage_usd": 60000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Flash Flood",
+        "area": "New York",
+        "source": "NCEI Storm Events episode 163555, event 994927: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=994927"
+      },
+      "likelihood": 0.846
+    },
+    {
+      "id": "high_wind",
+      "name": "High wind",
+      "nri_risk_rating": "Very High",
+      "annual_frequency": null,
+      "frequency_note": "about once a year reported in the county (43 in 1996-2026)",
+      "storm_events": {
+        "count": 43,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2012-10-29",
+        "summary": "A wind gust up to 62 mph was measured in Central Park at 313 pm.",
+        "magnitude": "54.00 kt (MG)",
+        "damage_usd": 1000000,
+        "deaths": 1,
+        "injuries": 0,
+        "event_type": "High Wind",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 68867, event 413123: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=413123"
+      },
+      "likelihood": 0.756
+    },
+    {
+      "id": "thunderstorm_wind",
+      "name": "Thunderstorm wind",
+      "nri_risk_rating": "Very High",
+      "annual_frequency": 5.3939,
+      "frequency_note": "about once a year reported in the county (39 in 1996-2026)",
+      "storm_events": {
+        "count": 39,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1998-04-09",
+        "summary": "As a low pressure system developed rapidly off the Virginia Coast and moved northeast, it produced heavy rain and scattered thunderstorms.",
+        "magnitude": "50 kt",
+        "damage_usd": 0,
+        "deaths": 1,
+        "injuries": 0,
+        "event_type": "Thunderstorm Wind",
+        "area": "New York",
+        "source": "NCEI Storm Events episode 2075378, event 5636619: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5636619"
+      },
+      "likelihood": 0.722
+    },
+    {
+      "id": "heavy_snow",
+      "name": "Heavy snow",
+      "nri_risk_rating": "Very High",
+      "annual_frequency": null,
+      "frequency_note": "about once a year reported in the county (28 in 1996-2026)",
+      "storm_events": {
+        "count": 28,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2003-02-17",
+        "summary": "With an exceptionally strong high pressure system over New England, a low pressure system developed off the Mid Atlantic Coast.",
+        "magnitude": null,
+        "damage_usd": 20000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Heavy Snow",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 1147980, event 5344494: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5344494"
+      },
+      "likelihood": 0.601
+    },
+    {
+      "id": "winter_storm",
+      "name": "Winter storm",
+      "nri_risk_rating": "Very High",
+      "annual_frequency": 9.2901,
+      "frequency_note": "about once a year reported in the county (26 in 1996-2026)",
+      "storm_events": {
+        "count": 26,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1996-01-07",
+        "summary": "Blizzard in New York (Manhattan).",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Blizzard",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 2040523, event 5561728: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5561728"
+      },
+      "likelihood": 0.574
+    },
+    {
+      "id": "riverine_flood",
+      "name": "River flooding",
+      "nri_risk_rating": "Very High",
+      "annual_frequency": 2,
+      "frequency_note": "most years reported in the county (17 in 1996-2026)",
+      "storm_events": {
+        "count": 17,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1996-01-12",
+        "summary": "Flood in New York.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Flood",
+        "area": "New York",
+        "source": "NCEI Storm Events episode 2040554, event 5561762: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5561762"
+      },
+      "likelihood": 0.427
+    },
+    {
+      "id": "extreme_heat",
+      "name": "Extreme heat",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 10.2152,
+      "frequency_note": "about one every 2 years reported in the county (14 in 1996-2026)",
+      "storm_events": {
+        "count": 14,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1999-07-04",
+        "summary": "An extremely hot and humid airmass covered the region from July 4th through July 6th.On Sunday July 4th, temperatures soared into the mid and upper 90s.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 13,
+        "injuries": 0,
+        "event_type": "Heat",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 2408194, event 5701088: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5701088"
+      },
+      "likelihood": 0.368
+    },
+    {
+      "id": "hail",
+      "name": "Hail",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 1.8904,
+      "frequency_note": "about one every 3 years reported in the county (10 in 1996-2026)",
+      "storm_events": {
+        "count": 10,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1998-05-20",
+        "summary": "Severe thunderstorms formed in a warm, moist, and unstable airmass ahead of an approaching cold front.",
+        "magnitude": "1.50 in",
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Hail",
+        "area": "New York",
+        "source": "NCEI Storm Events episode 1065436, event 5659730: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5659730"
+      },
+      "likelihood": 0.28
+    },
+    {
+      "id": "coastal_flood",
+      "name": "Coastal flooding",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 3.7584,
+      "frequency_note": "about one every 3 years reported in the county (10 in 1996-2026)",
+      "storm_events": {
+        "count": 10,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2012-10-29",
+        "summary": "Southern, Eastern and Western portions of Manhattan experienced two successive tidal cycles with at least moderate coastal flooding.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 2,
+        "injuries": 0,
+        "event_type": "Coastal Flood",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 70044, event 420465: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=420465"
+      },
+      "likelihood": 0.28
+    },
+    {
+      "id": "lightning",
+      "name": "Lightning",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 31.701,
+      "frequency_note": "about one every 5 years reported in the county (6 in 1996-2026)",
+      "storm_events": {
+        "count": 6,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2002-08-02",
+        "summary": "A 25 year old man was struck and killed by lightning at 835 pm while watching thunderstorms from the roof of a four-story building located at 365 Broome Street.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 1,
+        "injuries": 1,
+        "event_type": "Lightning",
+        "area": "New York",
+        "source": "NCEI Storm Events episode 1142030, event 5313007: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5313007"
+      },
+      "likelihood": 0.179
+    },
+    {
+      "id": "extreme_cold",
+      "name": "Extreme cold",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 0.4976,
+      "frequency_note": "about one every 6 years reported in the county (5 in 1996-2026)",
+      "storm_events": {
+        "count": 5,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2007-02-04",
+        "summary": "An arctic air mass caused subfreezing temperatures across the local area for 5 consecutive days; from February 4th through February 8th.|During this time, the daily mean temperature averaged nearly 15 degrees below normal.|Based on a report by the NYC Medical Examiner's Office, hypothermia, was a direct cause of at...",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 1,
+        "injuries": 0,
+        "event_type": "Extreme Cold/Wind Chill",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 2751, event 19117: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=19117"
+      },
+      "likelihood": 0.151
+    },
+    {
+      "id": "drought",
+      "name": "Drought",
+      "nri_risk_rating": null,
+      "annual_frequency": 1.4667,
+      "frequency_note": "about one every 4 years reported in the county (8 in 1996-2026)",
+      "storm_events": {
+        "count": 8,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2002-07-01",
+        "summary": "After an encouraging 4 month period of increased rainfall and improved drought conditions, the region experienced a disappointing setback during July.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Drought",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 1143500, event 5320628: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5320628"
+      },
+      "likelihood": 0.231
+    },
+    {
+      "id": "hurricane",
+      "name": "Hurricane / tropical storm",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 0.1553,
+      "frequency_note": "about one every 10 years reported in the county (3 in 1996-2026)",
+      "storm_events": {
+        "count": 3,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2020-08-04",
+        "summary": "Nearby to Battery Park City, the Honorable William Wall Mesonet, reported a maximum sustained wind of 49 mph and peak gusts of 78 mph at 1218 pm LST.",
+        "magnitude": null,
+        "damage_usd": 4500000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Tropical Storm",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 152384, event 919963: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=919963"
+      },
+      "likelihood": 0.094
+    },
+    {
+      "id": "ice_storm",
+      "name": "Ice storm",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 0.7445,
+      "frequency_note": "about one every 30 years reported in the county (1 in 1996-2026)",
+      "storm_events": {
+        "count": 1,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2011-02-01",
+        "summary": "A complex low pressure system tracked northeast from the Lower Mississippi River Valley into the Ohio Valley Tuesday, February 1st into Tuesday Night , with a secondary low pressure developing over the Delmarva region and tracking southeast of Long Island on Wednesday February 2nd.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Ice Storm",
+        "area": "New York (Manhattan)",
+        "source": "NCEI Storm Events episode 49067, event 287561: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=287561"
+      },
+      "likelihood": 0.032
+    },
+    {
+      "id": "tornado",
+      "name": "Tornado",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 0.0106,
+      "frequency_note": "about one every 94 years in the county (NRI)",
+      "storm_events": null,
+      "worst_local_event": null,
+      "likelihood": 0.011
+    },
+    {
+      "id": "earthquake",
+      "name": "Earthquake",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 0.0019,
+      "frequency_note": "about a 0.2% chance in a given year (NRI)",
+      "storm_events": null,
+      "worst_local_event": null,
+      "likelihood": 0.002
+    }
+  ],
+  "notes": "NRI ratings and frequencies are county-wide and compare the county with all US counties; they are not specific to the campus. NRI frequency units differ by hazard (events per year, event-days per year for heat, cold, drought and winter weather, annual probability for earthquake and wildfire). NRI Strong Wind, Winter Weather and Inland Flooding each cover two of our hazards, so the second one carries the rating only. Storm Events zone reports can cover a forecast zone larger than the county. Likelihood (chance of at least one event a year) and the order are computed by PARALLEL, not FEMA: from the local Storm Events rate when there is one, otherwise from NRI frequency capped at 0.5; ties go to the higher NRI rating. Storm Events: New York County reports plus forecast zone NYZ072 (Manhattan). Hurricane Sandy (2012) is filed as Coastal Flood and High Wind, not as a tropical event. Storm Events 1996 through June 2026 (NCEI detail files, versions c2026xxxx); worst event = largest property+crop damage, with a death weighted as $10M and an injury as $1M.",
+  "storm_events_source": "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
+}

@@ -1,0 +1,1441 @@
+[
+ {
+  "id": "tornado",
+  "name": "Tornado",
+  "warning_time": "Tornado watch: hours ahead. Tornado warning: about 8-13 minutes on average (Joplin 2011 had 17-19 min); roughly 70% of warnings are false alarms and about 40% of tornadoes get no warning at all.",
+  "typical_duration": "Strike lasts seconds to a few minutes at any one building; search/rescue 1-2 days; utility restoration in the damage path days to ~1 week; damaged buildings out for months.",
+  "summary": "A tornado does near-total damage in a narrow path and almost nothing outside it, so a campus is either missed (most warnings) or hit catastrophically in a strip a few hundred meters wide. Inside the path, buildings, overhead lines, generators and vehicles are destroyed; outside it, the main effect is a regional utility outage and an influx of casualties to the hospital.",
+  "decisions": [
+   "Sound the alarm on a warning that is probably a false alarm (70%) and halt classes, or wait for confirmation and lose minutes of lead time",
+   "Shelter people in the interior of the building they are in, or move them to a dedicated safe room further away and risk catching them outdoors",
+   "After a hit: put staff into search and rescue in the damaged buildings, or hold them back until structural and gas/electrical hazards are cleared",
+   "Keep the hospital open for the casualty surge, or transfer patients out if its own power or structure is compromised",
+   "Rehouse displaced residents on campus (gyms, other dorms) or end the term and send students home"
+  ],
+  "does_not": [
+   "A tornado warning usually damages nothing: about 70% of warnings are false alarms, and even a real tornado misses most of a warned area",
+   "It does not damage the whole campus evenly; damage is a narrow strip, buildings next door can be untouched (the 2021 Bowling Green tornado missed WKU by roughly 100-225 yards and the campus was spared)",
+   "It does not give hours of warning; there is no time to bus people anywhere before it hits",
+   "It does not usually cause long outages for underground campus distribution outside the path; the outage comes from the utility side"
+  ],
+  "campus_examples": [
+   {
+    "where": "Union University, Jackson TN",
+    "when": "5 Feb 2008",
+    "what": "EF4 hit at ~7 pm; students sheltered in dorm bathrooms; 18 dorm buildings destroyed (~80% of dorm space), ~50 hospitalized, nobody killed.",
+    "source": "https://www.baptistpress.com/resource-library/events-index/2008-union-university-tornado/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "where": "St. John's Regional Medical Center, Joplin MO",
+    "when": "22 May 2011",
+    "what": "EF5 direct hit; generator building destroyed; 183 patients evacuated in ~90 min; hospital later demolished. NWS lead time 17 min.",
+    "source": "https://www.hfmmagazine.com/articles/368-joplin-tornado-offers-response-lessons",
+    "source_status": "opened"
+   },
+   {
+    "where": "University of Alabama, Tuscaloosa",
+    "when": "27 Apr 2011",
+    "what": "EF4 through the city; six students killed; finals cancelled, commencement moved to August; UA had no storm shelters and later built nine.",
+    "source": "https://thecrimsonwhite.com/109619/top-stories/12-years-later-how-the-april-27-2011-tornadoes-affected-ua/",
+    "source_status": "opened"
+   },
+   {
+    "where": "Western Kentucky University, Bowling Green",
+    "when": "11 Dec 2021",
+    "what": "EF3 at 1:20 am passed ~100 yards from campus; campus spared; university pivoted to community relief.",
+    "source": "https://www.wku.edu/news/articles/index.php?view=article&articleid=10139",
+    "source_status": "opened"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "Overhead utility feeds and any substation in the path lost; underground campus distribution survives except in buildings physically hit; a building that is hit loses its own generator.",
+   "severity_light": "Warning only (most likely outcome): everyone shelters 20-45 min, buses stop, no damage.",
+   "severity_severe": "Direct hit on 1-3 buildings in a narrow strip: those buildings destroyed/uninhabitable, trapped occupants, utility feeds out for days, hospital surge.",
+   "duration_hours": [
+    0.5,
+    168
+   ],
+   "people": "shelter",
+   "transit": "suspended",
+   "notes": "Model as warning-then-roll: most runs should end with no damage. Damage should be a line, not a radius. Relocation happens only after the strike, for residents of damaged halls."
+  },
+  "consequences": [
+   {
+    "system": "power",
+    "what": "Overhead utility lines, poles, transmission structures and substations in the path are destroyed; the outage spreads beyond the path because lines feeding the area are cut. Alabama Power lost ~4,200 poles and ~400 transmission structures in the April 2011 outbreak.",
+    "timescale": "Restoration to everyone who could take power in ~7 days (Alabama 2011).",
+    "likelihood": "typical",
+    "source": "https://alabamanewscenter.com/2021/04/23/alabama-powers-infrastructure-suffered-historic-damage-during-the-april-2011-storms-and-tornadoes/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "people",
+    "what": "Occupants shelter in interior rooms for the duration of the warning (typically under an hour). If hit, some are trapped and need hours of rescue: ~50 Union students hospitalized, at least 8 dug out of wreckage.",
+    "timescale": "Shelter 15-60 min; rescue hours.",
+    "likelihood": "typical",
+    "source": "https://www.actionnews5.com/story/7830894/students-hid-in-bathrooms-as-tornado-hit-union-university/",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Many people do not act on the first warning; Joplin residents mostly sought confirmation before sheltering, partly because of past false alarms.",
+    "timescale": "First minutes of the warning.",
+    "likelihood": "typical",
+    "source": "https://www.weather.gov/media/publications/assessments/Joplin_tornado.pdf",
+    "source_status": "opened"
+   },
+   {
+    "system": "hospital",
+    "what": "Hospitals outside the path get a surge of trauma patients (Union students went to Jackson-Madison General).",
+    "timescale": "First 2-12 hours.",
+    "likelihood": "typical",
+    "source": "https://www.actionnews5.com/story/7830894/students-hid-in-bathrooms-as-tornado-hit-union-university/",
+    "source_status": "opened"
+   },
+   {
+    "system": "transit",
+    "what": "Roads in the path are blocked by debris; buses cannot run through the damage zone until cleared.",
+    "timescale": "Hours to days.",
+    "likelihood": "typical",
+    "source": "unverified",
+    "source_status": "opened"
+   },
+   {
+    "system": "research",
+    "what": "Irreplaceable samples must be recovered from the damaged building (Joplin staff pulled biopsy tissue from wrecked rooms).",
+    "timescale": "Days.",
+    "likelihood": "sometimes",
+    "source": "https://www.hfmmagazine.com/articles/368-joplin-tornado-offers-response-lessons",
+    "source_status": "opened"
+   },
+   {
+    "system": "comms",
+    "what": "Campus web systems can fail; Union University ran emergency communications from a blog and Facebook after its website went down.",
+    "timescale": "Days.",
+    "likelihood": "sometimes",
+    "source": "https://collegewebeditor.com/blog/index.php/archives/2008/02/06/after-2-dorms-were-destroyed-by-a-tornado-and-its-website-went-down-union-university-relies-a-blog-and-its-facebook-page-for-its-online-emergency-communications/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "people",
+    "what": "If the city is hit but campus is not, the term may end: University of Alabama cancelled finals and moved commencement to August after six students died off campus.",
+    "timescale": "Rest of term.",
+    "likelihood": "sometimes",
+    "source": "https://news.ua.edu/2011/05/ua-in-the-news-april-27-may-4-2011/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "power",
+    "what": "A direct hit can destroy on-site backup power: at St. John's (Joplin) the generator building was gone and sprinkler water sprayed the main electrical bus.",
+    "timescale": "Immediate; permanent for that building.",
+    "likelihood": "rare",
+    "source": "https://www.hfmmagazine.com/articles/368-joplin-tornado-offers-response-lessons",
+    "source_status": "opened"
+   },
+   {
+    "system": "buildings",
+    "what": "Inside the path, residence halls can be reduced to rubble while occupants survive in interior bathrooms; Union University lost ~80% of dorm space, 18 dorm buildings destroyed.",
+    "timescale": "Seconds; rebuilding takes months to years.",
+    "likelihood": "rare",
+    "source": "https://www.baptistpress.com/resource-library/events-index/2008-union-university-tornado/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "hospital",
+    "what": "A hospital in the path may have to evacuate everyone: St. John's moved 183 patients to other facilities within about 90 minutes in darkness; 5 ventilated patients died when power and backup failed.",
+    "timescale": "Evacuation within ~1.5 h; building demolished.",
+    "likelihood": "rare",
+    "source": "https://abcnews.go.com/Health/WellnessNews/joplin-mo-tornado-hit-hospital-properly-prepared/story?id=13685614",
+    "source_status": "search_excerpt"
+   }
+  ]
+ },
+ {
+  "id": "thunderstorm_wind",
+  "name": "Severe thunderstorm / derecho wind",
+  "warning_time": "Severe thunderstorm watch hours ahead; warnings typically tens of minutes. Derechos move at 50+ mph and SPC says the warning often is not enough to take protective action.",
+  "typical_duration": "Wind passes in 10-60 minutes; tree and line damage causes outages lasting days (Iowa 2020: ~70% of Alliant customers restored after 1 week, last customer after 18 days).",
+  "summary": "Straight-line winds over a very wide area bring down trees onto overhead lines, so the campus loses utility power and roads for days while buildings mostly suffer roof, siding and window damage. Campuses with underground distribution and their own plant can keep power while the surrounding city is dark.",
+  "decisions": [
+   "Cancel outdoor events and move people indoors on a watch (disruptive, usually unnecessary) or wait for a warning that may arrive minutes before the wind",
+   "Run the campus plant islanded and keep housing open while the city is dark, or close and send students home",
+   "Spend crews clearing roads for buses and emergency access first, or restoring power to research buildings first",
+   "Keep food in dark dining halls and hope power returns within 4 hours, or move/discard it now"
+  ],
+  "does_not": [
+   "It does not usually destroy buildings outright; damage is roofs, windows, siding and trees (not tornado-style collapse)",
+   "It does not usually take down underground campus distribution or a campus plant; the outage is on overhead utility lines",
+   "It does not flood the campus or require evacuation; people stay put"
+  ],
+  "campus_examples": [
+   {
+    "where": "University of Iowa",
+    "when": "10 Aug 2020",
+    "what": "~100 mph winds; Main Library siding torn off, water plant and greenhouse damaged; UI electrical system kept power while the city lost it.",
+    "source": "https://now.uiowa.edu/news/2020/08/ui-campus-cleans-after-mondays-derecho-storm-downs-trees-damages-buildings",
+    "source_status": "opened"
+   },
+   {
+    "where": "Cornell College, Mount Vernon IA",
+    "when": "10 Aug 2020",
+    "what": "110+ mph; 150+ trees destroyed, 20 buildings with roof damage; power out 4+ days; year delayed two weeks.",
+    "source": "https://news.cornellcollege.edu/2020/10/derecho-damages-hilltop/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "where": "Coe College, Cedar Rapids IA",
+    "when": "10 Aug 2020",
+    "what": "28 buildings damaged, ~$2.25M; 200+ trees down; students mid-move-in were fed and supported, no injuries.",
+    "source": "https://www.coe.edu/why-coe/discover-coe/publications/e-news/e-news-september-4-2020",
+    "source_status": "search_excerpt"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "All overhead utility feeds lost; underground campus loops and the campus plant survive; buildings fed directly from utility (North Campus/hospital substations) go to generator.",
+   "severity_light": "Severe thunderstorm: scattered branches, one utility feed out for a few hours, buses delayed 1-2 h.",
+   "severity_severe": "Derecho: all utility feeds out for 3-7 days, roofs damaged on several buildings, roads blocked 1-2 days, cell service degraded.",
+   "duration_hours": [
+    2,
+    168
+   ],
+   "people": "shelter",
+   "transit": "suspended",
+   "notes": "Shelter only during the 10-60 min passage; afterwards the problem is a long utility outage, not danger. Buildings on campus-plant power should stay habitable."
+  },
+  "consequences": [
+   {
+    "system": "power",
+    "what": "Widespread loss of overhead utility lines from falling trees: Iowa 2020 derecho knocked out 240,000+ Alliant customers, required 3,000+ new poles, and ~1,200 miles of transmission lines were affected.",
+    "timescale": "Most restored in about 1 week; last customer 18 days (10-28 Aug 2020).",
+    "likelihood": "typical",
+    "source": "https://www.alliantenergy.com/news/archive-news-releases/assets/statement081020",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "A small campus fed from the utility can be dark for days: Cornell College lost power for more than four days.",
+    "timescale": "4+ days.",
+    "likelihood": "typical",
+    "source": "https://news.cornellcollege.edu/2020/10/derecho-damages-hilltop/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "buildings",
+    "what": "Roof, siding and insulation torn off; windows broken; greenhouses smashed. University of Iowa Main Library lost siding and insulation; Coe College had damage to 28 buildings; Cornell College 20 buildings with significant roof damage.",
+    "timescale": "Minutes; repairs weeks.",
+    "likelihood": "typical",
+    "source": "https://now.uiowa.edu/news/2020/08/ui-campus-cleans-after-mondays-derecho-storm-downs-trees-damages-buildings",
+    "source_status": "opened"
+   },
+   {
+    "system": "buildings",
+    "what": "Massive tree loss blocks paths and damages structures: 200+ trees down at Coe, 150+ destroyed at Cornell College.",
+    "timescale": "Cleanup 1-3 weeks.",
+    "likelihood": "typical",
+    "source": "https://www.coe.edu/why-coe/discover-coe/publications/e-news/e-news-september-4-2020",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "people",
+    "what": "Mostly shelter during passage; afterwards campuses delay opening rather than evacuate. Cornell College delayed its academic year by two weeks.",
+    "timescale": "Shelter <1 h; disruption 1-2 weeks.",
+    "likelihood": "typical",
+    "source": "https://news.cornellcollege.edu/2020/10/derecho-damages-hilltop/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "transit",
+    "what": "Roads blocked by downed trees and live wires; bus service suspended until routes are cleared.",
+    "timescale": "1-3 days.",
+    "likelihood": "typical",
+    "source": "https://www.spc.noaa.gov/misc/AbtDerechos/derechofacts.htm",
+    "source_status": "opened"
+   },
+   {
+    "system": "dining",
+    "what": "Without power, refrigerated food is safe for about 4 hours and a full freezer about 48 hours; multi-day outages mean discarding stock.",
+    "timescale": "4-48 hours.",
+    "likelihood": "typical",
+    "source": "https://www.fda.gov/food/buy-store-serve-safe-food/food-and-water-safety-during-power-outages-and-floods",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "A campus with its own underground system can ride through: the University of Iowa electrical system did not lose power, though buildings fed by outside providers did.",
+    "timescale": "Hours.",
+    "likelihood": "sometimes",
+    "source": "https://now.uiowa.edu/news/2020/08/ui-campus-cleans-after-mondays-derecho-storm-downs-trees-damages-buildings",
+    "source_status": "opened"
+   },
+   {
+    "system": "comms",
+    "what": "Cell, internet and even 911 fail as telecom sites lose backup power: the June 2012 derecho knocked 17 911 centers fully offline, mostly from failed backup power at phone company offices. UI staff working from home lost power, internet and cell.",
+    "timescale": "Hours to days.",
+    "likelihood": "sometimes",
+    "source": "https://docs.fcc.gov/public/attachments/DOC-318331A1.pdf",
+    "source_status": "opened"
+   }
+  ]
+ },
+ {
+  "id": "ice_storm",
+  "name": "Ice storm",
+  "warning_time": "1-3 days; ice accumulation forecasts (SPIA index) give utilities time to stage crews.",
+  "typical_duration": "Freezing rain 6-48 hours; outages 12 hours (light) to 1-2 weeks (severe). Oklahoma 2007: 641,000 out, 150,000 still out a week later.",
+  "summary": "Ice loads trees and overhead wires until they snap, so an ice storm is almost entirely a power-outage event with slow, house-by-house restoration and treacherous roads. A campus that keeps power from its own underground system and plant becomes a warming refuge; one that relies on utility lines goes cold and dark for days.",
+  "decisions": [
+   "Close campus a day early on the forecast, or stay open and risk stranding commuters and staff on iced roads",
+   "Consolidate residents into the few buildings that still have power/heat, or leave them in place with blankets and hope restoration is quick",
+   "Ration the campus plant and generators to hospital, research freezers and animals, or spread power to housing",
+   "Postpone exams/term events, or proceed with whoever can get there"
+  ],
+  "does_not": [
+   "A glaze under about a quarter inch rarely causes more than isolated, few-hour outages",
+   "It does not damage underground campus distribution or the campus plant itself; the damage is overhead lines and trees",
+   "It does not flood buildings or require evacuation; people stay put unless heat fails",
+   "It does not get fixed in hours once main feeders are down; restoration is measured in days"
+  ],
+  "campus_examples": [
+   {
+    "where": "Oklahoma colleges",
+    "when": "8-11 Dec 2007",
+    "what": "Up to 1+ in of ice, 641,000 customers out; final exams at area colleges postponed.",
+    "source": "https://www.weather.gov/oun/events-20071208",
+    "source_status": "opened"
+   },
+   {
+    "where": "University of Kentucky, Lexington",
+    "when": "27-28 Jan 2009",
+    "what": "Worst outage in Kentucky history (609,000 customers); UK shut down and cancelled classes.",
+    "source": "https://kykernel.com/82536/opinions/students-share-collective-memory-of-ice-storm-that-cancelled-class/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "where": "UT Austin",
+    "when": "31 Jan-2 Feb 2023",
+    "what": "Ice broke branches across campus; university closed while 160,000+ Austin customers lost power, mostly from trees on lines.",
+    "source": "https://www.kut.org/energy-environment/2023-02-03/why-did-this-ice-storm-cause-so-many-power-outages-in-austin",
+    "source_status": "search_excerpt"
+   },
+   {
+    "where": "Ann Arbor / Washtenaw County, MI",
+    "when": "22 Feb 2023",
+    "what": "~3,000 downed wires; 40% of county customers out at peak; 5 days to under 10,000.",
+    "source": "unverified: carried over from earlier PARALLEL research (not re-opened in this pass)",
+    "source_status": "unverified"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "Overhead utility feeds lost (trees and wires); underground Central Campus loops and the plant fine; utility-fed North Campus/hospital substations at risk.",
+   "severity_light": "0.25 in ice: one utility feed out 6-12 h, buses reduced, campus open.",
+   "severity_severe": "0.75-1 in ice: all utility feeds out 3-7 days, buses suspended 2 days, utility-fed buildings on generator, dining discards food after 4 h without power.",
+   "duration_hours": [
+    6,
+    168
+   ],
+   "people": "shelter",
+   "transit": "suspended",
+   "notes": "Relocation is within campus: move residents of dark/cold halls into plant-powered buildings. Restoration should be slow and stepwise, not instant."
+  },
+  "consequences": [
+   {
+    "system": "power",
+    "what": "Outage severity scales with ice thickness: 0.25-0.5 in gives scattered outages of hours; 0.5-1 in gives damage to main feeders and 1-5 day outages; 1+ in gives 5-10 day to multi-week outages.",
+    "timescale": "Hours to weeks depending on ice.",
+    "likelihood": "typical",
+    "source": "https://en.wikipedia.org/wiki/Sperry%E2%80%93Piltz_Ice_Accumulation_Index",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "Oklahoma Dec 2007 ice storm: 641,000 customers out, the worst in state history, and 150,000 still out one week later; city water and sewage plants briefly lost power.",
+    "timescale": "1-2 weeks.",
+    "likelihood": "typical",
+    "source": "https://www.weather.gov/oun/events-20071208",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "Michigan Feb 2023: ~3,000 downed wires, 40% of Washtenaw County customers out at peak, 5 days to get under 10,000.",
+    "timescale": "5+ days.",
+    "likelihood": "typical",
+    "source": "unverified: carried over from earlier PARALLEL research (not re-opened in this pass)",
+    "source_status": "unverified"
+   },
+   {
+    "system": "transit",
+    "what": "Roads glazed and blocked by fallen limbs and wires; buses suspended; campuses close (UT Austin closed during the Feb 2023 ice storm; UK closed Jan 2009).",
+    "timescale": "1-3 days.",
+    "likelihood": "typical",
+    "source": "https://www.kut.org/energy-environment/2023-02-03/why-did-this-ice-storm-cause-so-many-power-outages-in-austin",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "people",
+    "what": "Final exams postponed at Oklahoma colleges in 2007; students mostly shelter in place in their halls if heat holds.",
+    "timescale": "Days.",
+    "likelihood": "typical",
+    "source": "https://www.weather.gov/oun/events-20071208",
+    "source_status": "opened"
+   },
+   {
+    "system": "dining",
+    "what": "Without power, fridges are safe ~4 h and full freezers ~48 h; multi-day outages force discarding food (as at MSU's 2026 outage).",
+    "timescale": "4-48 h.",
+    "likelihood": "typical",
+    "source": "https://www.fda.gov/food/buy-store-serve-safe-food/food-and-water-safety-during-power-outages-and-floods",
+    "source_status": "opened"
+   },
+   {
+    "system": "heating_cooling",
+    "what": "Buildings without power lose heat; pipes in unheated spaces start freezing when outdoor temperatures fall to about 20\u00b0F.",
+    "timescale": "Hours to a day after heat is lost.",
+    "likelihood": "sometimes",
+    "source": "https://z1073.com/heres-when-to-worry-about-frozen-pipes/",
+    "source_status": "opened"
+   },
+   {
+    "system": "water",
+    "what": "Municipal water and sewage plants may lose power briefly, interrupting pumping.",
+    "timescale": "Hours.",
+    "likelihood": "sometimes",
+    "source": "https://www.weather.gov/oun/events-20071208",
+    "source_status": "opened"
+   },
+   {
+    "system": "buildings",
+    "what": "Fallen limbs and fires: Oklahoma 2007 had 100+ structure fires from sparking lines and portable heaters.",
+    "timescale": "Days.",
+    "likelihood": "sometimes",
+    "source": "https://www.weather.gov/oun/events-20071208",
+    "source_status": "opened"
+   },
+   {
+    "system": "research",
+    "what": "Freezers and animal rooms depend on generators; generator fuel and failover matter more than the storm itself (see UC Berkeley PSPS and OSU vivarium cases).",
+    "timescale": "Hours.",
+    "likelihood": "sometimes",
+    "source": "https://www.the-scientist.com/hundreds-of-osu-research-animals-die-47379",
+    "source_status": "opened"
+   }
+  ]
+ },
+ {
+  "id": "heavy_snow",
+  "name": "Heavy snow / blizzard",
+  "warning_time": "2-5 days of forecast; winter storm/blizzard warnings typically 12-48 hours ahead.",
+  "typical_duration": "Snowfall 12-48 h; campus closure typically 1-3 days; transit disruption can run several days (Boston 2015 MBTA shut down). Building damage from frozen pipes can take months to repair.",
+  "summary": "Snow mainly stops movement: roads and transit shut, staff cannot get in, and campuses close for a day or more while residents stay in place. Power is usually fine unless the snow is wet and heavy or winds are extreme, but any heating interruption in a deep freeze bursts pipes.",
+  "decisions": [
+   "Close the night before (on the forecast) or wait to see actual totals and risk stranding commuters",
+   "Keep essential staff on campus overnight (housing, police, plant, hospital) or rely on them driving in",
+   "Run buses on main routes only or suspend entirely",
+   "Keep dining open with a skeleton crew or distribute food to residence halls"
+  ],
+  "does_not": [
+   "Dry, powdery snow rarely takes down power; outages need wet heavy snow or strong wind",
+   "It does not damage the campus plant or underground distribution",
+   "It does not require evacuation; people stay where they are because travel is the danger",
+   "A normal snowstorm closes campus for a day or two, not a week"
+  ],
+  "campus_examples": [
+   {
+    "where": "University at Buffalo",
+    "when": "23-26 Dec 2022",
+    "what": "Blizzard with hurricane-force winds over break; frozen pipes during brief power interruptions flooded 6+ buildings; BRB and Cary Hall out ~12 months; ~100 students on campus fed via pantry deliveries; operations resumed 3 Jan.",
+    "source": "https://www.buffalo.edu/ubnow/campus.host.html/content/shared/university/news/ub-reporter-articles/stories/2023/01/blizzard-response.detail.html",
+    "source_status": "opened"
+   },
+   {
+    "where": "Harvard / MIT, Cambridge MA",
+    "when": "Jan-Feb 2015",
+    "what": "70-80 in of snow in two weeks; MBTA suspended; Harvard closed for its 3rd snow day in 3 weeks (4th since 1978).",
+    "source": "https://www.thecrimson.com/article/2015/2/10/snowstorm-mbta-suspended-rail/",
+    "source_status": "opened"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "Normally no feed loss. Wet heavy snow: one or two overhead utility feeds lost for hours to a day. Campus plant unaffected.",
+   "severity_light": "6-10 in dry snow: buses reduced, classes may continue.",
+   "severity_severe": "Blizzard 2 ft+: buses suspended 1-3 days, campus closed, staff shortage at dining and hospital, one feed out if snow is wet; a burst pipe floods one building if heat is interrupted.",
+   "duration_hours": [
+    12,
+    72
+   ],
+   "people": "shelter",
+   "transit": "suspended",
+   "notes": "The main simulated effect should be on movement (transit, staffing), not power."
+  },
+  "consequences": [
+   {
+    "system": "transit",
+    "what": "Transit systems suspend service to clear tracks and roads; Harvard closed because the MBTA shut down and staff could not commute.",
+    "timescale": "1-3 days.",
+    "likelihood": "typical",
+    "source": "https://www.thecrimson.com/article/2015/2/10/snowstorm-mbta-suspended-rail/",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Campuses close or cancel classes; residents shelter in place. Essential services (health, partial shuttles) continue.",
+    "timescale": "1-3 days.",
+    "likelihood": "typical",
+    "source": "https://www.thecrimson.com/article/2015/2/10/snowstorm-mbta-suspended-rail/",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "Dry snow seldom brings down lines; heavy wet snow (about 5:1 snow-to-water) loads trees until limbs fall on lines and causes outages.",
+    "timescale": "Hours to days, only with wet snow.",
+    "likelihood": "sometimes",
+    "source": "https://weather.com/storms/winter/news/2025-02-04-why-heavy-wet-snow-is-dangerous",
+    "source_status": "opened"
+   },
+   {
+    "system": "water",
+    "what": "Frozen and burst pipes during brief power interruptions flood buildings: at UB in Dec 2022, water damage closed the Biomedical Research Building and Cary Hall for about 12 months.",
+    "timescale": "Hours to cause; months to repair.",
+    "likelihood": "sometimes",
+    "source": "https://www.buffalo.edu/ubnow/stories/2023/01/blizzard-damage-update.html",
+    "source_status": "opened"
+   },
+   {
+    "system": "research",
+    "what": "A flooded research building displaces labs to temporary space (UB BRB).",
+    "timescale": "Months.",
+    "likelihood": "sometimes",
+    "source": "https://www.buffalo.edu/ubnow/stories/2023/01/blizzard-damage-update.html",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Campus police stuck on shift for days, rescuing ~60 stranded motorists and running a warming station for 49 people at UB.",
+    "timescale": "2-3 days.",
+    "likelihood": "sometimes",
+    "source": "https://www.buffalo.edu/ubnow/campus.host.html/content/shared/university/news/ub-reporter-articles/stories/2023/01/blizzard-response.detail.html",
+    "source_status": "opened"
+   },
+   {
+    "system": "dining",
+    "what": "With roads closed, food has to be brought to residents; UB distributed pantry food to residence areas and ran special buses to supermarkets.",
+    "timescale": "Days.",
+    "likelihood": "sometimes",
+    "source": "https://www.buffalo.edu/ubnow/campus.host.html/content/shared/university/news/ub-reporter-articles/stories/2023/01/blizzard-response.detail.html",
+    "source_status": "opened"
+   },
+   {
+    "system": "buildings",
+    "what": "Roof loading: with wet snow, roofs designed for ~20 lb/ft\u00b2 reach the danger zone above ~2 ft of accumulation (vs ~4 ft for normal snow).",
+    "timescale": "During/after storm.",
+    "likelihood": "rare",
+    "source": "https://weather.com/storms/winter/news/2025-02-04-why-heavy-wet-snow-is-dangerous",
+    "source_status": "opened"
+   }
+  ]
+ },
+ {
+  "id": "extreme_heat",
+  "name": "Extreme heat",
+  "warning_time": "3-7 days; heat advisories/excessive heat warnings issued a day or more ahead.",
+  "typical_duration": "Heat waves last 2-6 days (PNW 2021 warning period 25-30 June).",
+  "summary": "Heat strains people and cooling systems far more than the power grid: the hospital fills with heat illness and buildings without air conditioning become unsafe, while research and data rooms compete for limited chiller capacity. Grid blackouts are rare and short, but local transformer and cable failures become more common.",
+  "decisions": [
+   "Shed cooling in empty classrooms and libraries to protect labs, animals, data and the hospital, or keep everything cool and risk losing chiller capacity",
+   "Open air-conditioned buildings overnight as cooling centres for residents of non-AC halls, or keep them closed",
+   "Cancel outdoor events, athletics and move-in, or proceed with water and shade",
+   "Staff the ED for a heat surge (and the elderly community) at the expense of elective work"
+  ],
+  "does_not": [
+   "A heat wave does not usually cause a blackout by itself; grid-level rotating outages are rare and last hours at most",
+   "It does not damage buildings or block roads; buses keep running (perhaps with heat precautions)",
+   "It does not require evacuation; the response is moving people into cooled spaces"
+  ],
+  "campus_examples": [
+   {
+    "where": "Oregon State University, Corvallis",
+    "when": "25-28 Jun 2021",
+    "what": "110\u00b0F+ forecast; AC curtailed in 8 buildings to protect research, animals, data centres and 911; restored late Sunday/Monday.",
+    "source": "https://registrar.oregonstate.edu/student-emails/excessive-heat-impact-corvallis-campus-building-cooling-electrical-consumption",
+    "source_status": "opened"
+   },
+   {
+    "where": "West Coast campuses (Pomona, Laney, Cal State East Bay, UW)",
+    "when": "Sep 2022",
+    "what": "Laney closed; Pomona put 50 cots in AC spaces; CSU East Bay complied with grid Flex Alerts; UW issued extra fans.",
+    "source": "https://www.insidehighered.com/news/2022/09/07/west-coast-campuses-hit-heat-wave",
+    "source_status": "opened"
+   },
+   {
+    "where": "UW-Madison",
+    "when": "Jun-Aug 2026",
+    "what": "Chilled-water main rupture at one of three plants closed buildings; temporary chillers and generators; research and patient care prioritised.",
+    "source": "https://news.wisc.edu/campus-cooling-issues/",
+    "source_status": "opened"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "No feed lost by default. Optional: one brief utility-side outage (1-3 h) at peak demand, or one transformer failure on a single building.",
+   "severity_light": "Heat advisory: hospital load up modestly; non-AC residence halls uncomfortable.",
+   "severity_severe": "Excessive heat: hospital ED surge several-fold, cooling curtailed in classrooms/libraries, residents of non-AC halls moved to cooled buildings overnight.",
+   "duration_hours": [
+    48,
+    144
+   ],
+   "people": "relocate",
+   "transit": "normal",
+   "notes": "Relocation is to cooled buildings on campus, not off campus. Keep power on; the stress is on cooling capacity and the hospital."
+  },
+  "consequences": [
+   {
+    "system": "hospital",
+    "what": "Heat-illness ED visits spike: in the June 2021 PNW heat wave the region saw 1,038 heat-related ED visits on 28 June vs 9 on the same date in 2019; 79% of the period's visits fell in the 6 warning days.",
+    "timescale": "Peaks on the hottest day; days.",
+    "likelihood": "typical",
+    "source": "https://www.cdc.gov/mmwr/volumes/70/wr/mm7029e1.htm",
+    "source_status": "opened"
+   },
+   {
+    "system": "heating_cooling",
+    "what": "Chilled-water capacity becomes the constraint: Oregon State curtailed AC in 8 largely unoccupied buildings to protect research, animal facilities, data centres and 911.",
+    "timescale": "Over the hot weekend; restored within ~3 days.",
+    "likelihood": "typical",
+    "source": "https://registrar.oregonstate.edu/student-emails/excessive-heat-impact-corvallis-campus-building-cooling-electrical-consumption",
+    "source_status": "opened"
+   },
+   {
+    "system": "buildings",
+    "what": "Residence halls without AC (common in cool-climate campuses) become unsafe; campuses set up cots in air-conditioned spaces and cooling centres (Pomona: 50 cots; PSU: ~20 students used overnight accommodation).",
+    "timescale": "Days.",
+    "likelihood": "typical",
+    "source": "https://www.insidehighered.com/news/2022/09/07/west-coast-campuses-hit-heat-wave",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "Heat mainly raises the rate of local equipment failures (overloaded transformers, underground cable joints) rather than causing a grid shortfall.",
+    "timescale": "Isolated hours-long outages.",
+    "likelihood": "sometimes",
+    "source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11848798/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "people",
+    "what": "Some campuses cancel classes or move them to cooler buildings (Laney College closed; College of Marin relocated classes).",
+    "timescale": "1-3 days.",
+    "likelihood": "sometimes",
+    "source": "https://www.insidehighered.com/news/2022/09/07/west-coast-campuses-hit-heat-wave",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "Grid-wide shortfall blackouts are rare and short: California's Aug 2020 rotating outages (first since 2001) lasted about 2-3 hours one evening and ~20 minutes the next.",
+    "timescale": "Minutes to hours.",
+    "likelihood": "rare",
+    "source": "https://www.npr.org/2020/08/15/902781690/california-issues-first-rolling-blackouts-since-2001-as-heat-wave-bakes-western-",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "research",
+    "what": "Animal rooms are fragile: when power failed at an Ohio State vivarium, generators ran fans but not AC, rooms exceeded 100\u00b0F and ~700 mice and rats died.",
+    "timescale": "Hours.",
+    "likelihood": "rare",
+    "source": "https://www.the-scientist.com/hundreds-of-osu-research-animals-die-47379",
+    "source_status": "opened"
+   },
+   {
+    "system": "research",
+    "what": "If a chilled-water main fails in summer, buildings close: UW-Madison's June 2026 chilled-water rupture closed or partly closed buildings until August, with research and patient care prioritised.",
+    "timescale": "Weeks.",
+    "likelihood": "rare",
+    "source": "https://news.wisc.edu/campus-cooling-issues/",
+    "source_status": "opened"
+   }
+  ]
+ },
+ {
+  "id": "extreme_cold",
+  "name": "Extreme cold",
+  "warning_time": "3-7 days; wind chill warnings a day or more ahead.",
+  "typical_duration": "Arctic outbreak 2-5 days (Uri: 11-21 Feb 2021). Damage from burst pipes lasts weeks.",
+  "summary": "Cold rarely breaks the electrical network directly; it breaks generation and fuel supply (rolling blackouts) and, wherever heat stops, it freezes and bursts pipes, flooding buildings and cutting water. Campuses close mainly to protect people walking outside, while heating plants run at record load.",
+  "decisions": [
+   "Close campus to keep people off the walkways, or stay open because residents are on campus anyway",
+   "Run the plant flat out and shed chilled-water/non-critical steam loads, or keep every building at full temperature",
+   "Keep heat on in empty buildings (cost) to prevent pipe bursts, or set back and risk floods",
+   "Move residents out of a flooded hall now (into a gym/dining hall) or wait for repairs"
+  ],
+  "does_not": [
+   "Cold does not knock down lines or poles by itself; if the power fails it is generation or gas supply, as rolling outages, not storm damage",
+   "It does not damage buildings structurally; damage is water from burst pipes",
+   "It does not normally stop buses for long once roads are clear (unlike ice/snow)"
+  ],
+  "campus_examples": [
+   {
+    "where": "Texas universities (Texas State, Texas A&M, Sam Houston, Baylor)",
+    "when": "Feb 2021 (Uri)",
+    "what": "Days without heat/power at some halls; burst pipes; water rationing, portable toilets; residents moved between halls and to dining halls.",
+    "source": "https://www.the74million.org/article/dwindling-food-flooded-hallways-unflushable-toilets-texass-university-dorms-descend-into-chaos-during-historic-winter-storm/",
+    "source_status": "opened"
+   },
+   {
+    "where": "UT Austin",
+    "when": "Feb 2021 (Uri)",
+    "what": "Campus CHP plant islanded and kept 100% of campus power; record steam load; ~30 buildings with freeze damage; cooling cut from 15,000 to ~4,000 tons to manage leaks.",
+    "source": "https://info.higheredfacilitiesforum.com/blog/how-ut-austin-kept-the-lights-on-during-an-unprecedented-winter-storm",
+    "source_status": "opened"
+   },
+   {
+    "where": "Midwest universities (U Chicago, Illinois, Michigan)",
+    "when": "30-31 Jan 2019",
+    "what": "Closed for polar vortex with expected lows near -50\u00b0F.",
+    "source": "https://www.insidehighered.com/news/2019/01/30/colleges-and-students-respond-polar-vortex-bringing-record-cold-temperatures-midwest",
+    "source_status": "opened"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "No physical feed damage. Optional rolling outage: utility feeds cut in rotating 1-3 hour blocks; campus plant keeps underground loops energised.",
+   "severity_light": "Wind chill warning: classes cancelled 1 day, transit normal, plant at high steam load.",
+   "severity_severe": "Rolling outages plus a burst pipe in 1-3 buildings: those residents relocated within campus, one dining hall closed, water advisories.",
+   "duration_hours": [
+    24,
+    120
+   ],
+   "people": "shelter",
+   "transit": "reduced",
+   "notes": "Tie pipe-burst events to buildings that lose heat (power or steam), not to the cold alone."
+  },
+  "consequences": [
+   {
+    "system": "heating_cooling",
+    "what": "A campus plant can island and keep power, but steam load hits records (UT Austin 350,000 lb/h vs normal winter 200,000) and chilled-water pressure collapses from leaks.",
+    "timescale": "Duration of the cold.",
+    "likelihood": "typical",
+    "source": "https://info.higheredfacilitiesforum.com/blog/how-ut-austin-kept-the-lights-on-during-an-unprecedented-winter-storm",
+    "source_status": "opened"
+   },
+   {
+    "system": "water",
+    "what": "Pipes freeze where heat is lost (threshold about 20\u00b0F outdoors for exposed pipes); bursts flood floors and evacuate halls. Baylor had bursts in 5+ buildings including a dining hall and two residence halls.",
+    "timescale": "Hours after heat loss; repairs weeks.",
+    "likelihood": "typical",
+    "source": "https://baylorlariat.com/2021/02/16/winter-storm-causes-damage-across-campus-due-to-burst-water-pipes/",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Campuses close for the cold itself (frostbite risk walking between buildings): U Chicago, Illinois, Michigan and others closed on 30-31 Jan 2019 with wind chills to about -50\u00b0F.",
+    "timescale": "1-2 days.",
+    "likelihood": "typical",
+    "source": "https://www.insidehighered.com/news/2019/01/30/colleges-and-students-respond-polar-vortex-bringing-record-cold-temperatures-midwest",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "Generation and gas supply failures force rolling blackouts: Texas 2021 (about 70% of Texans lost power, averaging ~42 hours); TVA and Duke ran their first-ever rolling blackouts in Dec 2022, for about 2-6 hours.",
+    "timescale": "Hours (rolling) to days (Texas).",
+    "likelihood": "sometimes",
+    "source": "https://cleanenergy.org/news/winter-storm-blackouts-reflections-from-a-year-later/",
+    "source_status": "opened"
+   },
+   {
+    "system": "water",
+    "what": "Municipal water pressure fails or boil notices issue; universities ban laundry, put portable toilets outside halls, hand out bottled water (Texas A&M, Sam Houston State, St. Mary's).",
+    "timescale": "2-5 days.",
+    "likelihood": "sometimes",
+    "source": "https://www.the74million.org/article/dwindling-food-flooded-hallways-unflushable-toilets-texass-university-dorms-descend-into-chaos-during-historic-winter-storm/",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Residents of flooded halls are relocated to other halls or dining halls (Baylor evacuated South and North Russell to Penland dining hall; Texas State moved students to other halls).",
+    "timescale": "Hours to days.",
+    "likelihood": "sometimes",
+    "source": "https://baylorlariat.com/2021/02/16/winter-storm-causes-damage-across-campus-due-to-burst-water-pipes/",
+    "source_status": "opened"
+   },
+   {
+    "system": "dining",
+    "what": "Dining reduced to two meals a day, or limited to on-campus residents; dining halls closed by burst pipes.",
+    "timescale": "Days.",
+    "likelihood": "sometimes",
+    "source": "https://www.the74million.org/article/dwindling-food-flooded-hallways-unflushable-toilets-texass-university-dorms-descend-into-chaos-during-historic-winter-storm/",
+    "source_status": "opened"
+   },
+   {
+    "system": "comms",
+    "what": "Cell and internet unstable during grid outages (UNT).",
+    "timescale": "Days.",
+    "likelihood": "sometimes",
+    "source": "https://www.the74million.org/article/dwindling-food-flooded-hallways-unflushable-toilets-texass-university-dorms-descend-into-chaos-during-historic-winter-storm/",
+    "source_status": "opened"
+   },
+   {
+    "system": "heating_cooling",
+    "what": "Gas supply emergencies: during the 2019 polar vortex a compressor-station fire led Michigan's governor to ask residents to set thermostats to 65\u00b0F or below.",
+    "timescale": "1-2 days.",
+    "likelihood": "rare",
+    "source": "https://www.detroitnews.com/story/business/2020/05/08/consumers-fined-10000-dollars-after-fire-gas-facility-during-polar-vortex/3096319001/",
+    "source_status": "search_excerpt"
+   }
+  ]
+ },
+ {
+  "id": "riverine_flood",
+  "name": "Riverine or flash flooding",
+  "warning_time": "River floods: days to over a week of crest forecasts (Iowa 2008: ~10 days of building dikes). Flash floods: minutes to about an hour; NWS says flash floods come within hours of heavy rain.",
+  "typical_duration": "Flash flood waters recede in hours; river floods crest over days. Building recovery: weeks to years (Iowa 2008 power plant replaced by temporary plants in 3 days; arts campus rebuilt over ~8 years).",
+  "summary": "Floods hit the lowest buildings and especially their basements, where electrical switchgear, utility plants, libraries and animal rooms often sit, so damage is concentrated but very expensive. River floods give days to sandbag and move people; flash floods give minutes and kill mainly people in vehicles.",
+  "decisions": [
+   "Sandbag and dike the plant, hospital and library on the forecast, or spend crews moving contents out",
+   "Evacuate low-lying residence halls days before the crest (and bus residents elsewhere) or hold until the forecast firms up",
+   "De-energise basement switchgear before water arrives (planned outage) or keep power until the last moment and risk destroying the gear",
+   "Close roads and stop buses early or keep service for evacuation"
+  ],
+  "does_not": [
+   "It does not damage the whole campus; damage follows elevation and basements, high ground is untouched",
+   "It does not knock down overhead lines; the power problem is submerged substations, switchgear and plants",
+   "A river flood is not a surprise; there are days of warning. Only flash floods arrive in minutes",
+   "Water does not recede and leave the building usable; flooded buildings stay closed for weeks to months"
+  ],
+  "campus_examples": [
+   {
+    "where": "University of Iowa",
+    "when": "Jun 2008",
+    "what": "Iowa River crest 31.5 ft; 20 buildings flooded; power plant lost 14 Jun; temporary plants in 3 days; about $743M in damage and recovery.",
+    "source": "https://www.buildings.com/feature/article/10192560/flood-of-2008-the-university-of-iowa",
+    "source_status": "opened"
+   },
+   {
+    "where": "Colorado State University",
+    "when": "28 Jul 1997",
+    "what": "Flash flood; Morgan Library basement filled, ~500,000 books damaged; 13 buildings closed; ~50 summer classes relocated; ~$140M.",
+    "source": "https://newsmediarelations.colostate.edu/1997/07/30/flood-damage-update-on-campus-operations-at-colorado-state-university-7301997/",
+    "source_status": "opened"
+   },
+   {
+    "where": "UNC Asheville",
+    "when": "Sep-Oct 2024 (Helene)",
+    "what": "Power and city water lost; ~1,300 residents moved off campus by carpool; classes cancelled then moved online for the rest of the term.",
+    "source": "https://www.theassemblync.com/news/education/unc-asheville-campus-helene-chancellor-van-noort/",
+    "source_status": "opened"
+   },
+   {
+    "where": "CU Boulder",
+    "when": "Sep 2013",
+    "what": "Multi-day rain; campus evacuations, sirens along Boulder Creek; community members displaced into temporary housing for weeks.",
+    "source": "https://www.colorado.edu/today/2013/10/16/provost-bfa-cu-boulders-recovery-floods-were-not-done-yet",
+    "source_status": "opened"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "Feeds whose substation, vault or switchgear sits in the floodplain are lost; if the campus plant is low-lying it can be lost too (Iowa 2008). Overhead lines are not the issue.",
+   "severity_light": "Basement flooding in 1-2 low buildings; road closures for hours; buses detour.",
+   "severity_severe": "River crest floods low buildings and the plant: steam and power out campus-wide for 3+ days, low-lying halls evacuated by bus, hospital on generators behind floodgates.",
+   "duration_hours": [
+    6,
+    720
+   ],
+   "people": "relocate",
+   "transit": "reduced",
+   "notes": "Affected buildings should be chosen by elevation. River floods: relocate before the crest. Flash floods: move upward, no time to relocate."
+  },
+  "consequences": [
+   {
+    "system": "buildings",
+    "what": "Basements fill to the ceiling: CSU's Morgan Library basement filled to 10 ft in minutes when a temporary wall collapsed, damaging ~500,000 books; Lory Student Center flooded to inches below the ceiling.",
+    "timescale": "Minutes to hours; repairs months.",
+    "likelihood": "typical",
+    "source": "https://libguides.colostate.edu/preservation-services/csu-1997-flood",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "buildings",
+    "what": "Iowa 2008: 20 major buildings (2.8 of 16 million ft\u00b2) flooded; half the damaged space back by fall term.",
+    "timescale": "Weeks to years.",
+    "likelihood": "typical",
+    "source": "https://www.buildings.com/feature/article/10192560/flood-of-2008-the-university-of-iowa",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "River flood: residents evacuated on forecast (UI evacuated residence halls at the start of summer session). Flash flood: people move upward, sirens tell them to get to high ground (CU Boulder 2013).",
+    "timescale": "Days (river); minutes (flash).",
+    "likelihood": "typical",
+    "source": "https://www.buildings.com/feature/article/10192560/flood-of-2008-the-university-of-iowa",
+    "source_status": "opened"
+   },
+   {
+    "system": "transit",
+    "what": "Roads close; 12 in of moving water carries most cars and 6 in knocks an adult over; most flood deaths are in vehicles.",
+    "timescale": "Hours to days.",
+    "likelihood": "typical",
+    "source": "https://www.weather.gov/safety/flood-turn-around-dont-drown",
+    "source_status": "opened"
+   },
+   {
+    "system": "dining",
+    "what": "Food touched by floodwater must be discarded (only sealed metal cans/retort pouches salvageable).",
+    "timescale": "Immediate.",
+    "likelihood": "typical",
+    "source": "https://www.fda.gov/food/buy-store-serve-safe-food/food-and-water-safety-during-power-outages-and-floods",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "A flooded campus power plant takes down steam and electricity for every building: the UI plant failed at 2 am on 14 Jun 2008; two temporary plants restored steam within three days.",
+    "timescale": "Days for temporary service; months/years for permanent.",
+    "likelihood": "sometimes",
+    "source": "https://www.buildings.com/feature/article/10192560/flood-of-2008-the-university-of-iowa",
+    "source_status": "opened"
+   },
+   {
+    "system": "water",
+    "what": "Municipal water systems can fail for weeks: after Helene (2024) UNC Asheville lost power and water, students were moved off campus, and the campus stayed closed about a month.",
+    "timescale": "Weeks.",
+    "likelihood": "sometimes",
+    "source": "https://www.theassemblync.com/news/education/unc-asheville-campus-helene-chancellor-van-noort/",
+    "source_status": "opened"
+   },
+   {
+    "system": "research",
+    "what": "Basement animal facilities and labs drown: Tropical Storm Allison (2001) flooded Texas Medical Center basements and ~30,000 research animals at Baylor College of Medicine drowned.",
+    "timescale": "Hours.",
+    "likelihood": "sometimes",
+    "source": "https://toolkit.climate.gov/case-study/after-record-breaking-rains-texas-medical-centers-planning-improved-resilience",
+    "source_status": "opened"
+   },
+   {
+    "system": "hospital",
+    "what": "Basement generators, switchgear, boilers and chillers flood and the hospital becomes non-operational (TMC 2001); after moving them up and adding floodgates, TMC rode out Harvey 2017.",
+    "timescale": "Hours; recovery months.",
+    "likelihood": "sometimes",
+    "source": "https://toolkit.climate.gov/case-study/after-record-breaking-rains-texas-medical-centers-planning-improved-resilience",
+    "source_status": "opened"
+   }
+  ]
+ },
+ {
+  "id": "coastal_flood",
+  "name": "Coastal flooding / storm surge",
+  "warning_time": "Storm surge warning generally within 36 hours of the threat (sometimes earlier); NHC inundation maps several days out.",
+  "typical_duration": "Surge peaks over a few hours around high tide; flooded basements and utilities take weeks to months (NYU Langone ED closed until 2014; UTMB ED out nearly a year).",
+  "summary": "Surge drives seawater into basements and ground floors, destroying the switchgear, fuel pumps, generators and animal rooms often located there, which is why hospitals with generators upstairs still lost power. Coastal campuses and hospitals must decide days ahead whether to evacuate patients and students.",
+  "decisions": [
+   "Evacuate the hospital and residence halls 36-48 hours ahead (expensive, risky for patients) or shelter in place and risk an evacuation in the dark",
+   "Cut power to basement switchgear before seawater arrives or keep it energised",
+   "Move animal colonies and freezers to upper floors or off-site now",
+   "Send students home/to a partner campus, or shelter them on upper floors"
+  ],
+  "does_not": [
+   "It does not affect inland campuses at all; only buildings within reach of the sea or tidal rivers",
+   "It does not take down overhead lines on its own; it destroys equipment by submersion",
+   "It does not clear in hours; saltwater-flooded electrical equipment usually has to be replaced"
+  ],
+  "campus_examples": [
+   {
+    "where": "NYU Langone Medical Center, Manhattan",
+    "when": "29 Oct 2012 (Sandy)",
+    "what": "Basement fuel pumps and tanks flooded; generators failed; ~300 patients evacuated; research animals and samples lost; ED reopened 2014.",
+    "source": "https://abcnews.com/Health/sandys-blackout-threatens-destroy-trove-medical-research/story?id=17601126",
+    "source_status": "opened"
+   },
+   {
+    "where": "UTMB, Galveston TX",
+    "when": "13 Sep 2008 (Ike)",
+    "what": "~15 ft surge; inpatients evacuated beforehand; 1M+ ft\u00b2 flooded; ~4,700 lab animals drowned; ED out nearly a year; ~3,000 layoffs.",
+    "source": "https://toolkit.climate.gov/case-study/island-medical-campus-recovers-rebuilds-face-future-storms",
+    "source_status": "opened"
+   },
+   {
+    "where": "Stevens Institute of Technology, Hoboken NJ",
+    "when": "Oct 2012 (Sandy)",
+    "what": "Campus lost power, hot water and internet; facilities crews restored heat and power over days.",
+    "source": "https://hoboken.pastperfectonline.com/Archive/E118A9E2-680D-445F-B4DB-574838578384",
+    "source_status": "search_excerpt"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "Feeds through low-lying vaults/substations and any building's basement switchgear lost; generators fail if fuel pumps are in the basement.",
+   "severity_light": "Minor coastal flooding: low roads closed for a tide cycle, no building damage.",
+   "severity_severe": "Surge into basements of low buildings: those buildings lose all power including generators, hospital evacuates by stairs, research animals lost, buildings closed for months.",
+   "duration_hours": [
+    12,
+    2160
+   ],
+   "people": "evacuate",
+   "transit": "suspended",
+   "notes": "Only applicable if the simulated campus is coastal or on a tidal river; for an inland (e.g., Ann Arbor) campus this hazard should be disabled."
+  },
+  "consequences": [
+   {
+    "system": "buildings",
+    "what": "Over 1 million ft\u00b2 of UTMB buildings flooded to about 6 ft; electrical gear in basements was the key weakness.",
+    "timescale": "Months.",
+    "likelihood": "typical",
+    "source": "https://toolkit.climate.gov/case-study/island-medical-campus-recovers-rebuilds-face-future-storms",
+    "source_status": "opened"
+   },
+   {
+    "system": "transit",
+    "what": "Single bridges and coastal roads close; 2 ft of water floats vehicles.",
+    "timescale": "Days.",
+    "likelihood": "typical",
+    "source": "https://www.noaa.gov/explainers/explainer-understanding-hurricane-hazards",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "Backup power fails when basement components flood even with generators upstairs: at NYU Langone in Sandy the basement fuel pumps and tanks flooded under 10-12 ft of water.",
+    "timescale": "Hours after surge arrives.",
+    "likelihood": "sometimes",
+    "source": "https://www.rand.org/pubs/commentary/2012/11/generation-ex.html",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "hospital",
+    "what": "Hospital evacuation mid-storm: NYU Langone evacuated about 300 patients by stairs (322 per earlier research); Tulane's hospital evacuated 200 patients and 1,000 staff by helicopter after Katrina.",
+    "timescale": "Hours; reopening months later.",
+    "likelihood": "sometimes",
+    "source": "https://en.wikipedia.org/wiki/Effect_of_Hurricane_Katrina_on_Tulane_University",
+    "source_status": "opened"
+   },
+   {
+    "system": "hospital",
+    "what": "Pre-storm evacuation is costly but avoids mid-storm evacuation: UTMB spent about $20M evacuating inpatients before Ike; the hospital was closed for months and the ED for nearly a year.",
+    "timescale": "Days before; months after.",
+    "likelihood": "sometimes",
+    "source": "https://toolkit.climate.gov/case-study/island-medical-campus-recovers-rebuilds-face-future-storms",
+    "source_status": "opened"
+   },
+   {
+    "system": "research",
+    "what": "Basement vivaria drown: ~4,700 lab animals died at UTMB in Ike; NYU lost mice, cells and samples when freezers and incubators failed.",
+    "timescale": "Hours.",
+    "likelihood": "sometimes",
+    "source": "https://abcnews.com/Health/sandys-blackout-threatens-destroy-trove-medical-research/story?id=17601126",
+    "source_status": "opened"
+   },
+   {
+    "system": "comms",
+    "what": "Electronic door locks and communications failures kept staff out of NYU's research building.",
+    "timescale": "Days.",
+    "likelihood": "sometimes",
+    "source": "https://abcnews.com/Health/sandys-blackout-threatens-destroy-trove-medical-research/story?id=17601126",
+    "source_status": "opened"
+   }
+  ]
+ },
+ {
+  "id": "hurricane",
+  "name": "Hurricane",
+  "warning_time": "Days: hurricane watch 48 h and warning 36 h before tropical-storm-force winds; track forecasts 3-5 days out.",
+  "typical_duration": "Storm passage 12-36 h; regional power restoration 1-2 weeks (Sandy: 99% in two weeks); campus closure from a few days (Harvey at Rice/UH ~1 week) to a whole semester (Tulane 2005).",
+  "summary": "A hurricane combines days of warning with wind, inland rain flooding and coastal surge, and nearly 90% of US deaths are from water, not wind. Campuses mostly decide days ahead to send students away or shelter them, and then face a week or more of regional power and transport loss.",
+  "decisions": [
+   "Send students home or bus them to a partner campus 2-3 days out (costly, may be unnecessary if the track shifts) or shelter them on campus",
+   "Evacuate hospital patients before landfall or ride out with staff locked in for days",
+   "Pre-position fuel, food and water for a week of isolation, or rely on resupply",
+   "Reopen as soon as campus is safe, or wait until the city (housing, roads, power for staff) recovers"
+  ],
+  "does_not": [
+   "Wind alone is rarely the killer; about 90% of deaths are from water (surge ~49%, rain flooding ~27%)",
+   "It does not arrive without warning; there are days to decide",
+   "It does not usually destroy well-built campus buildings by wind; damage is trees, roofs, leaks and flooding",
+   "Power is not back in hours; regional outages run days to weeks"
+  ],
+  "campus_examples": [
+   {
+    "where": "Tulane University, New Orleans",
+    "when": "Aug 2005 (Katrina)",
+    "what": "Students moved to Jackson State before landfall; levee failure flooded north campus and hospital; hospital evacuated by helicopter; ~$650M damage; closed until 17 Jan 2006.",
+    "source": "https://en.wikipedia.org/wiki/Effect_of_Hurricane_Katrina_on_Tulane_University",
+    "source_status": "opened"
+   },
+   {
+    "where": "Rice University and University of Houston",
+    "when": "Aug-Sep 2017 (Harvey)",
+    "what": "Classes cancelled ~1 week; ~2,000 UH students sheltered on campus with dining open; minor building damage; reopened 5 Sep.",
+    "source": "https://www.texastribune.org/2017/08/28/colleges-houston-along-coast-suffer-damage-and-cancel-classes-due-harv/",
+    "source_status": "opened"
+   },
+   {
+    "where": "Florida Gulf Coast University",
+    "when": "Sep 2022 (Ian)",
+    "what": "~200 people sheltered in Alico Arena; trees and windows damaged, no flooding; classes cancelled ~2 weeks.",
+    "source": "https://www.insidehighered.com/news/2022/10/03/hurricane-ian-leaves-florida-campuses-flooded-and-damaged",
+    "source_status": "opened"
+   },
+   {
+    "where": "Tulane University",
+    "when": "Aug 2021 (Ida)",
+    "what": "1,841 students bused to Houston on 35 buses after the storm knocked out power.",
+    "source": "unverified: carried over from earlier PARALLEL research (not re-opened in this pass)",
+    "source_status": "unverified"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "All overhead utility feeds lost for days; underground loops survive; campus plant survives unless flooded; generator fuel becomes the limit after ~3 days.",
+   "severity_light": "Tropical storm: one or two feeds out for hours, buses suspended 1 day, shelter in place.",
+   "severity_severe": "Major hurricane: all utility feeds out 5-14 days, low buildings flooded, cell service down in places, residents bused off campus before or after landfall.",
+   "duration_hours": [
+    24,
+    336
+   ],
+   "people": "evacuate",
+   "transit": "suspended",
+   "notes": "The key timeline is decision 48-72 h before landfall. Inland campuses get the rain-flood and wind parts; only coastal ones get surge."
+  },
+  "consequences": [
+   {
+    "system": "power",
+    "what": "Regional outages in the millions (Sandy peaked over 8.5 million customers); 99% of those who could take power were restored within two weeks.",
+    "timescale": "Days to 2 weeks.",
+    "likelihood": "typical",
+    "source": "https://www.energy.gov/ceser/articles/overview-response-hurricane-sandy-noreaster-and-recommendations-improvement-february",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Pre-storm relocation or evacuation of students: Tulane bused ~400-700 students to Jackson State before Katrina and 1,841 students to Houston on 35 buses after Ida.",
+    "timescale": "Decision 2-3 days before landfall.",
+    "likelihood": "typical",
+    "source": "https://en.wikipedia.org/wiki/Effect_of_Hurricane_Katrina_on_Tulane_University",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Shelter in place on campus is common where the campus is safe: FGCU sheltered ~200 people in Alico Arena through Ian; ~2,000 UH students stayed on campus through Harvey with dining open.",
+    "timescale": "2-4 days.",
+    "likelihood": "typical",
+    "source": "https://www.insidehighered.com/news/2022/10/03/hurricane-ian-leaves-florida-campuses-flooded-and-damaged",
+    "source_status": "opened"
+   },
+   {
+    "system": "hospital",
+    "what": "Well-hardened hospitals shelter in place with ride-out teams while roads are flooded (MD Anderson: ride-out teams for up to 650 inpatients; appointments cancelled for days).",
+    "timescale": "Days.",
+    "likelihood": "typical",
+    "source": "https://www.statnews.com/2017/08/29/md-anderson-harvey-flood/",
+    "source_status": "opened"
+   },
+   {
+    "system": "comms",
+    "what": "About 25% of cell sites in the affected area out in Sandy (50%+ in hardest-hit counties) as backup power ran out.",
+    "timescale": "Days.",
+    "likelihood": "typical",
+    "source": "https://techcrunch.com/2012/10/31/fcc-sandy-took-down-25-of-cell-towers-in-10-states",
+    "source_status": "opened"
+   },
+   {
+    "system": "transit",
+    "what": "Roads flooded; buses and transit suspended; Rice and UH closed about a week after Harvey's rains.",
+    "timescale": "Several days to 1 week.",
+    "likelihood": "typical",
+    "source": "https://www.texastribune.org/2017/08/28/colleges-houston-along-coast-suffer-damage-and-cancel-classes-due-harv/",
+    "source_status": "opened"
+   },
+   {
+    "system": "buildings",
+    "what": "Wind damage is usually trees, leaks and windows (Rice: minor damage to 12 buildings, flooded basements); catastrophic damage comes from flooding.",
+    "timescale": "Days to repair.",
+    "likelihood": "typical",
+    "source": "https://www.texastribune.org/2017/08/28/colleges-houston-along-coast-suffer-damage-and-cancel-classes-due-harv/",
+    "source_status": "opened"
+   },
+   {
+    "system": "water",
+    "what": "Flooding of the city water system can cut water for weeks (UNC Asheville after Helene).",
+    "timescale": "Weeks.",
+    "likelihood": "sometimes",
+    "source": "https://www.theassemblync.com/news/education/unc-asheville-campus-helene-chancellor-van-noort/",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Long-term: a whole semester cancelled if the city floods (Tulane after Katrina, reopened Jan 2006).",
+    "timescale": "Months.",
+    "likelihood": "rare",
+    "source": "https://en.wikipedia.org/wiki/Effect_of_Hurricane_Katrina_on_Tulane_University",
+    "source_status": "opened"
+   }
+  ]
+ },
+ {
+  "id": "earthquake",
+  "name": "Earthquake",
+  "warning_time": "None to seconds (ShakeAlert gives seconds where available; little or none near the epicentre).",
+  "typical_duration": "Shaking under a minute; aftershocks weeks; building inspections days; closures 2 weeks (CSUN) to 3+ weeks (Canterbury); repairs years (Stanford ~10 years).",
+  "summary": "An earthquake strikes without warning and damages nearly every building at once to some degree, so the first days are about inspecting which buildings are safe and moving people out of those that are not. Power typically returns within a day, but broken water mains, burst sprinkler and chilled-water pipes, and fallen contents cause most of the disruption.",
+  "decisions": [
+   "Re-occupy buildings quickly after a visual check, or keep everyone out until engineers tag each building (slow, safe)",
+   "House displaced residents in gyms/other halls on campus, or send them home",
+   "Shut off gas and steam campus-wide to prevent fires and leaks (and lose heat), or isolate building by building",
+   "Keep the hospital open with water damage, or evacuate patients"
+  ],
+  "does_not": [
+   "There is no advance warning to evacuate or relocate beforehand",
+   "Power is not usually out for many days; the long outages are water and building access",
+   "Buildings do not mostly collapse in a moderate quake; most get non-structural damage and are closed for inspection, not destroyed",
+   "It does not affect buses for long except where bridges or roads are damaged"
+  ],
+  "campus_examples": [
+   {
+    "where": "Stanford University",
+    "when": "17 Oct 1989 (Loma Prieta)",
+    "what": "242 buildings damaged, ~20 closed; 1,600 students displaced; library closed until 1999; ~$160M.",
+    "source": "https://quake06.stanford.edu/7-earthquake-economics",
+    "source_status": "search_excerpt"
+   },
+   {
+    "where": "California State University, Northridge",
+    "when": "17 Jan 1994",
+    "what": "Epicentre ~1 mile away; every building damaged; parking structure collapse; library wings demolished; term started 2 weeks late, reconstruction to 2007.",
+    "source": "https://library.csun.edu/sca/peek-stacks/earthquake",
+    "source_status": "search_excerpt"
+   },
+   {
+    "where": "University of Canterbury, Christchurch",
+    "when": "22 Feb 2011",
+    "what": "Campus closed pending inspection (about 3 weeks); 1,550 hall residents mostly went home; three quarters of buildings had contents damage.",
+    "source": "https://www.universityworldnews.com/post.php?story=20110223132156108",
+    "source_status": "opened"
+   },
+   {
+    "where": "Napa (Queen of the Valley Medical Center)",
+    "when": "24 Aug 2014",
+    "what": "~200 treated; 70,000 lost power (restored next day); ~120 water main breaks; 6 major fires.",
+    "source": "https://en.wikipedia.org/wiki/2014_South_Napa_earthquake",
+    "source_status": "opened"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "Brief loss of all utility feeds (hours); campus plant may trip and need restart; underground distribution mostly OK but individual building service damaged.",
+   "severity_light": "Moderate quake: power blip, contents fall, buildings evacuated for a few hours of inspection.",
+   "severity_severe": "Strong nearby quake: most buildings evacuated for inspection over 1-3 days, a few red-tagged (residents relocated), water out for days, hospital water damage, power back within ~24 h.",
+   "duration_hours": [
+    2,
+    504
+   ],
+   "people": "relocate",
+   "transit": "reduced",
+   "notes": "Instant onset; no pre-event actions. Buildings come back one at a time as inspected. Not realistic for Michigan except as a far-field low-intensity event."
+  },
+  "consequences": [
+   {
+    "system": "buildings",
+    "what": "Widespread, uneven damage: Loma Prieta damaged 242 Stanford buildings and closed about 20 (main library not reopened until 1999); at CSUN every building was damaged and two library wings had to be demolished and rebuilt.",
+    "timescale": "Seconds; inspections days; repairs years.",
+    "likelihood": "typical",
+    "source": "https://quake06.stanford.edu/7-earthquake-economics",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "buildings",
+    "what": "Contents fall even when structures hold: ~600,000 CSUN library volumes fell; 750,000 at Stanford; at Canterbury about three quarters of buildings had contents damage.",
+    "timescale": "Seconds; cleanup weeks.",
+    "likelihood": "typical",
+    "source": "https://library.csun.edu/about/history-facts/1994-earthquake",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Buildings evacuated pending engineering inspection; campuses closed (Canterbury about 3 weeks; CSUN spring term started 2 weeks late, staff worked from tents).",
+    "timescale": "Days to weeks.",
+    "likelihood": "typical",
+    "source": "https://www.universityworldnews.com/post.php?story=20110223132156108",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "Utility power mostly restored within a day: after Northridge, LADWP restored nearly half of 1.4 million customers by midday; after Napa, 70,000 outages restored the next day.",
+    "timescale": "Hours to ~1 day.",
+    "likelihood": "typical",
+    "source": "https://www.nbclosangeles.com/news/local/timeline-the-northridge-earthquake/1977528/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "water",
+    "what": "Water mains break: Napa had ~60-120 main breaks; restoring all customers could take up to a week.",
+    "timescale": "Days to a week.",
+    "likelihood": "typical",
+    "source": "https://abc7news.com/earthquake-quake-american-canyon-napa/281424/",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "hospital",
+    "what": "Casualty surge, mostly minor: ~200 treated at Queen of the Valley after Napa, 13 admitted.",
+    "timescale": "First 24 h.",
+    "likelihood": "typical",
+    "source": "https://en.wikipedia.org/wiki/2014_South_Napa_earthquake",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Students displaced from residence halls if housing is red-tagged (1,600 Stanford students displaced the night of Loma Prieta).",
+    "timescale": "Nights to weeks.",
+    "likelihood": "sometimes",
+    "source": "https://quake06.stanford.edu/7-earthquake-economics",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "hospital",
+    "what": "Hospitals may evacuate for non-structural reasons: 8 of 91 LA hospitals evacuated after Northridge, mostly because burst pipes, sprinklers and chilled-water lines flooded them.",
+    "timescale": "Within 24 h.",
+    "likelihood": "sometimes",
+    "source": "https://www.nejm.org/doi/full/10.1056/NEJMsa021807",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "buildings",
+    "what": "Fires from broken gas lines and electrical shorts (six major fires after Napa; a science-building fire at CSUN).",
+    "timescale": "Hours.",
+    "likelihood": "sometimes",
+    "source": "https://en.wikipedia.org/wiki/2014_South_Napa_earthquake",
+    "source_status": "opened"
+   }
+  ]
+ },
+ {
+  "id": "wildfire",
+  "name": "Wildfire, wildfire smoke and public-safety power shutoffs",
+  "warning_time": "Fire: minutes to hours for wind-driven fires (Sonoma State alerted at 4:13 am). PSPS: utility watch notice 48-24 h ahead and warning 4-1 h ahead (UC Berkeley got ~14 h). Smoke: days of air-quality forecasts.",
+  "typical_duration": "PSPS 1-3 days (Berkeley Oct 2019 ~2 days); smoke closures 1-5 days (Camp Fire 2018); fire threat to a campus 1-7 days.",
+  "summary": "For most campuses the wildfire hazard arrives as smoke that closes classes or as a planned utility power shutoff, not as flames. A campus at the wildland edge must choose between evacuating on congested roads and sheltering in place in hardened buildings, and Pepperdine shows shelter-in-place can work.",
+  "decisions": [
+   "Evacuate students by road toward a fire-threatened corridor, or shelter in place in hardened buildings",
+   "Cancel classes for smoke at what AQI, and keep residence halls and dining open with recirculated, filtered air",
+   "During a PSPS, which loads get the limited plant/generator capacity: hospital, freezers, animals, servers or housing",
+   "Close campus ahead of a forecast PSPS (the day before) or try to operate in the dark"
+  ],
+  "does_not": [
+   "Most campuses never see flames; the typical effects are smoke closures and planned shutoffs",
+   "A PSPS does not damage anything; power returns within about a day of the wind ending",
+   "Smoke does not cut power or block roads; it is a health hazard handled by staying indoors",
+   "Not applicable to a Michigan campus except as long-distance smoke (e.g., Canadian fire smoke); PSPS is a Western-US utility practice"
+  ],
+  "campus_examples": [
+   {
+    "where": "UC Berkeley",
+    "when": "9-11 Oct 2019",
+    "what": "PG&E PSPS; classes cancelled two days; CoGen plant carried only life-safety, animal care and critical research; power back 11 Oct 1 pm.",
+    "source": "https://vcresearch.berkeley.edu/campus-power-outage-closure-october-9-2019",
+    "source_status": "opened"
+   },
+   {
+    "where": "Stanford, UC Berkeley, UC Davis",
+    "when": "Nov 2018 (Camp Fire smoke)",
+    "what": "AQI 247-260+; classes cancelled; N95 masks handed out.",
+    "source": "https://stanforddaily.com/2018/11/16/following-petition-to-address-worsening-smoke-university-cancels-friday-classes/",
+    "source_status": "opened"
+   },
+   {
+    "where": "Sonoma State University",
+    "when": "Oct 2017 (Tubbs Fire)",
+    "what": "Fire stopped ~1/4 mile away; campus closed 9-17 Oct; students required to leave; Student Center used as overnight shelter; ~30 people lost homes.",
+    "source": "https://news.sonoma.edu/sonoma-states-response-fires",
+    "source_status": "opened"
+   },
+   {
+    "where": "Pepperdine University, Malibu",
+    "when": "Nov 2018 (Woolsey) and 10 Dec 2024 (Franklin)",
+    "what": "Shelter in place in central buildings; little damage; finals postponed in 2024.",
+    "source": "https://www.pepperdine.edu/press-room/news-releases/2024-franklin-fire-statement-1.htm",
+    "source_status": "opened"
+   },
+   {
+    "where": "CU Boulder",
+    "when": "30 Dec 2021 (Marshall Fire)",
+    "what": "~1,670 students/staff evacuated from homes; ~155 homes damaged/destroyed; spring term started remotely.",
+    "source": "https://www.colorado.edu/today/2022/01/13/after-fire-look-marshall-fires-community-impact",
+    "source_status": "opened"
+   }
+  ],
+  "sim_effect": {
+   "power_feeds": "PSPS: all utility feeds de-energised on a schedule; campus plant runs islanded but can carry only critical loads. Smoke: no feed impact. Flames: overhead feeds in the fire area lost.",
+   "severity_light": "Smoke (AQI 150-250): classes cancelled 1-3 days, everyone indoors, buses normal.",
+   "severity_severe": "PSPS plus nearby fire: utility feeds off 1-3 days, plant powers hospital/research only, residents either shelter in a hardened building or evacuate by bus on congested roads.",
+   "duration_hours": [
+    12,
+    216
+   ],
+   "people": "shelter",
+   "transit": "reduced",
+   "notes": "Split into three sub-scenarios (smoke, PSPS, fire front). For a Michigan campus only the smoke scenario is realistic."
+  },
+  "consequences": [
+   {
+    "system": "power",
+    "what": "Public-safety power shutoffs cut the utility feed on purpose: UC Berkeley lost PG&E power for about 2 days, with the cogeneration plant able to carry only life-safety, animal care and critical research loads.",
+    "timescale": "1-3 days.",
+    "likelihood": "typical",
+    "source": "https://vcresearch.berkeley.edu/campus-power-outage-closure-october-9-2019",
+    "source_status": "opened"
+   },
+   {
+    "system": "power",
+    "what": "After the wind passes, utilities must patrol and inspect lines before re-energising; PG&E's goal is restoration within 24 h after the weather clears.",
+    "timescale": "Up to ~24 h after the wind event.",
+    "likelihood": "typical",
+    "source": "https://www.pge.com/assets/pge/docs/outages-and-safety/outage-preparedness-and-support/your-guide-to-public-safety-power-shutoffs.pdf",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "research",
+    "what": "During PSPS freezers and servers got priority power; HPC cluster was shut down; work with hazardous materials stopped because ventilation was down.",
+    "timescale": "Duration of shutoff.",
+    "likelihood": "typical",
+    "source": "https://vcresearch.berkeley.edu/campus-power-outage-closure-october-9-2019",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Smoke closes campuses: Camp Fire smoke pushed AQI above 247-260 and UC Berkeley, Stanford and UC Davis cancelled classes; N95 masks distributed.",
+    "timescale": "1-5 days.",
+    "likelihood": "typical",
+    "source": "https://stanforddaily.com/2018/11/16/following-petition-to-address-worsening-smoke-university-cancels-friday-classes/",
+    "source_status": "opened"
+   },
+   {
+    "system": "heating_cooling",
+    "what": "Buildings should recirculate air and use MERV-13 or better filters during smoke; commercial systems may not accept high-efficiency filters.",
+    "timescale": "Duration of smoke.",
+    "likelihood": "typical",
+    "source": "https://www.epa.gov/indoorairplus/indoor-airplus-and-wildfires",
+    "source_status": "search_excerpt"
+   },
+   {
+    "system": "transit",
+    "what": "Evacuation routes clog; buses and roads used for evacuation; Pepperdine cites hours-long gridlock.",
+    "timescale": "Hours.",
+    "likelihood": "typical",
+    "source": "https://laist.com/brief/news/climate-environment/pepperdine-university-survived-the-franklin-fire-and-other-devastating-blazes-campus-officials-arent-surprised",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Campus closed and students required to leave when fire and smoke approach (Sonoma State, Tubbs Fire): students without cars were taken to an evacuation centre; campus closed ~9 days.",
+    "timescale": "Days.",
+    "likelihood": "sometimes",
+    "source": "https://news.sonoma.edu/sonoma-states-response-fires",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Shelter in place in hardened central buildings can be safer than roads: Pepperdine sheltered residents in Payson Library and Tyler Campus Center during the Franklin Fire; during Woolsey it took six hours to drive from campus to Santa Monica.",
+    "timescale": "Hours (overnight).",
+    "likelihood": "sometimes",
+    "source": "https://laist.com/brief/news/climate-environment/pepperdine-university-survived-the-franklin-fire-and-other-devastating-blazes-campus-officials-arent-surprised",
+    "source_status": "opened"
+   },
+   {
+    "system": "people",
+    "what": "Fire near the city displaces staff and students from homes even if the campus is fine: Marshall Fire evacuated ~899 CU Boulder students and 771 staff; ~155 homes of CU people damaged or destroyed.",
+    "timescale": "Weeks to months.",
+    "likelihood": "sometimes",
+    "source": "https://www.colorado.edu/today/2022/01/13/after-fire-look-marshall-fires-community-impact",
+    "source_status": "opened"
+   }
+  ]
+ }
+]

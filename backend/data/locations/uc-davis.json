@@ -1,0 +1,293 @@
+{
+ "name": "UC Davis",
+ "summary": "UC Davis main campus in Davis, CA with on-site substation power, large student housing areas, and reliance on UC Davis Medical Center in Sacramento for inpatient care.",
+ "power": {
+  "utility": "UC Davis (own 115 kV Main Substation for most areas); PG&E for Cuarto and some apartments",
+  "on_campus_plant": "115 kV Main Substation",
+  "how_it_is_fed": "Campus manages high-voltage distribution from its 115 kV Main Substation fed by grid electricity supplemented by on-site solar farm and hydropower contracts. Some residence areas receive PG&E supply."
+ },
+ "buildings": [
+  {
+   "name": "115 kV Main Substation",
+   "role": "power",
+   "why": "Primary on-campus electrical substation serving nearly all core campus facilities.",
+   "lat": 38.538,
+   "lng": -121.752,
+   "located": "model",
+   "osm": null,
+   "moved_m": null,
+   "id": "115-kv-main-substation-0",
+   "feed": null
+  },
+  {
+   "name": "Davis Substation",
+   "role": "power",
+   "lat": 38.5451944,
+   "lng": -121.7340935,
+   "located": "map",
+   "osm": "way/32547487",
+   "moved_m": null,
+   "why": "Electrical substation operated by Pacific Gas and Electric Company, about 1715 m from the centre of campus. From OpenStreetMap.",
+   "id": "davis-substation-1",
+   "feed": null
+  },
+  {
+   "name": "UC Davis Medical Center",
+   "role": "hospital",
+   "why": "Nearest hospital with inpatient beds and emergency department, located approximately 15 miles (20-minute drive) south in Sacramento.",
+   "lat": 38.5434297,
+   "lng": -121.7377558,
+   "located": "map",
+   "osm": "node/5754924306",
+   "moved_m": 24617,
+   "id": "uc-davis-medical-center-2",
+   "feed": "davis-substation-1"
+  },
+  {
+   "name": "Tercero - Campbell Hall",
+   "role": "housing",
+   "why": "One of the largest residence halls in the Tercero area housing hundreds of students.",
+   "lat": 38.5350729,
+   "lng": -121.7583441,
+   "located": "map",
+   "osm": "way/72644550",
+   "moved_m": 467,
+   "id": "tercero-campbell-hall-3",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Segundo Bixby Hall",
+   "role": "housing",
+   "why": "Major residence hall in the Segundo area serving large numbers of residents.",
+   "lat": 38.541,
+   "lng": -121.748,
+   "located": "model",
+   "osm": null,
+   "moved_m": null,
+   "id": "segundo-bixby-hall-4",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Cuarto - Tahoe Hall",
+   "role": "housing",
+   "why": "Key building in the Cuarto residence hall complex with significant student population.",
+   "lat": 38.5468092,
+   "lng": -121.7639802,
+   "located": "map",
+   "osm": "relation/308712",
+   "moved_m": 1663,
+   "id": "cuarto-tahoe-hall-5",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Regan Central Commons (Main)",
+   "role": "housing",
+   "why": "Main building of the Regan residence halls complex for large resident capacity.",
+   "lat": 38.5439633,
+   "lng": -121.7562438,
+   "located": "map",
+   "osm": "way/43092111",
+   "moved_m": 1008,
+   "id": "regan-central-commons-main-6",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Peter J. Shields Library",
+   "role": "academic",
+   "why": "Main campus library serving as central academic resource for students and faculty.",
+   "lat": 38.5397313,
+   "lng": -121.7491019,
+   "located": "map",
+   "osm": "relation/18189",
+   "moved_m": 252,
+   "id": "peter-j-shields-library-7",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Memorial Union",
+   "role": "civic",
+   "why": "Primary student union and gathering hub on campus.",
+   "lat": 38.5424071,
+   "lng": -121.7495807,
+   "located": "map",
+   "osm": "way/26337255",
+   "moved_m": 152,
+   "id": "memorial-union-8",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Fire & Police Building",
+   "role": "civic",
+   "why": "Headquarters for campus police and public safety operations.",
+   "lat": 38.5404098,
+   "lng": -121.7577051,
+   "located": "map",
+   "osm": "way/26321337",
+   "moved_m": 585,
+   "id": "fire-police-building-9",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Genome & Biomedical Sciences Facility",
+   "role": "research",
+   "why": "Major research building supporting biomedical and genomic studies.",
+   "lat": 38.5351091,
+   "lng": -121.7651765,
+   "located": "map",
+   "osm": "way/25268174",
+   "moved_m": 891,
+   "id": "genome-biomedical-sciences-facility-10",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Earth and Physical Sciences Building",
+   "role": "academic",
+   "why": "Large classroom and laboratory building for sciences.",
+   "lat": 38.5351574,
+   "lng": -121.7516093,
+   "located": "map",
+   "osm": "way/209297089",
+   "moved_m": 444,
+   "id": "earth-and-physical-sciences-building-11",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Mathematical Sciences Building",
+   "role": "academic",
+   "why": "Significant classroom and academic building for math and related fields.",
+   "lat": 38.5358877,
+   "lng": -121.7527044,
+   "located": "map",
+   "osm": "way/25354568",
+   "moved_m": 615,
+   "id": "mathematical-sciences-building-12",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Social Sciences & Humanities Building",
+   "role": "academic",
+   "why": "Large classroom building central to humanities and social sciences instruction.",
+   "lat": 38.5429726,
+   "lng": -121.7478861,
+   "located": "map",
+   "osm": "relation/5141512",
+   "moved_m": 138,
+   "id": "social-sciences-humanities-building-13",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Hart Hall",
+   "role": "academic",
+   "why": "Key classroom and academic building on the central campus.",
+   "lat": 38.5406895,
+   "lng": -121.7509301,
+   "located": "map",
+   "osm": "way/25291767",
+   "moved_m": 146,
+   "id": "hart-hall-14",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Memorial Union Unitrans Terminal",
+   "role": "transit",
+   "why": "Primary transit hub with Unitrans bus terminal connecting campus buildings.",
+   "lat": 38.543493,
+   "lng": -121.7496779,
+   "located": "map",
+   "osm": "node/12048435682",
+   "moved_m": 81,
+   "id": "memorial-union-unitrans-terminal-15",
+   "feed": "115-kv-main-substation-0"
+  },
+  {
+   "name": "Silo Unitrans Terminal",
+   "role": "transit",
+   "why": "Secondary major transit terminal serving campus routes.",
+   "lat": 38.5392112,
+   "lng": -121.7534303,
+   "located": "map",
+   "osm": "node/2145846311",
+   "moved_m": 261,
+   "id": "silo-unitrans-terminal-16",
+   "feed": "115-kv-main-substation-0"
+  }
+ ],
+ "transit": [
+  {
+   "name": "Unitrans A Line",
+   "agency": "Unitrans",
+   "connects": "Memorial Union Terminal to Segundo and Tercero housing areas"
+  },
+  {
+   "name": "Unitrans B Line",
+   "agency": "Unitrans",
+   "connects": "Memorial Union Terminal to Silo and central academic buildings"
+  },
+  {
+   "name": "Unitrans C Line",
+   "agency": "Unitrans",
+   "connects": "Silo Terminal to research and south campus buildings"
+  }
+ ],
+ "sources": [
+  "https://health.ucdavis.edu/facilities/news/power-to-the-tower",
+  "https://sustainability.ucdavis.edu/goals/energy",
+  "https://transportation.ucdavis.edu/gethere",
+  "https://www.arcgis.com/home/item.html?id=d436d75a49ed43ce93409e0687965ca6",
+  "https://housing.ucdavis.edu/utilities",
+  "https://health.ucdavis.edu/media-resources/facilities/documents/pdfs/featured-projects/UCDH-Central-Utility-Plant-Expansion-planning-slides.pdf"
+ ],
+ "power_sites": [
+  {
+   "name": "Davis Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "Pacific Gas and Electric Company",
+   "lat": 38.5451944,
+   "lng": -121.7340935,
+   "osm": "way/32547487",
+   "source": "",
+   "distance_m": 1715
+  },
+  {
+   "name": "West Village Solar",
+   "named": true,
+   "kind": "plant",
+   "operator": "CHF-Davis I, LLC",
+   "lat": 38.5407323,
+   "lng": -121.7737551,
+   "osm": "relation/15705841",
+   "source": "solar",
+   "distance_m": 1827
+  },
+  {
+   "name": "UC Davis Solar Farm",
+   "named": true,
+   "kind": "plant",
+   "operator": "SunPower",
+   "lat": 38.5200153,
+   "lng": -121.7401989,
+   "osm": "way/386424446",
+   "source": "solar",
+   "distance_m": 2497
+  },
+  {
+   "name": "Power plant",
+   "named": false,
+   "kind": "plant",
+   "operator": "",
+   "lat": 38.5633048,
+   "lng": -121.7030766,
+   "osm": "way/391996548",
+   "source": "solar",
+   "distance_m": 5026
+  }
+ ],
+ "placement": {
+  "checked": true,
+  "on_map": 15,
+  "from_model": 2,
+  "dropped": [],
+  "note": "Positions come from OpenStreetMap. Which building is on which feed is assumed: each is put on its nearest power source."
+ }
+}

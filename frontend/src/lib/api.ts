@@ -132,6 +132,96 @@ export async function sendVoice(blob: Blob): Promise<CommandResult> {
   return data as CommandResult
 }
 
+/** A natural hazard that could strike this campus. */
+export interface Hazard {
+  id: string
+  name: string
+  /** Plain words, e.g. "about 13 a year in this county". */
+  how_often: string
+  per_year: number | null
+  risk_rating: string | null
+  events: number | null
+  events_years: string | null
+  worst_local_event: { date?: string; summary?: string; magnitude?: string; source?: string } | null
+  /** What this model assumes it does to the campus feeds. Null when it assumes nothing. */
+  effect: WeatherEffect | null
+  summary: string | null
+  warning_time: string | null
+  typical_duration: string | null
+  /** What it does to a campus, from documented events. Each has its source. */
+  consequences: { system: string; what: string; timescale?: string; source?: string }[]
+  /** shelter | relocate | evacuate */
+  people: string | null
+  /** normal | reduced | suspended */
+  transit: string | null
+  /** The calls an emergency manager has to make, as tradeoffs. */
+  decisions: string[]
+  /** Common misconceptions: what this hazard does not do. */
+  does_not: string[]
+  precedents: { where: string; when: string; what: string; source?: string }[]
+}
+
+export interface HazardList {
+  place: string
+  sources: string
+  hazards: Hazard[]
+  weather: {
+    available: boolean
+    conditions: { temperature_f: number | null; wind: string | null; summary: string | null } | null
+    alerts: WeatherAlert[]
+    /** Hazard ids the National Weather Service has an active alert for right now. */
+    active_hazards: string[]
+  }
+}
+
+export async function fetchHazards(): Promise<HazardList | null> {
+  const res = await fetch(`${BACKEND_URL}/hazards`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+export function applyHazard(id: string) {
+  return post('/hazards/apply', { id })
+}
+
+export interface WeatherEffect {
+  label: string
+  why: string
+}
+
+/** A National Weather Service alert, live or replayed from the archive. */
+export interface WeatherAlert {
+  id: string
+  event: string
+  headline: string
+  what: string
+  impacts?: string
+  instruction: string
+  issued: string | null
+  expires: string | null
+  office: string
+  source?: string
+  /** What this model assumes the weather does to the campus. Null when it assumes nothing. */
+  effect: WeatherEffect | null
+}
+
+export interface Weather {
+  available: boolean
+  conditions: { temperature_f: number | null; wind: string | null; summary: string | null } | null
+  alerts: WeatherAlert[]
+  replays: WeatherAlert[]
+}
+
+export async function fetchWeather(): Promise<Weather | null> {
+  const res = await fetch(`${BACKEND_URL}/weather`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+export function applyWeather(id: string) {
+  return post('/weather/apply', { id })
+}
+
 export interface Debrief {
   headline: string
   grid: string
@@ -147,6 +237,11 @@ export interface SurveyBuilding {
   why: string
   lat: number
   lng: number
+  id?: string
+  /** Id of the power source this building is assumed to be on. Null means its own supply. */
+  feed?: string | null
+  /** "map": placed from OpenStreetMap. "model": the language model's own guess. */
+  located?: 'map' | 'model'
 }
 
 export interface SurveyLine {
@@ -158,6 +253,8 @@ export interface SurveyLine {
 export interface LocationSurvey {
   name: string
   summary: string
+  power?: { utility: string; on_campus_plant: string; how_it_is_fed: string }
+  placement?: { checked: boolean; on_map?: number; from_model?: number; dropped?: string[]; note: string }
   buildings: SurveyBuilding[]
   transit: SurveyLine[]
   sources: string[]

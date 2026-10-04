@@ -1,0 +1,77 @@
+{
+ "note": "Real National Weather Service products for Washtenaw County, from the Iowa Environmental Mesonet archive. Text is abridged.",
+ "replays": [
+  {
+   "id": "ice-storm-2023",
+   "event": "Ice Storm Warning",
+   "issued": "2023-02-22T17:00:00Z",
+   "expires": "2023-02-23T09:00:00Z",
+   "office": "NWS Detroit/Pontiac",
+   "headline": "Ice storm warning in effect from noon Wednesday to 4 AM EST Thursday",
+   "what": "Mixed precipitation expected. Total snow and sleet accumulations of less than one inch and ice accumulations around one tenth of an inch.",
+   "impacts": "Plan on slippery road conditions. The hazardous conditions could impact the evening commute.",
+   "instruction": "",
+   "source": "https://mesonet.agron.iastate.edu/vtec/#2023-O-NEW-KDTX-IS-W-0001"
+  },
+  {
+   "id": "tornado-2012",
+   "event": "Tornado Warning",
+   "issued": "2012-03-15T21:07:00Z",
+   "expires": "2012-03-15T22:00:00Z",
+   "office": "NWS Detroit/Pontiac",
+   "headline": "",
+   "what": "At 507 PM EDT...NATIONAL WEATHER SERVICE DOPPLER RADAR INDICATED A SEVERE THUNDERSTORM CAPABLE OF PRODUCING A TORNADO. THIS DANGEROUS STORM WAS LOCATED NEAR PINCKNEY...AND MOVING EAST AT 15 MPH.",
+   "impacts": "",
+   "instruction": "",
+   "source": "https://mesonet.agron.iastate.edu/vtec/#2012-O-NEW-KDTX-TO-W-0003"
+  },
+  {
+   "id": "heat-2026",
+   "event": "Heat Advisory",
+   "issued": "2026-09-02T16:00:00Z",
+   "expires": "2026-09-03T00:00:00Z",
+   "office": "NWS Detroit/Pontiac",
+   "headline": "Heat advisory in effect from noon today to 8 PM EDT this evening",
+   "what": "Heat index values up to 102 expected.",
+   "impacts": "Hot temperatures and high humidity may cause heat illnesses.",
+   "instruction": "",
+   "source": "https://mesonet.agron.iastate.edu/vtec/#2026-O-NEW-KDTX-HT-Y-0005"
+  },
+  {
+   "id": "high-wind-2026",
+   "event": "High Wind Warning",
+   "issued": "2026-03-13T09:00:00Z",
+   "expires": "2026-03-14T04:00:00Z",
+   "office": "NWS Detroit/Pontiac",
+   "headline": "High wind warning in effect from 5 AM to 10 PM EDT Friday",
+   "what": "Southwest winds 20 to 30 mph with gusts 50 to 60 mph expected.",
+   "impacts": "Damaging winds will blow down trees and power lines. Widespread power outages are expected. Travel will be difficult, especially for high profile vehicles.",
+   "instruction": "",
+   "source": "https://mesonet.agron.iastate.edu/vtec/#2026-O-NEW-KDTX-HW-W-0001"
+  },
+  {
+   "id": "thunderstorm-2023",
+   "event": "Severe Thunderstorm Warning",
+   "issued": "2023-08-25T01:50:00Z",
+   "expires": "2023-08-25T02:59:00Z",
+   "office": "NWS Detroit/Pontiac",
+   "headline": "",
+   "what": "At 950 PM EDT, severe thunderstorms were located along a line extending from near Hartland to 6 miles south of Stockbridge to near Homer, moving southeast at 45 mph.",
+   "impacts": "",
+   "instruction": "",
+   "source": "https://mesonet.agron.iastate.edu/vtec/#2023-O-NEW-KDTX-SV-W-0106"
+  },
+  {
+   "id": "winter-storm-2025",
+   "event": "Winter Storm Warning",
+   "issued": "2025-11-29T20:00:00Z",
+   "expires": "2025-11-30T15:00:00Z",
+   "office": "NWS Detroit/Pontiac",
+   "headline": "Winter storm warning in effect from 3 PM Saturday to 10 AM EST Sunday",
+   "what": "Snow expected. Total snow accumulations between 5 and 7 inches.",
+   "impacts": "Travel could be very difficult.",
+   "instruction": "",
+   "source": "https://mesonet.agron.iastate.edu/vtec/#2025-O-NEW-KDTX-WS-W-0003"
+  }
+ ]
+}

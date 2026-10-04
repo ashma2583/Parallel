@@ -1,0 +1,338 @@
+{
+  "fips": "06113",
+  "county": "Yolo",
+  "state": "CA",
+  "campus": "UC Davis",
+  "available": true,
+  "nri": {
+    "version": "December 2025",
+    "overall_rating": "Relatively Moderate",
+    "source_url": "https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/National_Risk_Index_Counties/FeatureServer/0/query?where=STCOFIPS%3D%2706113%27&outFields=*&f=json"
+  },
+  "hazards": [
+    {
+      "id": "riverine_flood",
+      "name": "River flooding",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 0.9286,
+      "frequency_note": "about 2 a year reported in the county (62 in 1996-2026)",
+      "storm_events": {
+        "count": 62,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1998-02-02",
+        "summary": "The following stages occurred in the lower Sacramento River system:Location: Period(s) above flood stage: Maximum Crest/Date:Cache Creek at Rumsey 2nd--3rd 2.2 feet above flood stage/3rdThe following stages occurred in the lower San Joaquin River system:Location: Period(s) above flood stage: Maximum...",
+        "magnitude": null,
+        "damage_usd": 12100000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Flood",
+        "area": "Southern Sacramento Valley",
+        "source": "NCEI Storm Events episode 2150868, event 5671473: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5671473"
+      },
+      "likelihood": 0.869
+    },
+    {
+      "id": "high_wind",
+      "name": "High wind",
+      "nri_risk_rating": "Very Low",
+      "annual_frequency": null,
+      "frequency_note": "about 2.4 a year reported in the county (73 in 1996-2026)",
+      "storm_events": {
+        "count": 73,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2024-02-04",
+        "summary": "Mather Field Airport reported a wind gust of 68 mph. Sacramento International Airport reported a wind gust of 64 mph.",
+        "magnitude": "59.00 kt (MG)",
+        "damage_usd": 400000,
+        "deaths": 2,
+        "injuries": 0,
+        "event_type": "High Wind",
+        "area": "Southern Sacramento Valley",
+        "source": "NCEI Storm Events episode 189032, event 1162818: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1162818"
+      },
+      "likelihood": 0.909
+    },
+    {
+      "id": "drought",
+      "name": "Drought",
+      "nri_risk_rating": "Very High",
+      "annual_frequency": 75.3491,
+      "frequency_note": "about 1.5 a year reported in the county (47 in 1996-2026)",
+      "storm_events": {
+        "count": 47,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2014-01-01",
+        "summary": "A plethora of records were set across interior northern California for January.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Drought",
+        "area": "Southern Sacramento Valley",
+        "source": "NCEI Storm Events episode 82542, event 497009: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=497009"
+      },
+      "likelihood": 0.786
+    },
+    {
+      "id": "extreme_heat",
+      "name": "Extreme heat",
+      "nri_risk_rating": "Relatively Low",
+      "annual_frequency": 7.153,
+      "frequency_note": "about 1.7 a year reported in the county (51 in 1996-2026)",
+      "storm_events": {
+        "count": 51,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2017-06-18",
+        "summary": "The Sacramento County Coroner reported a total of 6 heat related deaths in the county.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 4,
+        "injuries": 0,
+        "event_type": "Excessive Heat",
+        "area": "Southern Sacramento Valley",
+        "source": "NCEI Storm Events episode 116417, event 700054: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=700054"
+      },
+      "likelihood": 0.812
+    },
+    {
+      "id": "extreme_cold",
+      "name": "Extreme cold",
+      "nri_risk_rating": null,
+      "annual_frequency": null,
+      "frequency_note": "most years reported in the county (20 in 1996-2026)",
+      "storm_events": {
+        "count": 20,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2021-05-15",
+        "summary": "A 17 year old was swimming in the American River in Rancho Cordova, at the Elmanto river access point.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 1,
+        "injuries": 0,
+        "event_type": "Cold/Wind Chill",
+        "area": "Southern Sacramento Valley",
+        "source": "NCEI Storm Events episode 159256, event 963156: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=963156"
+      },
+      "likelihood": 0.481
+    },
+    {
+      "id": "wildfire",
+      "name": "Wildfire",
+      "nri_risk_rating": "Relatively Low",
+      "annual_frequency": 0.0046,
+      "frequency_note": "about one every 4 years reported in the county (8 in 1996-2026)",
+      "storm_events": {
+        "count": 8,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2020-08-17",
+        "summary": "CalFire reported a total of 5 fatalities for the LNU Complex, 2 of which occurred in Solano County which is in Sacramento's county warning area and 3 in Napa County which is in Monterey's county warning area.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 1,
+        "injuries": 0,
+        "event_type": "Wildfire",
+        "area": "Southern Sacramento Valley",
+        "source": "NCEI Storm Events episode 152444, event 919148: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=919148"
+      },
+      "likelihood": 0.231
+    },
+    {
+      "id": "earthquake",
+      "name": "Earthquake",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 0.0665,
+      "frequency_note": "about a 6.7% chance in a given year (NRI)",
+      "storm_events": null,
+      "worst_local_event": null,
+      "likelihood": 0.067
+    },
+    {
+      "id": "landslide",
+      "name": "Landslide",
+      "nri_risk_rating": "Relatively Low",
+      "annual_frequency": 10.5108,
+      "frequency_note": "about one every 15 years reported in the county (2 in 1996-2026)",
+      "storm_events": {
+        "count": 2,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2017-01-11",
+        "summary": "State Route 16 in Yolo County was closed from Rumsey Canyon to State Route 20 due to a rock/mud slide blocking the roadway.",
+        "magnitude": null,
+        "damage_usd": 392000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Debris Flow",
+        "area": "Yolo",
+        "source": "NCEI Storm Events episode 111564, event 677381: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=677381"
+      },
+      "likelihood": 0.063
+    },
+    {
+      "id": "tornado",
+      "name": "Tornado",
+      "nri_risk_rating": "Very Low",
+      "annual_frequency": 0.1342,
+      "frequency_note": "about one every 8 years reported in the county (4 in 1996-2026)",
+      "storm_events": {
+        "count": 4,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2005-03-20",
+        "summary": "Tornado traveled through an agricultural area. Damage was caused to a property fence and to a grove of almond trees.",
+        "magnitude": "F0",
+        "damage_usd": 21000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Tornado",
+        "area": "Yolo",
+        "source": "NCEI Storm Events episode 1199510, event 5478639: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5478639"
+      },
+      "likelihood": 0.123
+    },
+    {
+      "id": "thunderstorm_wind",
+      "name": "Thunderstorm wind",
+      "nri_risk_rating": "Very Low",
+      "annual_frequency": 0.0253,
+      "frequency_note": "about one every 8 years reported in the county (4 in 1996-2026)",
+      "storm_events": {
+        "count": 4,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2023-01-10",
+        "summary": "The California Highway Patrol reported a semi-truck overturned and hanging off the side of the Interstate 5 bridge over the Yolo Bypass.",
+        "magnitude": "47.00 kt (EG)",
+        "damage_usd": 20000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Thunderstorm Wind",
+        "area": "Yolo",
+        "source": "NCEI Storm Events episode 177375, event 1078836: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1078836"
+      },
+      "likelihood": 0.123
+    },
+    {
+      "id": "hail",
+      "name": "Hail",
+      "nri_risk_rating": "Very Low",
+      "annual_frequency": 0.0587,
+      "frequency_note": "about one every 15 years reported in the county (2 in 1996-2026)",
+      "storm_events": {
+        "count": 2,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2019-09-28",
+        "summary": "A member of the public called to inform us about hail damage to their pistachio crop.",
+        "magnitude": "1.00 in",
+        "damage_usd": 10000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Hail",
+        "area": "Yolo",
+        "source": "NCEI Storm Events episode 143256, event 860478: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=860478"
+      },
+      "likelihood": 0.063
+    },
+    {
+      "id": "flash_flood",
+      "name": "Flash flood",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": null,
+      "frequency_note": "about one every 30 years reported in the county (1 in 1996-2026)",
+      "storm_events": {
+        "count": 1,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1997-01-22",
+        "summary": "Flooding from Lamb Valley Slough damaged several businesses and homes.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Flash Flood",
+        "area": "Yolo",
+        "source": "NCEI Storm Events episode 2058688, event 5590346: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5590346"
+      },
+      "likelihood": 0.032
+    },
+    {
+      "id": "winter_storm",
+      "name": "Winter storm",
+      "nri_risk_rating": "Very Low",
+      "annual_frequency": 0.0719,
+      "frequency_note": "about one every 30 years reported in the county (1 in 1996-2026)",
+      "storm_events": {
+        "count": 1,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1996-02-25",
+        "summary": "A cold, slow moving storm system produced a variety of weatheracross Southern California.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Winter Storm",
+        "area": "Southern Sacramento Valley",
+        "source": "NCEI Storm Events episode 1000604, event 5536820: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5536820"
+      },
+      "likelihood": 0.032
+    },
+    {
+      "id": "heavy_snow",
+      "name": "Heavy snow",
+      "nri_risk_rating": "Very Low",
+      "annual_frequency": null,
+      "frequency_note": "about one every 30 years reported in the county (1 in 1996-2026)",
+      "storm_events": {
+        "count": 1,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2009-12-07",
+        "summary": "Rain turned to snow in the early morning hours in Sacramento and the eastern suburbs, starting around 200 AM and ending by 500 AM.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Heavy Snow",
+        "area": "Southern Sacramento Valley",
+        "source": "NCEI Storm Events episode 35585, event 205855: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=205855"
+      },
+      "likelihood": 0.032
+    }
+  ],
+  "notes": "NRI ratings and frequencies are county-wide and compare the county with all US counties; they are not specific to the campus. NRI frequency units differ by hazard (events per year, event-days per year for heat, cold, drought and winter weather, annual probability for earthquake and wildfire). NRI Strong Wind, Winter Weather and Inland Flooding each cover two of our hazards, so the second one carries the rating only. Storm Events zone reports can cover a forecast zone larger than the county. Likelihood (chance of at least one event a year) and the order are computed by PARALLEL, not FEMA: from the local Storm Events rate when there is one, otherwise from NRI frequency capped at 0.5; ties go to the higher NRI rating. Storm Events: Yolo County reports plus forecast zone CAZ017 (Southern Sacramento Valley), which also covers Sacramento County, so zone-level heat, wind, cold and drought entries (and some worst events) happened outside Yolo. Storm Events 1996 through June 2026 (NCEI detail files, versions c2026xxxx); worst event = largest property+crop damage, with a death weighted as $10M and an injury as $1M.",
+  "storm_events_source": "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
+}

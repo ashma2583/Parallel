@@ -53,7 +53,9 @@ from agents.serve import start_in_thread
 from branch import run_branches
 from graph import CampusGraph
 from stdb import SpacetimePublisher
+import hazards
 import voice
+import weather
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -140,12 +142,21 @@ class PriorityRequest(BaseModel):
 PRIORITY_STRATEGY = {"balanced": "tiered", "dorms": "residential", "academic": "academic"}
 
 
+class HazardApplyRequest(BaseModel):
+    id: str = Field(..., min_length=1, examples=["ice_storm"])
+
+
+class WeatherApplyRequest(BaseModel):
+    id: str = Field(..., min_length=1, examples=["ice-storm-2023"])
+
+
 class CommandRequest(BaseModel):
     text: str = Field(..., min_length=1, examples=["The south substation just failed"])
 
 
 class LocationRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=200)
+    refresh: bool = Field(False, description="Research again even if this place is already saved")
 
 
 class ProposalRequest(BaseModel):
@@ -269,7 +280,7 @@ async def delete_proposal(node_id: str) -> dict:
 async def post_location(req: LocationRequest) -> dict:
     """Research a place and return at most 20 buildings and the core transit lines."""
     try:
-        found = await location_agent.research_location(req.query)
+        found = await location_agent.research_location(req.query, refresh=req.refresh)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     if not found["buildings"]:
@@ -297,6 +308,75 @@ async def post_priority(req: PriorityRequest) -> dict:
     await post_strategy(StrategyRequest(strategy=PRIORITY_STRATEGY[req.mode]))
     with runtime.lock:
         return briefing.build_briefing(graph, runtime.strategy)
+
+
+@app.get("/hazards")
+async def get_hazards() -> dict:
+    """Natural hazards for this campus, most likely first, with live weather alongside."""
+    live = await weather.current()
+    active = sorted({hid for a in live["alerts"] if (hid := hazards.for_alert(a["event"]))})
+    return {**hazards.list_hazards(), "weather": {**live, "active_hazards": active}}
+
+
+@app.post("/hazards/apply")
+async def post_hazard_apply(req: HazardApplyRequest) -> dict:
+    """Run a hazard: apply the effect this model assumes it has on the campus feeds."""
+    picked = hazards.hazard(req.id)
+    if picked is None:
+        raise HTTPException(status_code=404, detail="No hazard with that id for this campus.")
+    effect = picked.get("effect")
+    if not effect:
+        raise HTTPException(status_code=400, detail=f"{picked['name']} has no assumed effect on the campus feeds.")
+    with runtime.lock:
+        for step in effect["steps"]:
+            for nid in step["node_ids"]:
+                if step["action"] == "fail":
+                    graph.fail_node(nid)
+                else:
+                    graph.derate_node(nid, step["factor"])
+        runtime.push([
+            f"Director: {picked['name']} scenario, {picked['how_often']}",
+            f"Director: assumed effect, {effect['label'].lower()}. {effect['why']}",
+        ])
+        runtime.run_cycle(graph, force=True)
+        body = _state()
+    await publisher.publish(graph)
+    return {"hazard": picked, **body}
+
+
+@app.get("/weather")
+async def get_weather() -> dict:
+    """Live National Weather Service conditions and alerts, plus real past warnings to replay."""
+    live = await weather.current()
+    return {**live, "replays": weather.replays()}
+
+
+@app.post("/weather/apply")
+async def post_weather_apply(req: WeatherApplyRequest) -> dict:
+    """Run the effect this model assumes for a live alert or a replayed warning."""
+    alert = weather.replay(req.id)
+    if alert is None:
+        alert = next((a for a in (await weather.current())["alerts"] if a["id"] == req.id), None)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="No alert or replay with that id.")
+    effect = alert.get("effect")
+    if not effect:
+        raise HTTPException(status_code=400, detail=f"{alert['event']} has no assumed effect on the campus feeds.")
+    with runtime.lock:
+        for step in effect["steps"]:
+            for nid in step["node_ids"]:
+                if step["action"] == "fail":
+                    graph.fail_node(nid)
+                else:
+                    graph.derate_node(nid, step["factor"])
+        runtime.push([
+            f"Weather: {alert['event']} from {alert['office']}",
+            f"Director: assumed effect, {effect['label'].lower()}. {effect['why']}",
+        ])
+        runtime.run_cycle(graph, force=True)
+        body = _state()
+    await publisher.publish(graph)
+    return {"alert": alert, **body}
 
 
 @app.post("/tick")
@@ -337,6 +417,8 @@ async def post_reset() -> dict:
     with runtime.lock:
         graph.reset()
         runtime.strategy = DEFAULT_STRATEGY
+        runtime.activity.clear()
+        runtime.activity_ticks.clear()
         runtime.push(["Director: campus reset"])
         runtime.run_cycle(graph, force=True)
         body = _state()

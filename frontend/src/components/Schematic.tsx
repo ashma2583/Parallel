@@ -9,6 +9,8 @@ interface Props {
   selectedId?: string | null
   /** Buildings the briefing says to open as cooling centers. */
   coolingIds?: readonly string[]
+  /** What to call those buildings on the diagram. */
+  refugeLabel?: string
   onNodeClick?: (node: SimNode) => void
 }
 
@@ -19,7 +21,7 @@ type LabelMode = 'all' | 'names' | 'none'
  * The campus as a one-line diagram. Engine layout coordinates are stretched to
  * fill the container, so text and node sizes stay in real pixels at any size.
  */
-export function Schematic({ nodes, edges, selectedId, coolingIds = [], onNodeClick }: Props) {
+export function Schematic({ nodes, edges, selectedId, coolingIds = [], refugeLabel = 'COOLING CENTER', onNodeClick }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
 
@@ -83,7 +85,7 @@ export function Schematic({ nodes, edges, selectedId, coolingIds = [], onNodeCli
           if (!p) return null
           return (
             <NodeMark key={n.id} node={n} x={p.x} y={p.y} labels={labels}
-              selected={n.id === selectedId} cooling={coolingIds.includes(n.id)} onClick={onNodeClick} />
+              selected={n.id === selectedId} refuge={coolingIds.includes(n.id) ? refugeLabel : null} onClick={onNodeClick} />
           )
         })}
       </svg>
@@ -97,11 +99,11 @@ interface MarkProps {
   y: number
   labels: LabelMode
   selected: boolean
-  cooling: boolean
+  refuge: string | null
   onClick?: (node: SimNode) => void
 }
 
-function NodeMark({ node, x, y, labels, selected, cooling, onClick }: MarkProps) {
+function NodeMark({ node, x, y, labels, selected, refuge, onClick }: MarkProps) {
   const supplier = isSupplier(node)
   const color = statusColor(node.status)
   // Bigger loads draw bigger, so the eye lands on what matters to the grid.
@@ -145,9 +147,9 @@ function NodeMark({ node, x, y, labels, selected, cooling, onClick }: MarkProps)
             : `${Math.round(node.currentPower)}/${Math.round(node.demand)} kW · ${fmtPeople(node.occupancy)}`)}
         </text>
       )}
-      {cooling && labels !== 'none' && (
+      {refuge && labels !== 'none' && (
         <text {...text} y={-r - 8} fontSize={9} fontWeight={600} letterSpacing="0.1em" fill="var(--color-transit)">
-          COOLING CENTER
+          {refuge}
         </text>
       )}
     </g>

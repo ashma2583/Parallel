@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { disrupt, resetSim, type DisruptAction } from '../lib/api'
+import { useEffect, useState } from 'react'
+import { applyHazard, disrupt, fetchHazards, resetSim, type DisruptAction, type Hazard, type HazardList } from '../lib/api'
 
 interface Step {
   nodeIds: string[]
@@ -10,21 +10,15 @@ interface Step {
 export interface Scenario {
   label: string
   detail: string
-  /** Logged to the agent feed as the Director's reason. */
-  reason?: string
-  steps?: Step[]
 }
 
-const SCENARIOS: Required<Scenario>[] = [
-  {
-    label: 'Heat wave, 95°F',
-    detail: 'Power plant at 35%, north feed at 50%',
-    reason: 'Heat wave derates campus generation',
-    steps: [
-      { nodeIds: ['cpp'], action: 'derate', factor: 0.35 },
-      { nodeIds: ['north_switch'], action: 'derate', factor: 0.5 },
-    ],
-  },
+interface Failure extends Scenario {
+  reason: string
+  steps: Step[]
+}
+
+/** Equipment failures: no weather involved, something on the grid just breaks. */
+const FAILURES: Failure[] = [
   {
     label: 'Central Power Plant trips',
     detail: 'Central campus loses its only feed',
@@ -51,6 +45,9 @@ const SCENARIOS: Required<Scenario>[] = [
   },
 ]
 
+/** Pills shown before the rest fold into the "More" menu. */
+const VISIBLE_HAZARDS = 6
+
 interface Props {
   disrupted: boolean
   /** What broke, when this page started it. Unknown after a reload or a spoken order. */
@@ -58,12 +55,29 @@ interface Props {
   /** Policy being previewed from the branch list, if any. */
   previewName: string | null
   onScenario: (scenario: Scenario | null) => void
+  /** The hazard that was run, so the briefing can explain it. Null on reset. */
+  onHazard: (hazard: Hazard | null) => void
   onChanged: () => void
 }
 
-export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, onChanged }: Props) {
+const pill = 'whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50'
+
+export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, onHazard, onChanged }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [list, setList] = useState<HazardList | null>(null)
+
+  useEffect(() => {
+    let stop = false
+    const pull = () => fetchHazards().then((next) => !stop && setList(next)).catch(() => {})
+    void pull()
+    // Live alerts change; the engine caches the weather service for five minutes.
+    const timer = setInterval(() => void pull(), 5 * 60 * 1000)
+    return () => {
+      stop = true
+      clearInterval(timer)
+    }
+  }, [])
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
@@ -78,36 +92,86 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, on
     }
   }
 
-  const play = (s: Required<Scenario>) =>
+  const playHazard = (hazard: Hazard) =>
     run(async () => {
-      for (const step of s.steps) await disrupt(step.nodeIds, step.action, s.reason, step.factor)
-      onScenario(s)
+      await applyHazard(hazard.id)
+      onScenario({ label: hazard.name, detail: `Assumed: ${hazard.effect?.label.toLowerCase() ?? 'no effect'}` })
+      onHazard(hazard)
+    })
+
+  const playFailure = (failure: Failure) =>
+    run(async () => {
+      for (const step of failure.steps) await disrupt(step.nodeIds, step.action, failure.reason, step.factor)
+      onScenario(failure)
+      onHazard(null)
     })
 
   const reset = () =>
     run(async () => {
       await resetSim()
       onScenario(null)
+      onHazard(null)
     })
+
+  const runnable = (list?.hazards ?? []).filter((h) => h.effect)
+  const shown = runnable.slice(0, VISIBLE_HAZARDS)
+  const more = runnable.slice(VISIBLE_HAZARDS)
+  const active = new Set(list?.weather.active_hazards ?? [])
+  const conditions = list?.weather.conditions
 
   return (
     <div className="flex min-h-14 flex-wrap items-center gap-2 border-b border-line bg-panel px-4 py-3">
       {!disrupted ? (
         <>
-          <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Break something</span>
-          {SCENARIOS.map((s) => (
+          <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted" title={list ? `Natural hazards for ${list.place}. Ranked by ${list.sources}.` : undefined}>
+            What could hit
+          </span>
+          {shown.map((h) => (
             <button
-              key={s.label}
+              key={h.id}
               type="button"
               disabled={busy}
-              onClick={() => play(s)}
-              title={s.detail}
-              className="whitespace-nowrap rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-medium transition hover:border-down hover:text-down disabled:opacity-50"
+              onClick={() => playHazard(h)}
+              title={`${h.risk_rating ? `FEMA risk: ${h.risk_rating}. ` : ''}${h.how_often}. Assumed effect: ${h.effect?.label.toLowerCase()}`}
+              className={`${pill} ${active.has(h.id) ? 'border-warn text-warn' : 'border-line bg-panel hover:border-down hover:text-down'}`}
             >
-              {s.label}
+              {h.name}
+              {active.has(h.id) && <span className="ml-1.5 font-mono text-[10px] uppercase">warning active</span>}
             </button>
           ))}
-          <span className="ml-1 text-xs text-muted max-[1099px]:hidden">or click any building to fail it</span>
+          <select
+            id="more-scenarios"
+            aria-label="More scenarios"
+            disabled={busy}
+            value=""
+            onChange={(event) => {
+              const hazard = more.find((h) => h.id === event.target.value)
+              const failure = FAILURES.find((f) => f.label === event.target.value)
+              if (hazard) void playHazard(hazard)
+              else if (failure) void playFailure(failure)
+            }}
+            className={`${pill} w-[88px] border-line bg-panel pr-1`}
+          >
+            <option value="" disabled>More…</option>
+            {more.length > 0 && (
+              <optgroup label="Less common here">
+                {more.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Equipment failure">
+              {FAILURES.map((f) => (
+                <option key={f.label} value={f.label}>{f.label}</option>
+              ))}
+            </optgroup>
+          </select>
+          {conditions && (
+            <span className="ml-auto whitespace-nowrap font-mono text-[11px] text-muted max-[1099px]:hidden" title="National Weather Service, central campus, now">
+              {conditions.temperature_f}°F {conditions.summary?.toLowerCase()}
+              {list?.weather.alerts.length ? ` · ${list.weather.alerts.length} alert${list.weather.alerts.length > 1 ? 's' : ''}` : ''}
+            </span>
+          )}
         </>
       ) : (
         <>

@@ -1,0 +1,362 @@
+{
+  "fips": "25017",
+  "county": "Middlesex",
+  "state": "MA",
+  "campus": "Harvard University",
+  "available": true,
+  "nri": {
+    "version": "December 2025",
+    "overall_rating": "Relatively High",
+    "source_url": "https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/National_Risk_Index_Counties/FeatureServer/0/query?where=STCOFIPS%3D%2725017%27&outFields=*&f=json"
+  },
+  "hazards": [
+    {
+      "id": "thunderstorm_wind",
+      "name": "Thunderstorm wind",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 0.9708,
+      "frequency_note": "about 19 a year reported in the county (568 in 1996-2026)",
+      "storm_events": {
+        "count": 568,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2020-10-07",
+        "summary": "The Devens Fire Chief reported five injuries from Fort Devens when a military-grade tent was lifted up and blown down an embankment by thunderstorm winds.",
+        "magnitude": "61.00 kt (EG)",
+        "damage_usd": 2000,
+        "deaths": 0,
+        "injuries": 5,
+        "event_type": "Thunderstorm Wind",
+        "area": "Middlesex",
+        "source": "NCEI Storm Events episode 152427, event 918274: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=918274"
+      },
+      "likelihood": 1.0
+    },
+    {
+      "id": "high_wind",
+      "name": "High wind",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": null,
+      "frequency_note": "about 12 a year reported in the county (358 in 1996-2026)",
+      "storm_events": {
+        "count": 358,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2021-03-26",
+        "summary": "Sadly, winds gusting to around 50 mph, knocked down a rotted tree, which directly hit a 1-year-old baby, who his father was holding in the front yard of his house.",
+        "magnitude": "43.00 kt (EG)",
+        "damage_usd": 500,
+        "deaths": 1,
+        "injuries": 2,
+        "event_type": "Strong Wind",
+        "area": "Northwest Middlesex County",
+        "source": "NCEI Storm Events episode 156000, event 941611: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=941611"
+      },
+      "likelihood": 1.0
+    },
+    {
+      "id": "riverine_flood",
+      "name": "River flooding",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 4.25,
+      "frequency_note": "about 6 a year reported in the county (183 in 1996-2026)",
+      "storm_events": {
+        "count": 183,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2010-03-14",
+        "summary": "Each of the seven gaged mainstem rivers in Middlesex County rose above flood stage, the Nashua River at East Pepperell, Shawsheen River at Wilmington, and the Assabet River at Maynard all reached major flood.",
+        "magnitude": null,
+        "damage_usd": 26430000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Flood",
+        "area": "Middlesex",
+        "source": "NCEI Storm Events episode 37099, event 217617: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=217617"
+      },
+      "likelihood": 0.998
+    },
+    {
+      "id": "heavy_snow",
+      "name": "Heavy snow",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": null,
+      "frequency_note": "about 6.6 a year reported in the county (200 in 1996-2026)",
+      "storm_events": {
+        "count": 200,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1996-01-07",
+        "summary": "An intense East Coast low pressure system moved northeast from eastern Georgia passing along the coast of the Carolinas and then close to 40 degrees North and 70 degrees West.",
+        "magnitude": null,
+        "damage_usd": 1500000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Heavy Snow",
+        "area": "Western Middlesex",
+        "source": "NCEI Storm Events episode 2036745, event 5551557: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5551557"
+      },
+      "likelihood": 0.999
+    },
+    {
+      "id": "hail",
+      "name": "Hail",
+      "nri_risk_rating": "Very Low",
+      "annual_frequency": 2.2952,
+      "frequency_note": "about 5.2 a year reported in the county (160 in 1996-2026)",
+      "storm_events": {
+        "count": 160,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2004-08-20",
+        "summary": "Severe thunderstorms swept across western, central, and northeast Massachusetts and caused widespread damage.",
+        "magnitude": "2.00 in",
+        "damage_usd": 50000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Hail",
+        "area": "Middlesex",
+        "source": "NCEI Storm Events episode 1179715, event 5422702: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5422702"
+      },
+      "likelihood": 0.995
+    },
+    {
+      "id": "flash_flood",
+      "name": "Flash flood",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": null,
+      "frequency_note": "about 2.5 a year reported in the county (75 in 1996-2026)",
+      "storm_events": {
+        "count": 75,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2010-07-10",
+        "summary": "The most significant flash flooding affected Somerville, where damage was estimated to be around ten million dollars.",
+        "magnitude": null,
+        "damage_usd": 11000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Flash Flood",
+        "area": "Middlesex",
+        "source": "NCEI Storm Events episode 43562, event 255662: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=255662"
+      },
+      "likelihood": 0.914
+    },
+    {
+      "id": "lightning",
+      "name": "Lightning",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 21.6154,
+      "frequency_note": "about 2.1 a year reported in the county (63 in 1996-2026)",
+      "storm_events": {
+        "count": 63,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2000-06-27",
+        "summary": "Severe thunderstorms brought damaging winds and hail to much of central and eastern Massachusetts.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 1,
+        "injuries": 3,
+        "event_type": "Lightning",
+        "area": "Middlesex",
+        "source": "NCEI Storm Events episode 1097223, event 5150338: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5150338"
+      },
+      "likelihood": 0.873
+    },
+    {
+      "id": "winter_storm",
+      "name": "Winter storm",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 17.1509,
+      "frequency_note": "about 2.8 a year reported in the county (84 in 1996-2026)",
+      "storm_events": {
+        "count": 84,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2011-02-01",
+        "summary": "A total of 8-14 inches of snow fell across Western Middlesex County over the two day period.",
+        "magnitude": null,
+        "damage_usd": 926000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Winter Storm",
+        "area": "Western Middlesex",
+        "source": "NCEI Storm Events episode 48481, event 283294: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=283294"
+      },
+      "likelihood": 0.936
+    },
+    {
+      "id": "drought",
+      "name": "Drought",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 7.1192,
+      "frequency_note": "about once a year reported in the county (30 in 1996-2026)",
+      "storm_events": {
+        "count": 30,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2012-05-01",
+        "summary": "The U.S. Drought Monitor declared severe drought (D2) over northwest Middlesex County from April 12 through May 15.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Drought",
+        "area": "Northwest Middlesex County",
+        "source": "NCEI Storm Events episode 63092, event 377887: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=377887"
+      },
+      "likelihood": 0.626
+    },
+    {
+      "id": "hurricane",
+      "name": "Hurricane / tropical storm",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 0.1609,
+      "frequency_note": "about one every 5 years reported in the county (6 in 1996-2026)",
+      "storm_events": {
+        "count": 6,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2011-08-28",
+        "summary": "Numerous trees were downed in Concord, two of these were downed onto houses.",
+        "magnitude": null,
+        "damage_usd": 3200000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Tropical Storm",
+        "area": "Western Middlesex",
+        "source": "NCEI Storm Events episode 56851, event 341419: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=341419"
+      },
+      "likelihood": 0.179
+    },
+    {
+      "id": "extreme_heat",
+      "name": "Extreme heat",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 5.6963,
+      "frequency_note": "about one every 6 years reported in the county (5 in 1996-2026)",
+      "storm_events": {
+        "count": 5,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2013-07-05",
+        "summary": "A 45 year old mail carrier died as a result of heat illness on July 6th.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 1,
+        "injuries": 0,
+        "event_type": "Heat",
+        "area": "Southeast Middlesex",
+        "source": "NCEI Storm Events episode 76634, event 462404: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=462404"
+      },
+      "likelihood": 0.151
+    },
+    {
+      "id": "ice_storm",
+      "name": "Ice storm",
+      "nri_risk_rating": "Very High",
+      "annual_frequency": 2.702,
+      "frequency_note": "about one every 8 years reported in the county (4 in 1996-2026)",
+      "storm_events": {
+        "count": 4,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2008-12-11",
+        "summary": "Three-quarters of an inch of ice accumulated on exposed surfaces across northwest Middlesex County.",
+        "magnitude": null,
+        "damage_usd": 3000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Ice Storm",
+        "area": "Northwest Middlesex County",
+        "source": "NCEI Storm Events episode 25170, event 146816: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=146816"
+      },
+      "likelihood": 0.123
+    },
+    {
+      "id": "extreme_cold",
+      "name": "Extreme cold",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 1.8487,
+      "frequency_note": "about one every 8 years reported in the county (4 in 1996-2026)",
+      "storm_events": {
+        "count": 4,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2015-02-15",
+        "summary": "The Automated Surface Observing System at Hanscom Field in Bedford, MA (KBED) recorded wind chills as low as 30 below zero.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Extreme Cold/Wind Chill",
+        "area": "Western Middlesex",
+        "source": "NCEI Storm Events episode 93369, event 560731: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=560731"
+      },
+      "likelihood": 0.123
+    },
+    {
+      "id": "tornado",
+      "name": "Tornado",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 0.1762,
+      "frequency_note": "about one every 8 years reported in the county (4 in 1996-2026)",
+      "storm_events": {
+        "count": 4,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2016-08-22",
+        "summary": "A tornado developed within an area of showers and thunderstorms moving through southern New England.",
+        "magnitude": "EF1",
+        "damage_usd": 1000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Tornado",
+        "area": "Middlesex",
+        "source": "NCEI Storm Events episode 109727, event 656428: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=656428"
+      },
+      "likelihood": 0.123
+    },
+    {
+      "id": "earthquake",
+      "name": "Earthquake",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 0.002,
+      "frequency_note": "about a 0.2% chance in a given year (NRI)",
+      "storm_events": null,
+      "worst_local_event": null,
+      "likelihood": 0.002
+    }
+  ],
+  "notes": "NRI ratings and frequencies are county-wide and compare the county with all US counties; they are not specific to the campus. NRI frequency units differ by hazard (events per year, event-days per year for heat, cold, drought and winter weather, annual probability for earthquake and wildfire). NRI Strong Wind, Winter Weather and Inland Flooding each cover two of our hazards, so the second one carries the rating only. Storm Events zone reports can cover a forecast zone larger than the county. Likelihood (chance of at least one event a year) and the order are computed by PARALLEL, not FEMA: from the local Storm Events rate when there is one, otherwise from NRI frequency capped at 0.5; ties go to the higher NRI rating. Storm Events: Middlesex County reports plus forecast zones MAZ005, MAZ014 (Southeast Middlesex, where Harvard is) and MAZ026. Storm Events 1996 through June 2026 (NCEI detail files, versions c2026xxxx); worst event = largest property+crop damage, with a death weighted as $10M and an injury as $1M.",
+  "storm_events_source": "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
+}

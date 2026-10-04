@@ -1,4 +1,4 @@
-import { essentialServed, loadTotals, type Sim, type SimNode } from '../lib/sim'
+import { essentialServed, type Sim, type SimNode } from '../lib/sim'
 import { STATUS_COLOR } from '../lib/status'
 
 export type View = 'grid' | 'map'
@@ -26,11 +26,10 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
   const ready = nodes.length > 0
   const essential = ready ? essentialServed(nodes) : 1
   const essentialColor = essential >= 0.999 ? STATUS_COLOR.Green : essential >= 0.8 ? STATUS_COLOR.Amber : STATUS_COLOR.Red
-  const { demand, unserved } = loadTotals(nodes)
 
   return (
     <header className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-6 overflow-hidden border-b border-line bg-panel px-5">
-      <a href="/" className="flex items-center gap-3" aria-label="PARALLEL home">
+      <a href="/" className="flex shrink-0 items-center gap-3 whitespace-nowrap" aria-label="PARALLEL home">
         <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden>
           <path d="M4 1 V21 M14 1 V8 C14 12 8 12 8 16 V21" fill="none" stroke="var(--color-branch)" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
@@ -40,7 +39,7 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
         </div>
       </a>
 
-      <ol className="flex min-w-0 items-center gap-1 justify-self-center overflow-hidden whitespace-nowrap">
+      <ol className="flex w-full min-w-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap">
         {STEPS.map((label, i) => {
           const current = i === step
           const done = i < step
@@ -59,7 +58,7 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
                 >
                   {i + 1}
                 </span>
-                <span className="max-[999px]:hidden">{label}</span>
+                <span className="max-[1099px]:hidden">{label}</span>
               </button>
               {i < STEPS.length - 1 && <span className="h-px w-5 bg-line" />}
             </li>
@@ -67,21 +66,12 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
         })}
       </ol>
 
-      <div className="flex items-center gap-6">
-        <div className="flex items-baseline gap-2.5">
+      <div className="flex shrink-0 items-center gap-6 whitespace-nowrap">
+        <div className="flex items-baseline gap-2.5" title={SOURCE_HINT[sim.source]}>
           <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Essential served</span>
           <span className="font-mono text-[22px] font-medium tabular-nums" style={{ color: ready ? essentialColor : undefined }}>
             {ready ? `${Math.round(essential * 100)}%` : '—'}
           </span>
-        </div>
-        <div
-          className="flex gap-4 whitespace-nowrap border-l border-line pl-6 font-mono text-xs tabular-nums text-muted max-[1099px]:hidden"
-          title={SOURCE_HINT[sim.source]}
-        >
-          <span>supply <span className="text-text">{sim.summary ? `${Math.round(sim.summary.supply)} kW` : '—'}</span></span>
-          <span>demand <span className="text-text">{ready ? `${Math.round(demand)} kW` : '—'}</span></span>
-          <span>unserved <span className={unserved >= 1 ? 'text-down' : 'text-text'}>{ready ? `${Math.round(unserved)} kW` : '—'}</span></span>
-          <span>{sim.summary ? `t${sim.summary.tick}` : 'offline'}</span>
         </div>
         <div className="flex whitespace-nowrap rounded-md border border-line bg-ink p-0.5 text-xs font-medium">
           {(['grid', 'map'] as const).map((v) => (

@@ -1,0 +1,322 @@
+{
+ "name": "Harvard University",
+ "summary": "Main Cambridge and Allston campuses served by Harvard microgrid with cogeneration; key critical infrastructure and high-occupancy buildings prioritized for power outage response.",
+ "power": {
+  "utility": "Eversource",
+  "on_campus_plant": "Blackstone Steam Plant",
+  "how_it_is_fed": "Harvard operates a 13.8 kV underground microgrid serving over 250 buildings; electricity supplied by Eversource at multiple switching stations plus on-site cogeneration from Blackstone Steam Plant (up to 12 MW) and Allston District Energy Facility (cogeneration and substation with standby generators)."
+ },
+ "buildings": [
+  {
+   "name": "Blackstone Steam Plant",
+   "role": "power",
+   "why": "Campus cogeneration plant providing steam to ~80% of Cambridge/Allston buildings and up to 12 MW electricity.",
+   "lat": 42.3638291,
+   "lng": -71.115414,
+   "located": "map",
+   "osm": "way/29680266",
+   "moved_m": 219,
+   "id": "blackstone-steam-plant-0",
+   "feed": null
+  },
+  {
+   "name": "Allston Campus District Energy Facility",
+   "role": "power",
+   "why": "New district energy plant with electrical substation and cogeneration serving Allston campus buildings.",
+   "lat": 42.3618348,
+   "lng": -71.1206421,
+   "located": "map",
+   "osm": "way/814276049",
+   "moved_m": 389,
+   "id": "allston-campus-district-energy-facility-1",
+   "feed": null
+  },
+  {
+   "name": "Putnam Substation",
+   "role": "power",
+   "lat": 42.3603999,
+   "lng": -71.1140687,
+   "located": "map",
+   "osm": "way/1510991700",
+   "moved_m": null,
+   "why": "Electrical substation operated by Eversource, about 1300 m from the centre of campus. From OpenStreetMap.",
+   "id": "putnam-substation-2",
+   "feed": null
+  },
+  {
+   "name": "Beth Israel Deaconess Medical Center",
+   "role": "hospital",
+   "why": "Nearest hospital with emergency department and inpatient beds, approximately 3 miles from main Cambridge campus.",
+   "lat": 42.3397219,
+   "lng": -71.1052122,
+   "located": "map",
+   "osm": "way/228306157",
+   "moved_m": 26,
+   "id": "beth-israel-deaconess-medical-center-3",
+   "feed": "putnam-substation-2"
+  },
+  {
+   "name": "Lowell House",
+   "role": "housing",
+   "why": "One of the largest undergraduate River Houses by resident capacity.",
+   "lat": 42.3708405,
+   "lng": -71.1183185,
+   "located": "map",
+   "osm": "relation/64564",
+   "moved_m": 114,
+   "id": "lowell-house-4",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Mather House",
+   "role": "housing",
+   "why": "One of the largest undergraduate River Houses by resident capacity.",
+   "lat": 42.3684196,
+   "lng": -71.1152795,
+   "located": "map",
+   "osm": "way/29681544",
+   "moved_m": 72,
+   "id": "mather-house-5",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Adams House",
+   "role": "housing",
+   "why": "One of the largest undergraduate River Houses by resident capacity.",
+   "lat": 42.3717171,
+   "lng": -71.1166957,
+   "located": "map",
+   "osm": "node/12171095787",
+   "moved_m": 136,
+   "id": "adams-house-6",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Leverett House",
+   "role": "housing",
+   "why": "One of the largest undergraduate River Houses by resident capacity.",
+   "lat": 42.3698011,
+   "lng": -71.1170537,
+   "located": "map",
+   "osm": "way/29822739",
+   "moved_m": 54,
+   "id": "leverett-house-7",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Widener Library",
+   "role": "academic",
+   "why": "Main research library serving the entire university with critical collections.",
+   "lat": 42.3734645,
+   "lng": -71.1164902,
+   "located": "map",
+   "osm": "way/29725638",
+   "moved_m": 7,
+   "id": "widener-library-8",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Richard A. and Susan F. Smith Campus Center",
+   "role": "civic",
+   "why": "Primary student union and campus hub for gatherings and services.",
+   "lat": 42.3728,
+   "lng": -71.1189,
+   "located": "model",
+   "osm": null,
+   "moved_m": null,
+   "id": "richard-a-and-susan-f-smith-campus-center-9",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Harvard Science Center",
+   "role": "academic",
+   "why": "Large central classroom and teaching building in Harvard Yard.",
+   "lat": 42.3764444,
+   "lng": -71.1167333,
+   "located": "map",
+   "osm": "relation/64766",
+   "moved_m": 494,
+   "id": "harvard-science-center-10",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Northwest Building",
+   "role": "research",
+   "why": "Major research facility housing labs and academic departments.",
+   "lat": 42.3799738,
+   "lng": -71.1152843,
+   "located": "map",
+   "osm": "way/161130625",
+   "moved_m": 59,
+   "id": "northwest-building-11",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Harvard University Police Department Headquarters",
+   "role": "civic",
+   "why": "Public safety headquarters for campus emergency response.",
+   "lat": 42.3787447,
+   "lng": -71.123779,
+   "located": "map",
+   "osm": "node/257493974",
+   "moved_m": 634,
+   "id": "harvard-university-police-department-headquarters-12",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Harvard Station",
+   "role": "transit",
+   "why": "Primary MBTA transit hub connecting campus to Boston and region.",
+   "lat": 42.373367,
+   "lng": -71.118955,
+   "located": "map",
+   "osm": "node/13895032892",
+   "moved_m": 5,
+   "id": "harvard-station-13",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "William James Hall",
+   "role": "academic",
+   "why": "Large classroom and departmental building for social sciences.",
+   "lat": 42.3771766,
+   "lng": -71.1134529,
+   "located": "map",
+   "osm": "way/29633886",
+   "moved_m": 178,
+   "id": "william-james-hall-14",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Maxwell Dworkin Building",
+   "role": "research",
+   "why": "Key engineering and applied sciences research building.",
+   "lat": 42.3787894,
+   "lng": -71.1173019,
+   "located": "map",
+   "osm": "way/29634754",
+   "moved_m": 222,
+   "id": "maxwell-dworkin-building-15",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Pforzheimer House",
+   "role": "housing",
+   "why": "Major Quad House residence hall complex.",
+   "lat": 42.3819526,
+   "lng": -71.1247027,
+   "located": "map",
+   "osm": "node/11624454735",
+   "moved_m": 101,
+   "id": "pforzheimer-house-16",
+   "feed": "blackstone-steam-plant-0"
+  },
+  {
+   "name": "Cabot House",
+   "role": "housing",
+   "why": "Major Quad House residence hall complex.",
+   "lat": 42.3818148,
+   "lng": -71.1239027,
+   "located": "map",
+   "osm": "way/1064361906",
+   "moved_m": 80,
+   "id": "cabot-house-17",
+   "feed": "blackstone-steam-plant-0"
+  }
+ ],
+ "transit": [
+  {
+   "name": "Red Line",
+   "agency": "MBTA",
+   "connects": "Harvard Station to downtown Boston and Cambridge"
+  },
+  {
+   "name": "Harvard Square bus routes",
+   "agency": "MBTA",
+   "connects": "Harvard Station to surrounding neighborhoods and other campus areas"
+  }
+ ],
+ "sources": [
+  "https://college.harvard.edu/sites/default/files/2026-03/Admissions%20Office%20Map%202026.pdf",
+  "https://www.huhousing.harvard.edu/sites/default/files/2026-06/HUHRE%20Housing%20Brochure%20Map%202026.pdf",
+  "https://www.rmf.com/projects/allston-campus-new-district-energy-plant/",
+  "https://news.harvard.edu/gazette/story/2021/03/an-introduction-to-the-houses-first-years-will-call-home/",
+  "https://oira.harvard.edu/factbook/fact-book-physical-plant/",
+  "https://higherlogicdownload.s3.amazonaws.com/DISTRICTENERGY/7cd49b80-f476-241d-eb41-53218946ba1c_file.pdf?X-Amz-Expires=3600&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEDgaCXVzLWVhc3QtMSJHMEUCIQDbyGmrg3gtFHwGiBkwHii%2FsYD3OrMBk23CVCtxndNmvAIgKDPLqPzD8apbphlxvsDR%2Byti%2FVO9oX5yjTUY12GzGX0qsQUIARAAGgwzODAzMzczNDA3MDYiDA0zmtcxN7IWVw%2FVmiqOBdyCyK%2FS7auA75AhEjxh3Pgb0sGPRdaZmGt6pRJkfDhPAQyuF2fuuiAEmqpahBwueIUbIjTxoCIHZvsDo4p5tuQyJpxTt2ZGBGzIwIuQnZzzdnBg1UeswOKN0Up3JDmOI4NmUAnAjCuro6DaL9gR1rwzUn7yPnPrtE0wpEEck9e7tUD64%2F7BZIu818zOiwVmXaJ8Acm%2BCyI8SzPCJhJ%2BQ%2FBMU8Mv4BwPvhLdQNswEV0ACzxHiVKzpU8gi%2FEO9TIq3plh4g6BkE8Or9xfSVQ58b7dtcAg8%2BlwCZj6tglnO5JwV2e4k%2B%2BD4HcBNXu9SJxTxkuwcZ4OqNdBF5RvdjW%2BkH8s1uaK%2Fs2SpVokRFtNPLwsy8Rs4iO7v9RWmDekFQ%2Bi0C5NDjaOZGoxdnJYI9KJhkz9gqKXg0YWvbsExIgLFcZ1bm2uAHAHX8TMs13xDwPy%2FT%2FnhwSrJ58QDlxaDpWyFoi6t4SilP%2BnB6U7lBj7ZeArDu7dR6PlGpedMw8W2M5YQI8hB55C34wfA582KLiBXWJJ5stIwMNa7OxeN7yfhTKPqVdklKRYXgmpLV5PdJIpKjRayVcfuKV58WedJqAli0Ic4ESfPbvZrr0gHml5k81I8C2SBRw2V2XAnCLfHznGx51BpzGAKA4EXNIsYsHQaLtU2TnWKxQ%2Fai3BJcE1v4HvW%2BfMybOe%2FB6K176gQk3wBf1VIiADVAEMfpfccrJYd6Y9wCkOyExxCGWvmGouYgL2weG7qHMgK3Fu5Yl4mJP8BGcVWX2QQw8RFJq%2FeWScBzDnnUysrGz6l%2FQRbc6%2FSk1f0v1UKwgrCXR0aFEtww7aNc0wXZ1M1%2FEvFAIIQLBgYQQwmEdKVtQqwH9rBVwchDDk6d3VBjqxAQSTJJj5gfpZCyZBl438Fe00fiEQA4lbpWkp7OQG1YXk%2FeITRRre0%2F0OtdPY5w1ONN2cY%2FFXHCEdfUQgxoCKNuctwG%2FQ8ch7pNBlkv8IPZFSDn6FPWF4XVR3DZp%2FxDy%2BLQHPT3wpiEvfXCZHUwl3Dal3ImS2KAL8S0kKwp2WgTzxHRfKZOiYWU7CS6lZq2RuI9Nbqw9k7PilRl1NlGjrwdAPYxw%2FqQoPJH5JkbPMIwSQ2w%3D%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ASIAVRDO7IERKCJBHT2G%2F20260926%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260926T083325Z&X-Amz-SignedHeaders=host&X-Amz-Signature=9dd73089c18a76a09df9357b3087d22e2e0fdf1d3f8febfa2f4da1ca036cee3f"
+ ],
+ "power_sites": [
+  {
+   "name": "Putnam Avenue Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "Eversource",
+   "lat": 42.3637592,
+   "lng": -71.1140602,
+   "osm": "way/382345594",
+   "source": "",
+   "distance_m": 939
+  },
+  {
+   "name": "Putnam Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "Eversource",
+   "lat": 42.3603999,
+   "lng": -71.1140687,
+   "osm": "way/1510991700",
+   "source": "",
+   "distance_m": 1300
+  },
+  {
+   "name": "Prospect Street Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "Eversource",
+   "lat": 42.3779172,
+   "lng": -71.0952936,
+   "osm": "way/81049979",
+   "source": "",
+   "distance_m": 1949
+  },
+  {
+   "name": "Brighton Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "Eversource",
+   "lat": 42.3573115,
+   "lng": -71.1317047,
+   "osm": "way/257042463",
+   "source": "",
+   "distance_m": 1988
+  },
+  {
+   "name": "Substation",
+   "named": false,
+   "kind": "substation",
+   "operator": "",
+   "lat": 42.3803522,
+   "lng": -71.12894,
+   "osm": "way/29725154",
+   "source": "",
+   "distance_m": 1334
+  },
+  {
+   "name": "42 Dickson Cogeneration Plant",
+   "named": true,
+   "kind": "plant",
+   "operator": "Massachusetts Institute of Technology",
+   "lat": 42.3611444,
+   "lng": -71.0934462,
+   "osm": "way/132601297",
+   "source": "gas",
+   "distance_m": 2307
+  }
+ ],
+ "placement": {
+  "checked": true,
+  "on_map": 17,
+  "from_model": 1,
+  "dropped": [],
+  "note": "Positions come from OpenStreetMap. Which building is on which feed is assumed: each is put on its nearest power source."
+ }
+}

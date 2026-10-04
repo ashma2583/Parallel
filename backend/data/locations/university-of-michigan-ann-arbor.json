@@ -1,0 +1,351 @@
+{
+ "name": "University of Michigan, Ann Arbor",
+ "summary": "Major public research university campus in Ann Arbor, Michigan, with central, north, and medical campuses served primarily by on-site combined heat and power.",
+ "power": {
+  "utility": "DTE Energy",
+  "on_campus_plant": "Central Power Plant",
+  "how_it_is_fed": "Central Power Plant (CPP) at 1120 Huron St provides combined heat and power (steam and electricity) to most central and medical campus buildings via underground tunnels. North Campus primarily procured from DTE, with some CPP feed; ring bus design for redundancy."
+ },
+ "buildings": [
+  {
+   "name": "Central Power Plant",
+   "role": "power",
+   "why": "Primary on-campus combined heat and power facility serving central and medical campuses.",
+   "lat": 42.2808177,
+   "lng": -83.7344992,
+   "located": "map",
+   "osm": "way/154232127",
+   "moved_m": 272,
+   "id": "central-power-plant-0",
+   "feed": null
+  },
+  {
+   "name": "Forest\u00a0Avenue Switching Station",
+   "role": "power",
+   "lat": 42.276191,
+   "lng": -83.7336174,
+   "located": "map",
+   "osm": "way/442872454",
+   "moved_m": null,
+   "why": "Electrical substation operated by University of Michigan, about 376 m from the centre of campus. From OpenStreetMap.",
+   "id": "forest-avenue-switching-station-1",
+   "feed": null
+  },
+  {
+   "name": "Ingalls Substation",
+   "role": "power",
+   "lat": 42.2835326,
+   "lng": -83.7370889,
+   "located": "map",
+   "osm": "way/1065350598",
+   "moved_m": null,
+   "why": "Electrical substation operated by DTE Energy, about 499 m from the centre of campus. From OpenStreetMap.",
+   "id": "ingalls-substation-2",
+   "feed": null
+  },
+  {
+   "name": "University Hospitals",
+   "role": "hospital",
+   "why": "Main inpatient hospital complex with emergency department on the medical campus, approximately 1 mile from central campus core.",
+   "lat": 42.2848,
+   "lng": -83.7289,
+   "located": "model",
+   "osm": null,
+   "moved_m": null,
+   "id": "university-hospitals-3",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Bursley Hall",
+   "role": "housing",
+   "why": "One of the largest residence halls by capacity on North Campus.",
+   "lat": 42.2937568,
+   "lng": -83.7199624,
+   "located": "map",
+   "osm": "way/224112759",
+   "moved_m": 294,
+   "id": "bursley-hall-4",
+   "feed": "ingalls-substation-2"
+  },
+  {
+   "name": "Mosher-Jordan Hall",
+   "role": "housing",
+   "why": "Large residence hall in the Hill neighborhood serving many students.",
+   "lat": 42.2801426,
+   "lng": -83.7315143,
+   "located": "map",
+   "osm": "way/224646230",
+   "moved_m": 570,
+   "id": "mosher-jordan-hall-5",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Stockwell Hall",
+   "role": "housing",
+   "why": "Major residence hall in central campus area with high resident count.",
+   "lat": 42.2788595,
+   "lng": -83.7317693,
+   "located": "map",
+   "osm": "way/154232154",
+   "moved_m": 735,
+   "id": "stockwell-hall-6",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Alice Lloyd Hall",
+   "role": "housing",
+   "why": "Large undergraduate residence hall near central campus.",
+   "lat": 42.2812478,
+   "lng": -83.7316071,
+   "located": "map",
+   "osm": "way/154203572",
+   "moved_m": 590,
+   "id": "alice-lloyd-hall-7",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Harlan Hatcher Graduate Library",
+   "role": "academic",
+   "why": "Main research and study library serving the entire campus.",
+   "lat": 42.2762191,
+   "lng": -83.738192,
+   "located": "map",
+   "osm": "way/99883675",
+   "moved_m": 89,
+   "id": "harlan-hatcher-graduate-library-8",
+   "feed": "forest-avenue-switching-station-1"
+  },
+  {
+   "name": "Michigan Union",
+   "role": "civic",
+   "why": "Primary student union and gathering space with dining and events.",
+   "lat": 42.2751735,
+   "lng": -83.7415491,
+   "located": "map",
+   "osm": "way/154203582",
+   "moved_m": 222,
+   "id": "michigan-union-9",
+   "feed": "forest-avenue-switching-station-1"
+  },
+  {
+   "name": "Angell Hall",
+   "role": "academic",
+   "why": "Large classroom and academic building housing LSA departments and lecture halls.",
+   "lat": 42.2767656,
+   "lng": -83.7397544,
+   "located": "map",
+   "osm": "way/300676078",
+   "moved_m": 56,
+   "id": "angell-hall-10",
+   "feed": "forest-avenue-switching-station-1"
+  },
+  {
+   "name": "Modern Languages Building",
+   "role": "academic",
+   "why": "Major classroom and language instruction building on central campus.",
+   "lat": 42.279879,
+   "lng": -83.7390789,
+   "located": "map",
+   "osm": "way/154203632",
+   "moved_m": 361,
+   "id": "modern-languages-building-11",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Taubman Biomedical Science Research Building",
+   "role": "research",
+   "why": "Key biomedical research facility on medical campus.",
+   "lat": 42.2818622,
+   "lng": -83.7345078,
+   "located": "map",
+   "osm": "way/300870603",
+   "moved_m": 561,
+   "id": "taubman-biomedical-science-research-building-12",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Biological Sciences Building",
+   "role": "research",
+   "why": "Large research and lab building supporting multiple sciences.",
+   "lat": 42.2790215,
+   "lng": -83.7344882,
+   "located": "map",
+   "osm": "way/420814614",
+   "moved_m": 27,
+   "id": "biological-sciences-building-13",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Campus Safety Services Building",
+   "role": "civic",
+   "why": "Headquarters for university police and public safety operations.",
+   "lat": 42.2650062,
+   "lng": -83.7438263,
+   "located": "map",
+   "osm": "way/384441488",
+   "moved_m": 2055,
+   "id": "campus-safety-services-building-14",
+   "feed": "forest-avenue-switching-station-1"
+  },
+  {
+   "name": "1100 North University Building",
+   "role": "transit",
+   "why": "Central Campus Transit Center serving as main bus hub.",
+   "lat": 42.2774185,
+   "lng": -83.7352666,
+   "located": "map",
+   "osm": "relation/2075394",
+   "moved_m": 3,
+   "id": "1100-north-university-building-15",
+   "feed": "forest-avenue-switching-station-1"
+  },
+  {
+   "name": "William L. Clements Library",
+   "role": "academic",
+   "why": "Special collections library and research resource.",
+   "lat": 42.2754663,
+   "lng": -83.7380037,
+   "located": "map",
+   "osm": "way/99883671",
+   "moved_m": 177,
+   "id": "william-l-clements-library-16",
+   "feed": "forest-avenue-switching-station-1"
+  },
+  {
+   "name": "Mary Markley Hall",
+   "role": "housing",
+   "why": "Large residence hall in the Hill area with substantial capacity.",
+   "lat": 42.2809165,
+   "lng": -83.7288464,
+   "located": "map",
+   "osm": "way/1021335897",
+   "moved_m": 919,
+   "id": "mary-markley-hall-17",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Undergraduate Science Building",
+   "role": "academic",
+   "why": "Major classroom and lab facility for undergraduate sciences.",
+   "lat": 42.2798286,
+   "lng": -83.7349075,
+   "located": "map",
+   "osm": "way/154232159",
+   "moved_m": 199,
+   "id": "undergraduate-science-building-18",
+   "feed": "central-power-plant-0"
+  },
+  {
+   "name": "Rogel Cancer Center",
+   "role": "hospital",
+   "why": "Specialized inpatient and treatment facility adjacent to main hospitals.",
+   "lat": 42.2844541,
+   "lng": -83.7313131,
+   "located": "map",
+   "osm": "way/300848289",
+   "moved_m": 251,
+   "id": "rogel-cancer-center-19",
+   "feed": "central-power-plant-0"
+  }
+ ],
+ "transit": [
+  {
+   "name": "Blue Bus Central Campus routes",
+   "agency": "University of Michigan Transportation Services",
+   "connects": "Central Power Plant, Michigan Union, Hatcher Library, 1100 North University Building, Angell Hall"
+  },
+  {
+   "name": "Blue Bus Medical Campus routes",
+   "agency": "University of Michigan Transportation Services",
+   "connects": "University Hospitals, Rogel Cancer Center, Taubman Biomedical Science Research Building"
+  },
+  {
+   "name": "TheRide routes to North Campus",
+   "agency": "Ann Arbor Transportation Authority",
+   "connects": "Bursley Hall and other North Campus housing to central campus transit hub"
+  }
+ ],
+ "sources": [
+  "https://campusinfo.umich.edu/maps-wayfinding",
+  "https://ehs.umich.edu/wp-content/uploads/2016/08/central-south.pdf",
+  "https://umaec.umich.edu/wp-content/uploads/2023/04/Medical-10-31-23.pdf",
+  "https://mguide.app/buildings/",
+  "https://maps.studentlife.umich.edu/building/arbor-lakes-1?map=true&zoom=17&doBounce=true",
+  "https://www.michigandaily.com/news/administration/how-does-the-university-generate-power/"
+ ],
+ "power_sites": [
+  {
+   "name": "Central Power Plant",
+   "named": true,
+   "kind": "plant",
+   "operator": "University of Michigan",
+   "lat": 42.2808177,
+   "lng": -83.7344992,
+   "osm": "way/154232127",
+   "source": "gas",
+   "distance_m": 143
+  },
+  {
+   "name": "Forest\u00a0Avenue Switching Station",
+   "named": true,
+   "kind": "substation",
+   "operator": "University of Michigan",
+   "lat": 42.276191,
+   "lng": -83.7336174,
+   "osm": "way/442872454",
+   "source": "",
+   "distance_m": 376
+  },
+  {
+   "name": "Ingalls Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "DTE Energy",
+   "lat": 42.2835326,
+   "lng": -83.7370889,
+   "osm": "way/1065350598",
+   "source": "",
+   "distance_m": 499
+  },
+  {
+   "name": "Academy Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "DTE Energy",
+   "lat": 42.2850544,
+   "lng": -83.7309356,
+   "osm": "way/1189903605",
+   "source": "",
+   "distance_m": 674
+  },
+  {
+   "name": "Buckler Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "DTE Energy",
+   "lat": 42.2877328,
+   "lng": -83.7377262,
+   "osm": "way/525386354",
+   "source": "",
+   "distance_m": 953
+  },
+  {
+   "name": "Burton Subtation",
+   "named": true,
+   "kind": "substation",
+   "operator": "DTE Energy",
+   "lat": 42.2772432,
+   "lng": -83.7478182,
+   "osm": "way/489316019",
+   "source": "",
+   "distance_m": 1138
+  }
+ ],
+ "placement": {
+  "checked": true,
+  "on_map": 19,
+  "from_model": 1,
+  "dropped": [],
+  "note": "Positions come from OpenStreetMap. Which building is on which feed is assumed: each is put on its nearest power source."
+ }
+}

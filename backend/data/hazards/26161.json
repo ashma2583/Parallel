@@ -1,0 +1,328 @@
+{
+  "fips": "26161",
+  "county": "Washtenaw",
+  "state": "MI",
+  "campus": "University of Michigan, Ann Arbor",
+  "available": true,
+  "nri": {
+    "version": "December 2025",
+    "overall_rating": "Relatively Moderate",
+    "source_url": "https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/National_Risk_Index_Counties/FeatureServer/0/query?where=STCOFIPS%3D%2726161%27&outFields=*&f=json"
+  },
+  "hazards": [
+    {
+      "id": "thunderstorm_wind",
+      "name": "Thunderstorm wind",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 5.7021,
+      "frequency_note": "about 12 a year reported in the county (376 in 1996-2026)",
+      "storm_events": {
+        "count": 376,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2000-05-18",
+        "summary": "A cold front moved slowly south across southeast Michigan on the morning and afternoon of the 18th.",
+        "magnitude": "50 kt (E)",
+        "damage_usd": 2000,
+        "deaths": 1,
+        "injuries": 0,
+        "event_type": "Thunderstorm Wind",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 1094973, event 5144872: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5144872"
+      },
+      "likelihood": 1.0
+    },
+    {
+      "id": "hail",
+      "name": "Hail",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 3.1392,
+      "frequency_note": "about 7.3 a year reported in the county (223 in 1996-2026)",
+      "storm_events": {
+        "count": 223,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2023-06-15",
+        "summary": "Numerous strong to severe thunderstorms developed during the late afternoon of June 15th, mainly south of I-96.",
+        "magnitude": "1.75 in",
+        "damage_usd": 500000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Hail",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 179723, event 1098867: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1098867"
+      },
+      "likelihood": 0.999
+    },
+    {
+      "id": "high_wind",
+      "name": "High wind",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": null,
+      "frequency_note": "about once a year reported in the county (44 in 1996-2026)",
+      "storm_events": {
+        "count": 44,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2017-03-08",
+        "summary": "A non thunderstorm event took place over the state on Wednesday, March 8, 2017, as high winds brought wind gusts in excess of 60 mph!",
+        "magnitude": "56.00 kt (EG)",
+        "damage_usd": 25000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "High Wind",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 112835, event 674191: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=674191"
+      },
+      "likelihood": 0.764
+    },
+    {
+      "id": "heavy_snow",
+      "name": "Heavy snow",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": null,
+      "frequency_note": "about once a year reported in the county (35 in 1996-2026)",
+      "storm_events": {
+        "count": 35,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "1996-12-16",
+        "summary": "Low pressure tracked from the western Gulf of Mexico northeast to northern Ohio on the 16th and 17th.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Heavy Snow",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 2053394, event 5581346: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5581346"
+      },
+      "likelihood": 0.683
+    },
+    {
+      "id": "lightning",
+      "name": "Lightning",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 36.8506,
+      "frequency_note": "most years reported in the county (21 in 1996-2026)",
+      "storm_events": {
+        "count": 21,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2002-09-19",
+        "summary": "Three men were installing a roof at an apartment complex under construction when they were struck by lightning.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 1,
+        "injuries": 2,
+        "event_type": "Lightning",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 1142701, event 5317664: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5317664"
+      },
+      "likelihood": 0.498
+    },
+    {
+      "id": "winter_storm",
+      "name": "Winter storm",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 10.4737,
+      "frequency_note": "most years reported in the county (22 in 1996-2026)",
+      "storm_events": {
+        "count": 22,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2018-04-14",
+        "summary": "A large and complex low pressure system impacted the Great Lakes region.",
+        "magnitude": null,
+        "damage_usd": 6000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Winter Storm",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 124134, event 744960: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=744960"
+      },
+      "likelihood": 0.514
+    },
+    {
+      "id": "riverine_flood",
+      "name": "River flooding",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 1.1786,
+      "frequency_note": "most years reported in the county (21 in 1996-2026)",
+      "storm_events": {
+        "count": 21,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2008-09-14",
+        "summary": "Heavy rain fell over southeast Michigan from September 12th-14th, with widespread 3 to 6 inches reported.",
+        "magnitude": null,
+        "damage_usd": 200000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Flood",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 22721, event 133289: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=133289"
+      },
+      "likelihood": 0.498
+    },
+    {
+      "id": "extreme_cold",
+      "name": "Extreme cold",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 2.7895,
+      "frequency_note": "about one every 2 years reported in the county (14 in 1996-2026)",
+      "storm_events": {
+        "count": 14,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2007-02-03",
+        "summary": "A bitter cold airmass blasted into the region on Saturday, February the 3rd and persisted through Tuesday, February the 6th.",
+        "magnitude": null,
+        "damage_usd": 25000,
+        "deaths": 0,
+        "injuries": 10,
+        "event_type": "Cold/Wind Chill",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 3410, event 18661: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=18661"
+      },
+      "likelihood": 0.368
+    },
+    {
+      "id": "flash_flood",
+      "name": "Flash flood",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": null,
+      "frequency_note": "most years reported in the county (17 in 1996-2026)",
+      "storm_events": {
+        "count": 17,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2021-06-25",
+        "summary": "Numerous roads became impassable due to flash flooding. Parts of Ann Arbor received around 5.5 inches of rainfall, with Ypsilanti reporting the highest total of 6.76 inches.",
+        "magnitude": null,
+        "damage_usd": 7500000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Flash Flood",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 160029, event 970140: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=970140"
+      },
+      "likelihood": 0.427
+    },
+    {
+      "id": "extreme_heat",
+      "name": "Extreme heat",
+      "nri_risk_rating": "Relatively Moderate",
+      "annual_frequency": 3.6842,
+      "frequency_note": "about one every 2 years reported in the county (15 in 1996-2026)",
+      "storm_events": {
+        "count": 15,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2013-07-14",
+        "summary": "A six day heat impacted Southeast Michigan July 14th through the 19th with high temperatures ranging from the upper 80s to mid 90s.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 6,
+        "event_type": "Heat",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 78009, event 470009: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=470009"
+      },
+      "likelihood": 0.388
+    },
+    {
+      "id": "tornado",
+      "name": "Tornado",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 0.348,
+      "frequency_note": "about one every 4 years reported in the county (7 in 1996-2026)",
+      "storm_events": {
+        "count": 7,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2012-03-15",
+        "summary": "A National Weather Service Storm Survey confirmed an EF-3 tornado touched down near Dexter, MI with maximum wind speeds of 135-140 mph.",
+        "magnitude": "EF3",
+        "damage_usd": 12000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Tornado",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 60759, event 362955: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=362955"
+      },
+      "likelihood": 0.205
+    },
+    {
+      "id": "ice_storm",
+      "name": "Ice storm",
+      "nri_risk_rating": "Relatively High",
+      "annual_frequency": 1.783,
+      "frequency_note": "about one every 8 years reported in the county (4 in 1996-2026)",
+      "storm_events": {
+        "count": 4,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2023-02-22",
+        "summary": "A major winter storm impacted Southeast Michigan during the daytime and evening hours of February 22, 2023.",
+        "magnitude": null,
+        "damage_usd": 8000000,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Ice Storm",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 177465, event 1079426: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1079426"
+      },
+      "likelihood": 0.123
+    },
+    {
+      "id": "drought",
+      "name": "Drought",
+      "nri_risk_rating": null,
+      "annual_frequency": null,
+      "frequency_note": "about one every 15 years reported in the county (2 in 1996-2026)",
+      "storm_events": {
+        "count": 2,
+        "years": "1996-2026",
+        "span_years": 30.5
+      },
+      "worst_local_event": {
+        "date": "2001-07-01",
+        "summary": "An upper level high pressure ridge dominated the weather pattern across southeast Michigan beginning late June and continuing through the month of July.",
+        "magnitude": null,
+        "damage_usd": 0,
+        "deaths": 0,
+        "injuries": 0,
+        "event_type": "Drought",
+        "area": "Washtenaw",
+        "source": "NCEI Storm Events episode 1119942, event 5259519: https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=5259519"
+      },
+      "likelihood": 0.063
+    }
+  ],
+  "notes": "NRI ratings and frequencies are county-wide and compare the county with all US counties; they are not specific to the campus. NRI frequency units differ by hazard (events per year, event-days per year for heat, cold, drought and winter weather, annual probability for earthquake and wildfire). NRI Strong Wind, Winter Weather and Inland Flooding each cover two of our hazards, so the second one carries the rating only. Storm Events zone reports can cover a forecast zone larger than the county. Likelihood (chance of at least one event a year) and the order are computed by PARALLEL, not FEMA: from the local Storm Events rate when there is one, otherwise from NRI frequency capped at 0.5; ties go to the higher NRI rating. Storm Events: Washtenaw County reports plus forecast zone MIZ075 (Washtenaw). Storm Events 1996 through June 2026 (NCEI detail files, versions c2026xxxx); worst event = largest property+crop damage, with a death weighted as $10M and an injury as $1M.",
+  "storm_events_source": "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
+}

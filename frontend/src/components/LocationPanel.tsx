@@ -80,11 +80,24 @@ export function LocationPanel({
             </button>
           </div>
           <p className="mt-1 text-[11px] leading-relaxed text-text/80">{survey.summary}</p>
+          {survey.power?.how_it_is_fed && (
+            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+              <span className="text-text">Power.</span> {survey.power.how_it_is_fed}
+            </p>
+          )}
+          {survey.placement && (
+            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+              {survey.placement.checked
+                ? `${survey.placement.on_map} placed from OpenStreetMap${survey.placement.from_model ? `, ${survey.placement.from_model} from the model's guess` : ''}${survey.placement.dropped?.length ? `, ${survey.placement.dropped.length} dropped as not found` : ''}. `
+                : ''}
+              <span className="text-warn">Assumed.</span> {survey.placement.note}
+            </p>
+          )}
           <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
             {survey.buildings.length} buildings
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-muted">
-            Click a building to take it offline. The plant feeds the campus. A hospital keeps its own supply.
+            Click a building to take it offline. Losing a power source darkens what it feeds. A hospital rides through on its own generators.
           </p>
           <ul className="mt-1 flex flex-col gap-1">
             {(graph?.nodes ?? []).map((node) => {

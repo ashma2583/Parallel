@@ -9,8 +9,8 @@ import { ScenarioStrip, type Scenario } from './components/ScenarioStrip'
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
-import { proposeBuilding, removeProposal, type Branch, type LocationSurvey, type ProposalImpact } from './lib/api'
-import { isDisrupted, useSim, zoneLoads } from './lib/sim'
+import { proposeBuilding, removeProposal, type Branch, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
+import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
@@ -22,6 +22,7 @@ export default function App() {
   const [branching, setBranching] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
   const [scenario, setScenario] = useState<Scenario | null>(null)
+  const [hazard, setHazard] = useState<Hazard | null>(null)
 
   // A researched place, shown in place of the campus until it is cleared.
   const [survey, setSurvey] = useState<LocationSurvey | null>(null)
@@ -65,6 +66,7 @@ export default function App() {
   const disrupted = isDisrupted(sim.nodes)
   const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
   const zones = useMemo(() => zoneLoads(nodes), [nodes])
+  const totals = useMemo(() => loadTotals(nodes), [nodes])
   const cooling = sim.briefing?.cooling
   const coolingIds = useMemo(() => (cooling?.open ? cooling.places.map((place) => place.id) : []), [cooling])
 
@@ -99,6 +101,7 @@ export default function App() {
             scenario={scenario}
             previewName={preview?.label ?? null}
             onScenario={setScenario}
+            onHazard={setHazard}
             onChanged={sim.refresh}
           />
 
@@ -133,6 +136,7 @@ export default function App() {
                 edges={sim.edges}
                 selectedId={selectedId}
                 coolingIds={coolingIds}
+                refugeLabel={hazard && hazard.id !== 'extreme_heat' ? 'SHELTER' : 'COOLING CENTER'}
                 onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
               />
             )}
@@ -151,7 +155,7 @@ export default function App() {
             )}
           </div>
 
-          <div className="grid shrink-0 grid-cols-4 border-t border-line bg-panel">
+          <div className="grid shrink-0 grid-cols-[repeat(4,minmax(0,1fr))_auto] border-t border-line bg-panel">
             {zones.map((z) => {
               const color = z.served >= 0.9 ? STATUS_COLOR.Green : z.served >= 0.5 ? STATUS_COLOR.Amber : STATUS_COLOR.Red
               return (
@@ -169,6 +173,14 @@ export default function App() {
                 </div>
               )
             })}
+            <dl className="grid grid-cols-[auto_auto] content-center gap-x-3 gap-y-0.5 whitespace-nowrap px-4 py-2 font-mono text-[11px] tabular-nums text-muted max-[1099px]:hidden">
+              <dt>supply</dt>
+              <dd className="text-right text-text">{sim.summary ? `${Math.round(sim.summary.supply)} kW` : '—'}</dd>
+              <dt>demand</dt>
+              <dd className="text-right text-text">{Math.round(totals.demand)} kW</dd>
+              <dt>unserved</dt>
+              <dd className={`text-right ${totals.unserved >= 1 ? 'text-down' : 'text-text'}`}>{Math.round(totals.unserved)} kW</dd>
+            </dl>
           </div>
         </main>
 
@@ -186,9 +198,13 @@ export default function App() {
             <LivePanel
               sim={sim}
               disrupted={disrupted}
+              hazard={hazard}
               onBranch={() => setBranching(true)}
               onCommand={(result) => {
-                if (result.policy.action === 'reset') setScenario(null)
+                if (result.policy.action === 'reset') {
+                  setScenario(null)
+                  setHazard(null)
+                }
                 else if (result.policy.action === 'fail' && !scenario) setScenario({ label: 'Director’s order', detail: result.transcript })
                 sim.refresh()
               }}

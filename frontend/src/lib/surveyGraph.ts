@@ -25,10 +25,15 @@ export interface SurveyGraphModel {
   edges: SurveyEdge[]
 }
 
-/** Roles decide the links. The plant feeds the campus. A hospital keeps its own supply. */
+/**
+ * Links come from the engine: each building is on its nearest real power source,
+ * and a hospital keeps its own supply. Older responses carry no feeds, so those
+ * fall back to "the plant feeds the campus".
+ */
 export function buildSurvey(survey: LocationSurvey): SurveyGraphModel {
+  const grounded = survey.buildings.some((building) => building.feed !== undefined)
   const nodes: SurveyNode[] = survey.buildings.map((building, index) => ({
-    id: slug(building.name, index),
+    id: building.id ?? slug(building.name, index),
     name: building.name,
     role: building.role,
     why: building.why,
@@ -36,7 +41,7 @@ export function buildSurvey(survey: LocationSurvey): SurveyGraphModel {
     lng: building.lng,
     x: 0,
     y: 0,
-    feed: 'self',
+    feed: building.feed ?? 'self',
   }))
 
   const lngs = nodes.map((node) => node.lng)
@@ -55,7 +60,11 @@ export function buildSurvey(survey: LocationSurvey): SurveyGraphModel {
   const hub = nodes.find((node) => node.role === 'transit')
   const edges: SurveyEdge[] = []
 
-  if (plant) {
+  if (grounded) {
+    for (const node of nodes) {
+      if (node.feed !== 'self') edges.push({ id: `power:${node.feed}->${node.id}`, source: node.feed, target: node.id, kind: 'power' })
+    }
+  } else if (plant) {
     for (const node of nodes) {
       if (node.id === plant.id || node.role === 'hospital' || node.role === 'power') continue
       node.feed = plant.id
@@ -79,7 +88,8 @@ export function darkIds(graph: SurveyGraphModel, failed: readonly string[]): Set
   const dark = new Set<string>()
   for (const node of graph.nodes) {
     if (explicit.has(node.id)) dark.add(node.id)
-    if (node.feed !== 'self' && explicit.has(node.feed)) dark.add(node.id)
+    // A hospital is on the grid like everything else, but its emergency generators carry it when the feed is lost.
+    if (node.feed !== 'self' && explicit.has(node.feed) && node.role !== 'hospital') dark.add(node.id)
   }
   return dark
 }
