@@ -78,11 +78,20 @@ export const CAMPUSES: Campus[] = [
       { name: 'Penn Museum', point: [-75.1918, 39.9525] },
       { name: 'Franklin Field', point: [-75.1899748, 39.950067] },
       { name: 'Penn Park', point: [-75.1815, 39.9484] },
+      { name: 'Huntsman Hall', point: [-75.1947, 39.9526] },
+      { name: 'Annenberg Center', point: [-75.1964, 39.9518] },
+      { name: 'The Palestra', point: [-75.1897, 39.9513] },
+      { name: 'Hill College House', point: [-75.1978, 39.9537] },
+      { name: 'Harnwell College House', point: [-75.1984, 39.9516] },
     ],
     routes: [
       { id: 'upenn-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-75.198, 39.955], [-75.194, 39.954], [-75.190, 39.953], [-75.188, 39.950],
         [-75.192, 39.948], [-75.197, 39.950], [-75.198, 39.955],
+      ] },
+      { id: 'upenn-east-west', name: 'East-west campus route (illustrative)', coordinates: [
+        [-75.199, 39.953], [-75.196, 39.952], [-75.193, 39.951], [-75.190, 39.950],
+        [-75.186, 39.949],
       ] },
     ],
   },
@@ -99,11 +108,20 @@ export const CAMPUSES: Campus[] = [
       { name: 'Main Quadrangles', point: [-87.5994, 41.7892] },
       { name: 'Rockefeller Chapel', point: [-87.602, 41.7904] },
       { name: 'Ratner Athletics Center', point: [-87.6005, 41.7932] },
+      { name: 'Snell-Hitchcock Hall', point: [-87.6006, 41.7896] },
+      { name: 'Max Palevsky Residential Commons', point: [-87.6002, 41.7906] },
+      { name: 'South Campus Residence Hall', point: [-87.599, 41.7848] },
+      { name: 'Stagg Field', point: [-87.6003, 41.7873] },
+      { name: 'David Rubenstein Forum', point: [-87.6002, 41.7933] },
     ],
     routes: [
       { id: 'uchicago-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-87.603, 41.793], [-87.601, 41.790], [-87.598, 41.789], [-87.596, 41.786],
         [-87.599, 41.785], [-87.603, 41.788], [-87.603, 41.793],
+      ] },
+      { id: 'uchicago-south', name: 'South campus route (illustrative)', coordinates: [
+        [-87.601, 41.793], [-87.600, 41.790], [-87.599, 41.787], [-87.598, 41.784],
+        [-87.595, 41.783],
       ] },
     ],
   },
@@ -120,11 +138,20 @@ export const CAMPUSES: Campus[] = [
       { name: 'Grainger Engineering Library', point: [-88.22686, 40.1124737] },
       { name: 'Illinois Street Residence Halls', point: [-88.2212824, 40.1097515] },
       { name: 'Memorial Stadium', point: [-88.2365, 40.0992] },
+      { name: 'Siebel Center for Computer Science', point: [-88.2241, 40.1132] },
+      { name: 'Beckman Institute', point: [-88.2271, 40.1133] },
+      { name: 'Krannert Center for the Performing Arts', point: [-88.2272, 40.1046] },
+      { name: 'Busey-Evans Residence Halls', point: [-88.2283, 40.1101] },
+      { name: 'State Farm Center', point: [-88.241, 40.0964] },
     ],
     routes: [
       { id: 'uiuc-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-88.235, 40.114], [-88.228, 40.114], [-88.222, 40.111], [-88.222, 40.106],
         [-88.228, 40.102], [-88.235, 40.105], [-88.235, 40.114],
+      ] },
+      { id: 'uiuc-south-campus', name: 'South campus route (illustrative)', coordinates: [
+        [-88.229, 40.114], [-88.227, 40.109], [-88.230, 40.104], [-88.237, 40.100],
+        [-88.241, 40.096],
       ] },
     ],
   },
@@ -133,7 +160,7 @@ export const CAMPUSES: Campus[] = [
     name: 'Michigan State University',
     logo: 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Michigan_State_Spartans_alternate_logo.svg',
     collection: 'featured',
-    center: [-84.4804, 42.7024],
+    center: [-84.4804, 42.7284],
     zoom: 14.4,
     landmarks: [
       { name: 'Spartan Stadium', point: [-84.4857621, 42.7281648] },
@@ -141,11 +168,20 @@ export const CAMPUSES: Campus[] = [
       { name: 'MSU Library', point: [-84.4765, 42.727] },
       { name: 'Beaumont Tower', point: [-84.4775, 42.731] },
       { name: 'Breslin Center', point: [-84.4921, 42.7259] },
+      { name: 'Mason-Abbot Residence Hall', point: [-84.4813, 42.7314] },
+      { name: 'Case Hall', point: [-84.4785, 42.7331] },
+      { name: 'Munn Ice Arena', point: [-84.488, 42.7277] },
+      { name: 'Wells Hall', point: [-84.4806, 42.725] },
+      { name: 'Eli and Edythe Broad Art Museum', point: [-84.4833, 42.7331] },
     ],
     routes: [
       { id: 'msu-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-84.490, 42.731], [-84.484, 42.733], [-84.477, 42.731], [-84.472, 42.726],
         [-84.479, 42.722], [-84.488, 42.724], [-84.490, 42.731],
+      ] },
+      { id: 'msu-south-campus', name: 'South campus route (illustrative)', coordinates: [
+        [-84.486, 42.734], [-84.480, 42.731], [-84.478, 42.727], [-84.483, 42.723],
+        [-84.491, 42.721],
       ] },
     ],
   },
@@ -162,11 +198,20 @@ export const CAMPUSES: Campus[] = [
       { name: 'Armstrong Hall', point: [-86.9109, 40.4237] },
       { name: 'Hicks Undergraduate Library', point: [-86.9116, 40.4271] },
       { name: 'Ross-Ade Stadium', point: [-86.9189, 40.4346] },
+      { name: 'Wiley Hall', point: [-86.9128, 40.4296] },
+      { name: 'Windsor Halls', point: [-86.9143, 40.4248] },
+      { name: 'Co-Rec', point: [-86.9162, 40.4207] },
+      { name: 'Mackey Arena', point: [-86.9168, 40.4342] },
+      { name: 'Neil Armstrong Hall', point: [-86.9114, 40.4292] },
     ],
     routes: [
       { id: 'purdue-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-86.920, 40.432], [-86.915, 40.434], [-86.910, 40.431], [-86.908, 40.425],
         [-86.913, 40.421], [-86.919, 40.425], [-86.920, 40.432],
+      ] },
+      { id: 'purdue-south-campus', name: 'South campus route (illustrative)', coordinates: [
+        [-86.919, 40.432], [-86.916, 40.428], [-86.913, 40.424], [-86.911, 40.420],
+        [-86.906, 40.418],
       ] },
     ],
   },
@@ -183,11 +228,19 @@ export const CAMPUSES: Campus[] = [
       { name: 'Norris University Center', point: [-87.6751, 42.0511] },
       { name: 'Ryan Fieldhouse', point: [-87.6735, 42.0585] },
       { name: 'Welsh-Ryan Arena', point: [-87.6712, 42.0575] },
+      { name: 'Elder Hall', point: [-87.6771, 42.0527] },
+      { name: '1838 Chicago Residence Hall', point: [-87.6758, 42.0545] },
+      { name: 'Shepard Residential College', point: [-87.6778, 42.0535] },
+      { name: 'Technological Institute', point: [-87.6746, 42.0571] },
+      { name: 'Shirley Ryan AbilityLab Sports Field', point: [-87.6717, 42.0601] },
     ],
     routes: [
       { id: 'northwestern-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-87.679, 42.058], [-87.675, 42.059], [-87.671, 42.057], [-87.671, 42.053],
         [-87.675, 42.050], [-87.679, 42.053], [-87.679, 42.058],
+      ] },
+      { id: 'northwestern-north-south', name: 'North-south campus route (illustrative)', coordinates: [
+        [-87.678, 42.060], [-87.676, 42.056], [-87.675, 42.053], [-87.674, 42.050],
       ] },
     ],
   },
@@ -204,11 +257,19 @@ export const CAMPUSES: Campus[] = [
       { name: 'Stata Center', point: [-71.0903, 42.3612] },
       { name: 'Kresge Auditorium', point: [-71.0955, 42.3582] },
       { name: 'Simmons Hall', point: [-71.1007, 42.3589] },
+      { name: 'Baker House', point: [-71.0958, 42.3578] },
+      { name: 'MacGregor House', point: [-71.0931, 42.3582] },
+      { name: 'MIT Media Lab', point: [-71.0887, 42.3608] },
+      { name: 'Zesiger Sports and Fitness Center', point: [-71.0961, 42.3593] },
+      { name: 'Koch Institute', point: [-71.0886, 42.3621] },
     ],
     routes: [
       { id: 'mit-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-71.102, 42.362], [-71.096, 42.363], [-71.089, 42.362], [-71.087, 42.358],
         [-71.093, 42.356], [-71.101, 42.357], [-71.102, 42.362],
+      ] },
+      { id: 'mit-kendall', name: 'Kendall campus route (illustrative)', coordinates: [
+        [-71.099, 42.360], [-71.094, 42.360], [-71.090, 42.361], [-71.087, 42.363],
       ] },
     ],
   },
@@ -225,11 +286,19 @@ export const CAMPUSES: Campus[] = [
       { name: 'Memorial Glade', point: [-122.259, 37.873] },
       { name: 'Greek Theatre', point: [-122.2542, 37.8744] },
       { name: 'California Memorial Stadium', point: [-122.2526, 37.8703] },
+      { name: 'Unit 1 Residence Halls', point: [-122.2604, 37.8727] },
+      { name: 'Unit 2 Residence Halls', point: [-122.261, 37.8741] },
+      { name: 'Unit 3 Residence Halls', point: [-122.2574, 37.8737] },
+      { name: 'Haas Pavilion', point: [-122.262, 37.8699] },
+      { name: 'Hearst Memorial Mining Building', point: [-122.2577, 37.8731] },
     ],
     routes: [
       { id: 'berkeley-loop', name: 'Campus shuttle loop (illustrative)', coordinates: [
         [-122.263, 37.873], [-122.259, 37.875], [-122.254, 37.874], [-122.252, 37.870],
         [-122.257, 37.869], [-122.262, 37.870], [-122.263, 37.873],
+      ] },
+      { id: 'berkeley-south-campus', name: 'South campus route (illustrative)', coordinates: [
+        [-122.260, 37.875], [-122.259, 37.872], [-122.261, 37.869], [-122.263, 37.866],
       ] },
     ],
   },
