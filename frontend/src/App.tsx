@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BranchPanel } from './components/BranchPanel'
+import { ClassLoad } from './components/ClassLoad'
 import { GeoMap, type GeoMapHandle, type WeatherStatus } from './components/GeoMap'
 import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
@@ -10,6 +11,7 @@ import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
 import { fetchHazards, proposeBuilding, removeProposal, type Branch, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
+import { useClassLoad } from './lib/classLoad'
 import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
@@ -25,6 +27,8 @@ const RUNNING: Scenario = { label: 'Scenario running', detail: 'Reset stops it' 
 
 export default function App() {
   const sim = useSim()
+  // Students in class by time of day. Lives here so it outlives the panel swap to branching.
+  const classLoad = useClassLoad()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('grid')
   const [branching, setBranching] = useState(false)
@@ -217,6 +221,9 @@ export default function App() {
                   placing={placing !== null}
                   proposals={sim.proposals}
                   draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
+                  classSpots={classLoad.spots}
+                  classClock={classLoad.clock}
+                  onClassSlot={classLoad.setSlot}
                   onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
                   weather={weather}
                   weatherRequest={weatherRequest}
@@ -333,6 +340,7 @@ export default function App() {
                 else if (result.policy.action === 'fail') offerLabel({ label: 'Director’s order', detail: result.transcript })
                 sim.refresh()
               }}
+              people={<ClassLoad load={classLoad} />}
               plan={
                 <>
                   <PlanBuilding

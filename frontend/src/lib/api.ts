@@ -333,3 +333,56 @@ export async function researchLocation(query: string): Promise<LocationSurvey> {
 export async function fetchDebrief(): Promise<Debrief> {
   return post('/debrief') as Promise<Debrief>
 }
+
+export interface ClassSlot {
+  minutes: number
+  label: string
+  students: number
+  events?: number
+}
+
+export interface ClassBuilding {
+  code: string
+  name: string
+  campus: string
+  lat: number | null
+  lng: number | null
+  node_id: string | null
+  students: number[]
+}
+
+export interface ClassLoad {
+  weekday: string
+  turnup: number
+  focus: number
+  note: string | null
+  term: string
+  term_name: string
+  source: string
+  source_label: string
+  slots: ClassSlot[]
+  buildings: ClassBuilding[]
+  meeting_count: number
+  event_count?: number
+}
+
+export interface ClassSpot {
+  code: string
+  name: string
+  lat: number
+  lng: number
+  nodeId: string | null
+  students: number
+}
+
+export async function fetchClassLoad(weekday?: string, turnup = 0.75): Promise<ClassLoad> {
+  const params = new URLSearchParams({ turnup: String(turnup) })
+  if (weekday) params.set('weekday', weekday)
+  const res = await fetch(`${BACKEND_URL}/occupancy?${params}`)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const detail = typeof data.detail === 'string' ? data.detail : res.statusText
+    throw new Error(detail)
+  }
+  return data as ClassLoad
+}

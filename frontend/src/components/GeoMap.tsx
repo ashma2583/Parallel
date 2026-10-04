@@ -3,7 +3,8 @@ import { Map, Marker, NavigationControl } from '@vis.gl/react-maplibre'
 import { setWorkerUrl, type Map as MaplibreMap } from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { Briefing, LocationSurvey, ProposalPin } from '../lib/api'
+import type { Briefing, ClassSpot, LocationSurvey, ProposalPin } from '../lib/api'
+import type { ClassClock } from '../lib/classLoad'
 import type { SurveyGraphModel } from '../lib/surveyGraph'
 import { BACKEND_URL } from '../config'
 import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
@@ -114,6 +115,10 @@ interface Props {
   onWeatherStatus?: (status: WeatherStatus) => void
   /** Pull engine state after a write. */
   onChanged?: () => void
+  /** Students in class by building at the chosen time. Display only. */
+  classSpots?: readonly ClassSpot[]
+  classClock?: ClassClock | null
+  onClassSlot?: (slot: number) => void
 }
 
 export function GeoMap({
@@ -137,6 +142,9 @@ export function GeoMap({
   onStorm,
   onWeatherStatus,
   onChanged,
+  classSpots = [],
+  classClock = null,
+  onClassSlot,
 }: Props) {
   const [map, setMap] = useState<MaplibreMap | null>(null)
   const [buses, setBuses] = useState<BusCollection>(EMPTY)
@@ -159,6 +167,25 @@ export function GeoMap({
     return () => window.clearTimeout(timer)
   }, [restyling])
   const [focus, setFocus] = useState<string | null>(null)
+
+  // Class load: circles sized by students in class, on the U-M map only.
+  const [showPeople, setShowPeople] = useState(true)
+  const peopleOn = showPeople && !survey
+  const visibleClasses = useMemo(
+    () => (peopleOn ? classSpots.filter((spot) => spot.students > 0 && inTown(spot.lng, spot.lat)) : []),
+    [classSpots, peopleOn],
+  )
+  const classMax = classClock?.dayPeak || visibleClasses.reduce((max, spot) => Math.max(max, spot.students), 0)
+  const classByNode = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const spot of visibleClasses) if (spot.nodeId) counts[spot.nodeId] = (counts[spot.nodeId] ?? 0) + spot.students
+    return counts
+  }, [visibleClasses])
+  // Only the busiest few carry a number, so central campus stays readable.
+  const labeledClasses = useMemo(
+    () => new Set([...visibleClasses].sort((a, b) => b.students - a.students).slice(0, 6).map((spot) => spot.code)),
+    [visibleClasses],
+  )
 
   useEffect(() => {
     let stop = false
@@ -533,6 +560,7 @@ export function GeoMap({
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
         <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
+        <Toggle label="People" checked={showPeople} onChange={setShowPeople} />
         <Toggle label="3D view" checked={threeD} onChange={setThreeD} />
       </div>
       <Map
@@ -548,6 +576,31 @@ export function GeoMap({
         cursor={placing ? 'crosshair' : undefined}
       >
         <NavigationControl position="bottom-right" showCompass />
+        {visibleClasses.map((spot) => {
+          const share = classMax > 0 ? Math.min(1, spot.students / classMax) : 0
+          const size = 14 + Math.sqrt(share) * 52
+          return (
+            // Under the line overlays and building pins (z-index 2 in index.css), even on hover.
+            <Marker key={`class-${spot.code}`} longitude={spot.lng} latitude={spot.lat} anchor="center" style={{ zIndex: 1 }}>
+              <div
+                title={`${spot.name}: ${spot.students.toLocaleString()} in class`}
+                className="flex items-center justify-center rounded-full border border-people"
+                style={{
+                  width: size,
+                  height: size,
+                  background: `color-mix(in srgb, var(--color-people) ${Math.round(18 + share * 52)}%, transparent)`,
+                  pointerEvents: armed || placing ? 'none' : undefined,
+                }}
+              >
+                {labeledClasses.has(spot.code) && size >= 30 && (
+                  <span className="rounded-sm bg-ink/85 px-1 font-mono text-[10px] font-semibold tabular-nums text-people">
+                    {spot.students >= 1000 ? `${(spot.students / 1000).toFixed(1)}k` : spot.students}
+                  </span>
+                )}
+              </div>
+            </Marker>
+          )
+        })}
         {nodes.map((node) => {
           const place = PLACES[node.id]
           if (!place || CITY.has(node.id)) return null
@@ -555,6 +608,7 @@ export function GeoMap({
           const cooling = coolingIds.includes(node.id)
           const selected = node.id === selectedId
           const named = selected || cooling || node.status !== 'Green'
+          const inClass = classByNode[node.id]
           return (
             <Marker key={node.id} longitude={place.lng} latitude={place.lat} anchor="center">
               <button
@@ -565,7 +619,7 @@ export function GeoMap({
                 }}
                 className="group flex flex-col items-center"
                 style={armed ? { pointerEvents: 'none' } : undefined}
-                title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
+                title={`${node.name} · ${node.status}${inClass ? ` · ${inClass.toLocaleString()} in class` : ''}${cooling ? ' · cooling center' : ''}`}
               >
                 <span
                   data-place-dot
@@ -576,12 +630,13 @@ export function GeoMap({
                 <span
                   data-place-name
                   data-place-label={named ? (selected ? 0 : node.status === 'Red' ? 1 : node.status === 'Amber' ? 2 : 3) : undefined}
-                  className={`mt-1 max-w-40 truncate rounded-sm bg-ink/90 px-1.5 py-0.5 text-[10px] font-medium text-text data-[off=true]:invisible group-hover:data-[off=true]:visible ${
+                  className={`mt-1 ${inClass ? 'max-w-60' : 'max-w-40'} truncate rounded-sm bg-ink/90 px-1.5 py-0.5 text-[10px] font-medium text-text data-[off=true]:invisible group-hover:data-[off=true]:visible ${
                     named ? '' : 'invisible group-hover:visible'
                   }`}
                 >
                   {place.short}
                   {cooling && <span className="ml-1 text-transit">cooling</span>}
+                  {inClass ? <span className="ml-1 text-people">{inClass.toLocaleString()} in class</span> : null}
                 </span>
               </button>
             </Marker>
@@ -742,6 +797,32 @@ export function GeoMap({
               </div>
             )
           })}
+        </div>
+      )}
+      {peopleOn && classClock && (
+        // The time of day the circles show. The full controls live in the People tab.
+        <div className="absolute left-1/2 top-3.5 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full border border-line bg-panel/95 py-1 pl-1 pr-3 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <button
+            type="button"
+            onClick={() => onClassSlot?.(classClock.slot - 1)}
+            disabled={!onClassSlot || classClock.slot <= 0}
+            aria-label="Half an hour earlier"
+            className="grid h-6 w-6 place-items-center rounded-full text-muted hover:bg-raised hover:text-text disabled:opacity-30"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() => onClassSlot?.(classClock.slot + 1)}
+            disabled={!onClassSlot || classClock.slot >= classClock.count - 1}
+            aria-label="Half an hour later"
+            className="grid h-6 w-6 place-items-center rounded-full text-muted hover:bg-raised hover:text-text disabled:opacity-30"
+          >
+            ›
+          </button>
+          <span className="ml-1 h-2 w-2 shrink-0 rounded-full bg-people" />
+          <span className="whitespace-nowrap font-semibold">{classClock.label}</span>
+          <span className="whitespace-nowrap font-mono tabular-nums text-muted">{classClock.students.toLocaleString()} in class</span>
         </div>
       )}
       <WeatherCanvas map={map} {...storm.canvas} marks={marks} lightMap={basemap === 'vector'} hidden={restyling} />
@@ -1014,6 +1095,11 @@ function Toggle({
       {label}
     </label>
   )
+}
+
+/** Class buildings in or near Ann Arbor. A bad geocode elsewhere stays off the map. */
+function inTown(lng: number, lat: number) {
+  return lng > -83.82 && lng < -83.64 && lat > 42.23 && lat < 42.33
 }
 
 function links(edges: readonly SimEdge[], kind: string) {
