@@ -47,6 +47,8 @@ from pydantic import BaseModel, Field
 from agents import runtime
 import briefing
 from agents.logic import DEFAULT_STRATEGY, STRATEGIES, apply_policy
+import location_agent
+import proposal
 from agents.serve import start_in_thread
 from branch import run_branches
 from graph import CampusGraph
@@ -142,6 +144,19 @@ class CommandRequest(BaseModel):
     text: str = Field(..., min_length=1, examples=["The south substation just failed"])
 
 
+class LocationRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=200)
+
+
+class ProposalRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=60)
+    kind: Literal["dorm", "academic", "research", "dining", "library"]
+    lng: float
+    lat: float
+    demand_kw: float = Field(..., gt=0, le=400)
+    people: int = Field(..., ge=1, le=5000)
+
+
 def _state() -> dict:
     body = graph.to_dict()
     body["activity"] = list(runtime.activity)
@@ -206,6 +221,74 @@ def get_bus_routes() -> dict:
 def get_briefing() -> dict:
     with runtime.lock:
         return briefing.build_briefing(graph, runtime.strategy)
+
+
+@app.get("/proposals")
+def get_proposals() -> dict:
+    with runtime.lock:
+        return {"proposals": proposal.list_proposals(graph)}
+
+
+@app.post("/proposal")
+async def post_proposal(req: ProposalRequest) -> dict:
+    """Drop a planned building onto the live U-M grid and report the effect."""
+    with runtime.lock:
+        try:
+            placed = proposal.place_proposal(
+                graph,
+                name=req.name,
+                kind=req.kind,
+                lng=req.lng,
+                lat=req.lat,
+                demand=req.demand_kw,
+                people=req.people,
+            )
+        except proposal.ProposalError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        runtime.push([f"Planner: added {req.name.strip()} on the {placed['feeder_label']} feed"])
+        runtime.run_cycle(graph, force=True)
+        body = proposal.describe(graph, placed)
+    await publisher.publish(graph)
+    return body
+
+
+@app.delete("/proposal/{node_id}")
+async def delete_proposal(node_id: str) -> dict:
+    with runtime.lock:
+        if node_id not in graph.proposals:
+            raise HTTPException(status_code=404, detail="No planned building with that id.")
+        name = graph.nodes[node_id].name
+        graph.remove_proposal(node_id)
+        runtime.push([f"Planner: removed {name}"])
+        runtime.run_cycle(graph, force=True)
+    await publisher.publish(graph)
+    return {"removed": node_id}
+
+
+@app.post("/location")
+async def post_location(req: LocationRequest) -> dict:
+    """Research a place and return at most 20 buildings and the core transit lines."""
+    try:
+        found = await location_agent.research_location(req.query)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not found["buildings"]:
+        raise HTTPException(status_code=422, detail="No buildings with a known location came back.")
+    return found
+
+
+@app.post("/debrief")
+async def post_debrief() -> dict:
+    """Ask Grok for an after-action read of the scenario the director just ran."""
+    with runtime.lock:
+        report = briefing.build_briefing(graph, runtime.strategy)
+        if not report["disrupted"]:
+            raise HTTPException(status_code=400, detail="Run a scenario before asking for a summary.")
+        facts = briefing.debrief_facts(graph, runtime.strategy, runtime.snapshot()["lines"])
+    try:
+        return await voice.write_debrief(facts)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.post("/priority")

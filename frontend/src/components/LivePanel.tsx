@@ -146,6 +146,7 @@ function CommandBox({ onDone }: { onDone: (result: CommandResult) => void }) {
 const TABS = [
   { id: 'feed', label: 'Agent feed' },
   { id: 'briefing', label: 'Briefing' },
+  { id: 'plan', label: 'Plan' },
 ] as const
 
 interface Props {
@@ -153,10 +154,12 @@ interface Props {
   disrupted: boolean
   onBranch: () => void
   onCommand: (result: CommandResult) => void
+  /** Planning tools: add a building to the campus, or research another place. */
+  plan: React.ReactNode
 }
 
 /** Right panel while watching the live campus: current policy, feed and briefing, director's order. */
-export function LivePanel({ sim, disrupted, onBranch, onCommand }: Props) {
+export function LivePanel({ sim, disrupted, onBranch, onCommand, plan }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('feed')
   const policy = strategyFor(sim.strategy)
 
@@ -197,7 +200,10 @@ export function LivePanel({ sim, disrupted, onBranch, onCommand }: Props) {
           ))}
         </div>
         <div className="-mr-1.5 min-h-0 flex-1 overflow-y-auto pb-3 pr-1.5">
-          {tab === 'feed' ? <Feed lines={sim.activity} /> : <BriefingPanel briefing={sim.briefing} />}
+          {tab === 'feed' && <Feed lines={sim.activity} />}
+          {tab === 'briefing' && <BriefingPanel briefing={sim.briefing} />}
+          {/* Kept mounted so a half-filled form or a research result survives a tab switch. */}
+          <div hidden={tab !== 'plan'} className="flex flex-col gap-6">{plan}</div>
         </div>
       </div>
 
