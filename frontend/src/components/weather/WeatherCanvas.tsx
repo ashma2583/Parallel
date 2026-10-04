@@ -24,6 +24,7 @@ import {
   type StormKind,
   type WeatherCanvasProps,
 } from '../../lib/weather/types'
+import { sceneNow } from '../../lib/sceneClock'
 import { RENDERERS } from './render'
 import { CAMPUS } from './render/campus'
 import type { CellArgs, Frame, Pt, TrackArgs } from './render/types'
@@ -316,7 +317,7 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     const campus = p.campus ?? []
     const liveIds = new Set(live.map((l) => l.storm.id))
     // Every frame: storms moving, a condition arriving or settling, the path being drawn, the cursor ghost.
-    const animated = live.length > 0 || Boolean(p.draft || p.hover) || campus.some((c) => now - c.startedAt < c.duration + SETTLE)
+    const animated = live.length > 0 || Boolean(p.draft || p.hover) || campus.some((c) => sceneNow() - c.startedAt < c.duration + SETTLE)
     // About 30 fps: ambient motion on finished tracks, lingering conditions, the selected ghost's marching dashes.
     const ambient =
       campus.length > 0 || p.tracks.some((t) => !liveIds.has(t.id)) || (p.selectedId !== null && staged.some((g) => g.id === p.selectedId))
@@ -354,7 +355,8 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     const a = map.project([c.lng, c.lat])
     const b = map.project([c.lng + 100 / (Math.cos((c.lat * Math.PI) / 180) * 111_320), c.lat])
     const pxPerMeter = Math.max(1e-6, Math.hypot(b.x - a.x, b.y - a.y) / 100)
-    const f: Frame = { ctx, width, height, now, dark, pxPerMeter }
+    const scene = sceneNow()
+    const f: Frame = { ctx, width, height, now, scene, dark, pxPerMeter }
     const lives = p.live ?? []
     const liveIds = new Set(lives.map((l) => l.storm.id))
 
@@ -378,7 +380,7 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     drawGhosts(f, p.staged ?? [], p.selectedId, pal, p.startsAt ?? DEFAULT_STARTS_AT)
 
     const runs = lives.flatMap((live) => {
-      const state = liveState(now, live)
+      const state = liveState(scene, live)
       return state ? [state] : []
     })
     for (const st of runs) {
@@ -389,7 +391,7 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
       if (st.progress >= 1) continue
       onGround(f, st.head, (g, flat) => RENDERERS[st.live.storm.kind].cell(g, liveCell(st, g, flat)))
     }
-    if (lives.length > 0) drawHits(lives, now, pal)
+    if (lives.length > 0) drawHits(lives, scene, pal)
     if (p.draft) drawDraft(f, p.draft, pal)
     if (p.hover && !p.draft) drawHover(f, p.hover, pal)
   }
@@ -552,7 +554,7 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
   /** A campus-wide condition: strong while it arrives, then a faint lingering level. */
   function drawCampus(f: Frame, c: CampusEffect) {
     if (!ctx) return
-    const elapsed = f.now - c.startedAt
+    const elapsed = f.scene - c.startedAt
     if (elapsed < 0) return
     const duration = Math.max(1, c.duration)
     const settle = easeOut(clamp01((elapsed - duration) / SETTLE))

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BranchPanel } from './components/BranchPanel'
 import { ClassLoad } from './components/ClassLoad'
 import { GeoMap, type GeoMapHandle, type WeatherStatus } from './components/GeoMap'
@@ -13,9 +13,10 @@ import { WEEKDAYS, clearSaver } from './lib/saver'
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
-import { fetchHazards, proposeBuilding, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
+import { fetchHazards, proposeBuilding, removeProposal, resetSim, setClock, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
 import { useClassLoad } from './lib/classLoad'
-import { useSimClock } from './lib/simClock'
+import { fmtClock, useSimClock } from './lib/simClock'
+import { setScenePaused } from './lib/sceneClock'
 import { usePeopleNow } from './lib/peopleNow'
 import { isDisrupted, isSupplier, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
@@ -87,9 +88,17 @@ export default function App() {
     tick: demoReady ? sim.summary?.tick : undefined,
     run: mapWeather.running ? { startsAt: mapWeather.startsAt ?? '14:00', speed: mapWeather.speed ?? 1 } : null,
     wave: sim.briefing?.heat_wave ?? null,
+    engine: demoReady ? sim.engineClock : null,
   })
-  // Students in class by time of day. Lives here so it outlives the panel swap to branching.
-  const classLoad = useClassLoad(clock.following ? clock.minutes : null)
+  // Students in class by time of day, at the clock's time. Picking a time moves the engine's clock there.
+  const refreshSim = sim.refresh
+  const jumpClock = useCallback(
+    (minutes: number) => void setClock({ at: fmtClock(minutes) }).then(() => refreshSim()).catch(() => {}),
+    [refreshSim],
+  )
+  const classLoad = useClassLoad(clock.minutes, clock.following, jumpClock)
+  // Buses and a playing scenario stand still while the clock is paused.
+  useEffect(() => setScenePaused(clock.paused), [clock.paused])
   const mapRef = useRef<GeoMapHandle>(null)
   const peopleMinute = classLoad.data?.slots[classLoad.slot]?.minutes
   const saverDay = saverWhen.weekday ?? (WEEKDAYS as readonly string[]).find((d) => d === classLoad.weekday) ?? WEEKDAYS[(new Date().getDay() + 6) % 7]

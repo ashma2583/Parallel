@@ -334,6 +334,8 @@ def build_router(graph: CampusGraph, publisher: Any) -> APIRouter:
         """
         with runtime.lock:
             catch_up()
+            # A run starts the clock.
+            runtime.paused = False
             epoch["run"] = getattr(graph, "reset_count", 0)
             baseline = getattr(graph, "scenario_baseline", None)
             restored = baseline is not None

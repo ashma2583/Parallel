@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { setClock } from './api'
 import { parseClock } from './weather/plan'
 import { TICK_MINUTES } from './weather/types'
 
@@ -19,6 +20,8 @@ export interface SimClockInput {
   run: { startsAt: string; speed: number } | null
   /** The heat wave in the briefing, if one is on. */
   wave: { step: number; span: number } | null
+  /** The engine's campus clock. Outside a run the clock reads it, so every view shows the engine's time. */
+  engine: { minutes: number; paused: boolean } | null
 }
 
 export interface SimClock {
@@ -28,6 +31,8 @@ export interface SimClock {
   minutes: number | null
   /** A scenario or heat wave is moving the clock, so other views follow it instead of scrubbing. */
   following: boolean
+  /** The engine's clock is paused. */
+  paused: boolean
   /** Time of day at a tick, for feed lines and forks. */
   at: (tick: number) => string
   /** The tick nearest a typed "HH:MM" within twelve hours of now, or null if it is not a time. */
@@ -50,11 +55,15 @@ const read = (segments: Segment[], tick: number) => {
  * starts it at the run's start time and moves at the run's speed, and a heat wave starts it at
  * 14:00. Everything that shows a time reads it from here.
  */
-export function useSimClock({ tick, run, wave }: SimClockInput): SimClock {
+export function useSimClock({ tick, run, wave, engine }: SimClockInput): SimClock {
   const [segments, setSegments] = useState<Segment[]>([])
   const tickRef = useRef(tick)
+  const engineRef = useRef(engine)
+  const segmentsRef = useRef(segments)
   useEffect(() => {
     tickRef.current = tick
+    engineRef.current = engine
+    segmentsRef.current = segments
   })
 
   useEffect(() => {
@@ -73,11 +82,12 @@ export function useSimClock({ tick, run, wave }: SimClockInput): SimClock {
     const now = tickRef.current
     if (now === undefined || (running === was.running && speed === was.speed)) return
     const parsed = running && !was.running ? parseClock(startsAt ?? '') : null
-    setSegments((s) => {
-      const here = s.length ? read(s, now) : OPEN_MINUTES
-      const minutes = running && !was.running ? (parsed ? parsed[0] * 60 + parsed[1] : OPEN_MINUTES) : here
-      return [...s.slice(-40), { tick: now, minutes, perTick: TICK_MINUTES * (running ? speed : 1) }]
-    })
+    const s = segmentsRef.current
+    const here = s.length ? read(s, now) : (engineRef.current?.minutes ?? OPEN_MINUTES)
+    const minutes = running && !was.running ? (parsed ? parsed[0] * 60 + parsed[1] : OPEN_MINUTES) : here
+    // The engine keeps the run's time, so the clock reads on from the same minute when the run ends.
+    if (running !== was.running) void setClock({ at: fmtClock(minutes) }).catch(() => {})
+    setSegments((prev) => [...prev.slice(-40), { tick: now, minutes, perTick: TICK_MINUTES * (running ? speed : 1) }])
   }, [running, speed, startsAt])
 
   // A heat wave outside a run starts at 14:00. The step tells where it began, so a reload mid-wave still reads right.
@@ -92,7 +102,9 @@ export function useSimClock({ tick, run, wave }: SimClockInput): SimClock {
   }, [step, running])
 
   const waving = wave !== null && wave.step < wave.span
-  const minutes = tick !== undefined && segments.length ? read(segments, tick) : null
+  // Outside a run the engine's clock is the clock. A run reads its own start time and speed.
+  const minutes = !running && engine ? engine.minutes : tick !== undefined && segments.length ? read(segments, tick) : null
+  const paused = engine?.paused ?? false
 
   const at = useCallback((t: number) => (segments.length ? fmtClock(read(segments, t)) : '—'), [segments])
   const tickFor = useCallback(
@@ -107,7 +119,7 @@ export function useSimClock({ tick, run, wave }: SimClockInput): SimClock {
   )
 
   return useMemo(
-    () => ({ label: minutes === null ? '—' : fmtClock(minutes), minutes, following: running || waving, at, tickFor }),
-    [minutes, running, waving, at, tickFor],
+    () => ({ label: minutes === null ? '—' : fmtClock(minutes), minutes, following: running || waving, paused, at, tickFor }),
+    [minutes, running, waving, paused, at, tickFor],
   )
 }

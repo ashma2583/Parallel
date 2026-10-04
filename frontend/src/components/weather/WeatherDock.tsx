@@ -26,6 +26,7 @@ import {
   type WeatherDockProps,
 } from '../../lib/weather/types'
 import { EventIcon, FaultIcon, HazardIcon, StormIcon, UiIcon } from './icons'
+import { onScenePause, sceneNow, scenePaused } from '../../lib/sceneClock'
 
 type Props = WeatherDockProps
 
@@ -236,9 +237,10 @@ function Pill({ events, phase, onOpen }: Props) {
 function MiniBar(p: Props) {
   const startsAt = p.startsAt ?? DEFAULT_START
   const guard = useSwapGuard()
-  const now = useNow(p.run !== null)
+  // Re-renders on a timer while it plays; the time itself is scenario time.
+  useNow(p.run !== null)
   const total = p.run ? (p.run.total / 1000) * p.speed : 0
-  const elapsed = p.run ? Math.min(total, (Math.max(0, now - p.run.startedAt) / 1000) * p.speed) : 0
+  const elapsed = p.run ? Math.min(total, (Math.max(0, sceneNow() - p.run.startedAt) / 1000) * p.speed) : 0
   const clock = simClock(startsAt, elapsed)
   return (
     <div
@@ -280,8 +282,15 @@ function Progress({ run }: { run: { startedAt: number; total: number } }) {
     const el = bar.current
     if (!el) return
     const anim = el.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: Math.max(1, run.total), fill: 'both' })
-    anim.currentTime = Math.max(0, performance.now() - run.startedAt)
-    return () => anim.cancel()
+    anim.currentTime = Math.max(0, sceneNow() - run.startedAt)
+    // The bar holds while the clock is paused.
+    const hold = (paused: boolean) => (paused ? anim.pause() : anim.play())
+    hold(scenePaused())
+    const stop = onScenePause(hold)
+    return () => {
+      stop()
+      anim.cancel()
+    }
   }, [run.startedAt, run.total])
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-line/70" aria-hidden="true">

@@ -113,6 +113,8 @@ export interface Sim {
   proposals: ProposalPin[]
   /** Energy saver on the live clock. Null when off. */
   saver: SaverLive | null
+  /** The engine's campus clock: minute of the day and whether it is paused. Null until the engine replies. */
+  engineClock: { minutes: number; paused: boolean } | null
   /** Pull engine state now instead of waiting for the next poll. */
   refresh: () => Promise<void>
 }
@@ -150,6 +152,7 @@ export function useSim(): Sim {
   const [briefing, setBriefing] = useState<Briefing | null>(null)
   const [proposals, setProposals] = useState<ProposalPin[]>([])
   const [saver, setSaver] = useState<SaverLive | null>(null)
+  const [engineClock, setEngineClock] = useState<{ minutes: number; paused: boolean } | null>(null)
 
   const stdbLiveRef = useRef(stdbLive)
   useEffect(() => {
@@ -174,6 +177,10 @@ export function useSim(): Sim {
       setEngineUp(true)
       setStrategy(data.strategy ?? 'tiered')
       setSaver(data.saver ?? null)
+      if (typeof data.minutes === 'number') {
+        const next = { minutes: data.minutes as number, paused: data.paused === true }
+        setEngineClock((now) => (now && now.minutes === next.minutes && now.paused === next.paused ? now : next))
+      }
       const logs = readScenarios(data)
       setScenarios(logs)
       setActivity(logs[logs.length - 1]?.lines ?? [])
@@ -221,14 +228,15 @@ export function useSim(): Sim {
         briefing,
         proposals,
         saver,
+        engineClock,
         refresh: pull,
       }
     }
     if (engineUp && engine) {
-      return { source: 'engine', ...engine, nodes: capped([...engine.nodes].sort(byId)), activity, scenarios, strategy, briefing, proposals, saver, refresh: pull }
+      return { source: 'engine', ...engine, nodes: capped([...engine.nodes].sort(byId)), activity, scenarios, strategy, briefing, proposals, saver, engineClock, refresh: pull }
     }
-    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, scenarios, strategy, briefing, proposals, saver, refresh: pull }
-  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, scenarios, strategy, briefing, proposals, saver, pull])
+    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, scenarios, strategy, briefing, proposals, saver, engineClock, refresh: pull }
+  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, scenarios, strategy, briefing, proposals, saver, engineClock, pull])
 }
 
 function feedLines(lines: string[] = [], ticks: number[] = []): FeedLine[] {

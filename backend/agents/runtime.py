@@ -169,8 +169,9 @@ def _capture(sim: CampusGraph) -> dict[str, Any]:
 
 
 def begin_scenario(label: str) -> None:
-    """Start a fresh log and keep the previous scenario's lines."""
-    global scenario_id, scenario_label
+    """Start a fresh log and keep the previous scenario's lines. A scenario starts the clock."""
+    global scenario_id, scenario_label, paused
+    paused = False
     if activity:
         scenarios.append({
             "id": scenario_id,

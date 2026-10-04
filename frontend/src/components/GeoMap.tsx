@@ -15,6 +15,7 @@ import { TICK_MINUTES, type BusLine, type ClosedRoute, type LngLat, type Weather
 import type { PlannedScenario } from '../lib/weather/forecast'
 import { useWeather, type StormNote } from './weather/useWeather'
 import { WeatherCanvas } from './weather/WeatherCanvas'
+import { sceneNow } from '../lib/sceneClock'
 import { WeatherDock } from './weather/WeatherDock'
 
 setWorkerUrl(maplibreWorkerUrl)
@@ -1501,11 +1502,12 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
     // Smoothed so the turn at the end of a line is a quick U-turn, not a flip.
     const headings = headingsRef.current
     for (const key of headings.keys()) if (!vehicles.some((vehicle) => vehicle.key === key)) headings.delete(key)
-    let last = performance.now()
+    // Scenario time: buses stand still while the clock is paused.
+    let last = sceneNow()
     let frame = 0
 
     const advance = () => {
-      const now = performance.now()
+      const now = sceneNow()
       // Capped step: a hidden tab or a slow frame resumes where it left off instead of jumping.
       const step = Math.min(250, Math.max(0, now - last))
       last = now

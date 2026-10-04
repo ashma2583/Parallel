@@ -5,6 +5,7 @@ import { tables } from '../module_bindings'
 import { essentialServed, type Sim, type SimNode } from '../lib/sim'
 import { STATUS_COLOR } from '../lib/status'
 import type { SimClock } from '../lib/simClock'
+import { setScenePaused } from '../lib/sceneClock'
 
 export type View = 'grid' | 'map'
 
@@ -60,7 +61,7 @@ export function TopBar({ sim, nodes, view, onView, clock }: Props) {
       </a>
 
       <div className="flex min-w-0 shrink-0 items-center gap-6 whitespace-nowrap">
-        <Clock clock={clock} />
+        <Clock clock={clock} onChange={sim.refresh} />
         <div className="flex items-baseline gap-2.5" title={SOURCE_HINT[sim.source]}>
           <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Essential served</span>
           <span className="font-mono text-[22px] font-medium tabular-nums" style={{ color: ready ? essentialColor : undefined }}>
@@ -85,15 +86,25 @@ export function TopBar({ sim, nodes, view, onView, clock }: Props) {
   )
 }
 
-function Clock({ clock }: { clock: SimClock }) {
-  const [paused, setPaused] = useState(false)
+function Clock({ clock, onChange }: { clock: SimClock; onChange: () => Promise<void> }) {
+  // The engine's pause, shown at once on a click until the engine says so too.
+  const [pending, setPending] = useState<boolean | null>(null)
+  const paused = pending ?? clock.paused
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   async function pause(next: boolean) {
-    const state = await setClock({ paused: next })
-    setPaused(state.paused)
-    setError(null)
+    setPending(next)
+    setScenePaused(next)
+    try {
+      await setClock({ paused: next })
+      await onChange()
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPending(null)
+    }
   }
 
   // Jump to a time of day: forward runs the engine there, back recalls a saved moment.
@@ -105,8 +116,8 @@ function Clock({ clock }: { clock: SimClock }) {
       return
     }
     try {
-      const state = await setClock({ until: target })
-      setPaused(state.paused)
+      await setClock({ until: target })
+      await onChange()
       setDraft('')
       setError(null)
     } catch (err) {

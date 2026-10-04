@@ -60,6 +60,9 @@ import proposal
 from agents.serve import start_in_thread
 from branch import ScenarioBatch, run_branches, scenario_ticks
 from graph import CLOCK_START_MINUTES, CampusGraph
+
+# Idle, the clock holds at 14:00; a scenario, heat wave or energy saver starts it. OPEN_PAUSED=0 lets it run.
+OPEN_PAUSED = os.getenv("OPEN_PAUSED", "1") != "0"
 from stdb import SpacetimePublisher
 import savings
 from stdb_actions import ActionConsumer, asgi_dispatcher
@@ -94,6 +97,22 @@ def actions_live() -> bool:
     )
 
 
+def _play_saver() -> None:
+    """While the energy saver plays its day, run extra ticks so the day goes by fast. Caller holds the lock."""
+    saver = graph.saver
+    until = saver.get("play_until") if saver else None
+    if until is None:
+        return
+    for _ in range(savings.PLAY_SPEED - 1):
+        if graph.tick_count >= until:
+            break
+        runtime.run_cycle(graph, force=True)
+    if graph.tick_count >= until:
+        saver["play_until"] = None
+        runtime.paused = True
+        runtime.push([f"Director: energy saver played the day to {savings.clock(savings.PLAY_END)}: {round(saver.get('kwh', 0.0), 1)} kWh saved. Paused; press Play to go on."])
+
+
 async def _sim_loop() -> None:
     """Publish every cycle. Drive the cycle too if the agent bureau is behind."""
     log.info(
@@ -103,11 +122,17 @@ async def _sim_loop() -> None:
         "on" if voice.xai_configured() else "off",
         voice.policy_parser(),
     )
+    first = True
     while True:
         started = asyncio.get_running_loop().time()
         with runtime.lock:
             if not runtime.paused:
                 runtime.run_cycle(graph, force=False)
+                _play_saver()
+            if first:
+                # The campus opens at 14:00 and holds there until something runs.
+                runtime.paused = OPEN_PAUSED
+                first = False
         await publisher.publish(graph)
         elapsed = asyncio.get_running_loop().time() - started
         await asyncio.sleep(max(0.05, TICK_SECONDS - elapsed))
@@ -256,6 +281,8 @@ def _state() -> dict:
     body["strategy"] = runtime.strategy
     body["reset_count"] = graph.reset_count
     body["saver"] = savings.live(graph)
+    body["paused"] = runtime.paused
+    body["minutes"] = graph.sim_minutes()
     return body
 
 
@@ -311,7 +338,7 @@ async def poke_actions() -> dict:
 
 @app.get("/activity")
 def get_activity() -> dict:
-    return {**runtime.snapshot(), "saver": savings.live(graph), "actions_live": actions_live()}
+    return {**runtime.snapshot(), "saver": savings.live(graph), "actions_live": actions_live(), "paused": runtime.paused, "minutes": graph.sim_minutes()}
 
 
 @app.get("/bus-routes")
@@ -659,7 +686,10 @@ async def post_reset() -> dict:
         runtime.fresh_start()
         runtime.begin_scenario("Campus reset")
         runtime.push(["Director: campus reset"])
+        graph.set_clock(CLOCK_START_MINUTES)
         runtime.run_cycle(graph, force=True)
+        # Back to 14:00, held until something runs.
+        runtime.paused = OPEN_PAUSED
         body = _state()
     await publisher.clear()
     await publisher.publish(graph)

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { applyHazard, disrupt, resetSim, type ProposalPin } from '../../lib/api'
 import { PLACES } from '../../lib/places'
+import { onScenePause, sceneNow, scenePaused, setScenePaused } from '../../lib/sceneClock'
 import type { SimEdge, SimNode } from '../../lib/sim'
 import {
   asWeather,
@@ -334,7 +335,9 @@ export function useWeather(o: WeatherOptions): WeatherController {
   const kindRef = useRef(kind)
   const pressRef = useRef<Press | null>(null)
   const hoverRef = useRef<LngLat | null>(null)
-  const timers = useRef(new Set<number>())
+  // Run steps in scenario time: Pause holds them and Play picks up where they were.
+  const timers = useRef(new Map<number, { due: number; fn: () => void; id: number }>())
+  const timerKey = useRef(0)
   const previewTimer = useRef(0)
   const previewCost = useRef(0)
   const thinned = useRef<{ from: readonly BusLine[]; to: BusLine[] } | null>(null)
@@ -451,16 +454,38 @@ export function useWeather(o: WeatherOptions): WeatherController {
     [fail],
   )
 
-  const later = useCallback((ms: number, fn: () => void) => {
-    const id = window.setTimeout(() => {
-      timers.current.delete(id)
-      fn()
-    }, ms)
-    timers.current.add(id)
+  const arm = useCallback((key: number) => {
+    const entry = timers.current.get(key)
+    if (!entry) return
+    entry.id = window.setTimeout(() => {
+      timers.current.delete(key)
+      entry.fn()
+    }, Math.max(0, entry.due - sceneNow()))
   }, [])
 
+  const later = useCallback(
+    (ms: number, fn: () => void) => {
+      const key = ++timerKey.current
+      timers.current.set(key, { due: sceneNow() + ms, fn, id: 0 })
+      if (!scenePaused()) arm(key)
+    },
+    [arm],
+  )
+
+  useEffect(
+    () =>
+      onScenePause((paused) => {
+        for (const [key, entry] of timers.current) {
+          window.clearTimeout(entry.id)
+          entry.id = 0
+          if (!paused) arm(key)
+        }
+      }),
+    [arm],
+  )
+
   const clearRun = useCallback(() => {
-    for (const id of timers.current) window.clearTimeout(id)
+    for (const entry of timers.current.values()) window.clearTimeout(entry.id)
     timers.current.clear()
   }, [])
 
@@ -523,7 +548,7 @@ export function useWeather(o: WeatherOptions): WeatherController {
   /** Remember how far these storms got, so they are drawn only that far. */
   const cutOff = useCallback((items: readonly LiveStorm[]) => {
     if (items.length === 0) return {}
-    const now = performance.now()
+    const now = sceneNow()
     const made = Object.fromEntries(items.map((l) => [l.storm.id, cutAt(l, now)]))
     setCuts(saveCuts({ ...readCuts(), ...made }))
     return made
@@ -885,7 +910,7 @@ export function useWeather(o: WeatherOptions): WeatherController {
       const duration = runDuration(event.kind, event.path, spec.msPerKm) / run.speed
       const names = new Map(p.nodes.map((node) => [node.id, PLACES[node.id]?.short ?? node.name]))
       const nameOf = (id: string) => names.get(id) ?? id
-      const item: LiveStorm = { storm, impacts, startedAt: performance.now(), duration }
+      const item: LiveStorm = { storm, impacts, startedAt: sceneNow(), duration }
       const current = () => run.token === runs.token
 
       run.stormIds.add(storm.id)
@@ -939,7 +964,7 @@ export function useWeather(o: WeatherOptions): WeatherController {
       const spec = HAZARD_SPECS[event.hazard]
       setCampus((prev) => [
         ...prev,
-        { id: `${event.id}:${run.token}`, hazard: event.hazard, startedAt: performance.now(), duration: HAZARD_MS / run.speed },
+        { id: `${event.id}:${run.token}`, hazard: event.hazard, startedAt: sceneNow(), duration: HAZARD_MS / run.speed },
       ])
       land(run, {
         key: `hazard:${event.id}`,
@@ -1036,7 +1061,7 @@ export function useWeather(o: WeatherOptions): WeatherController {
   const begin = useCallback(
     (run: Run) => {
       const total = planTotal(run.events, run.speed)
-      setClock({ startedAt: performance.now(), total })
+      setClock({ startedAt: sceneNow(), total })
       run.events.forEach((event, index) => {
         later((event.start * 1000) / run.speed, () => {
           if (run.token !== runs.token) return
@@ -1084,6 +1109,8 @@ export function useWeather(o: WeatherOptions): WeatherController {
     stopPreview()
 
     clearRun()
+    // Run starts the clock; the engine is told by the run request.
+    setScenePaused(false)
     const token = ++runs.token
     const run: Run = {
       token,

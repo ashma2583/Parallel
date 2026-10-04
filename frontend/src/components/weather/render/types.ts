@@ -16,6 +16,8 @@ export interface Frame {
   height: number
   /** performance.now() for this frame. Ambient motion keys off this. */
   now: number
+  /** Scenario time for this frame: stands still while the clock is paused. Storm progress keys off this. */
+  scene: number
   /** Dark console theme (inverted dark basemap) or light. */
   dark: boolean
   /** Screen pixels per meter at the map centre. */

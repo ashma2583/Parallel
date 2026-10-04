@@ -25,6 +25,10 @@ SLOTS = 48
 SLOT_MINUTES = 30
 TICK_MINUTES = 4
 DEFAULT_START = 14 * 60
+# The saver plays the day to here, then holds.
+PLAY_END = 23 * 60 + 30
+# Ticks a second while it plays: 6 is 24 minutes of the day a second.
+PLAY_SPEED = 6
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 LOCATIONS = Path(__file__).resolve().parent / "data" / "locations"
 
@@ -582,10 +586,18 @@ def build_router(graph: Any, publisher: Any):
         label = f"Energy saver · {POLICIES[req.policy]['label']}, {WEEKDAYS[weekday]}"
         with runtime.lock:
             runtime.forget_after(graph.tick_count)
-            # No new scenario log: the saver rides along with whatever is running.
-            body = start(graph, req.policy, weekday, req.start_minute)
-            runtime.push([f"Director: {label} from {clock(req.start_minute)}. {body['totals']['kwh_saved']} kWh a day vs always-on."])
-            # A toggle, not a scenario: leave Pause alone. One forced tick puts the caps on now.
+            # No new scenario log: the saver rides along with whatever is running, a disaster included.
+            # It starts on the campus clock, so the caps and the clock keep one time.
+            begin = graph.sim_minutes()
+            body = start(graph, req.policy, weekday, begin)
+            # Play the rest of the day fast, like the heat wave: caps phase in and out as classes empty and fill.
+            graph.saver["play_until"] = graph.tick_count + max(1, ((PLAY_END - begin) % 1440) // TICK_MINUTES)
+            runtime.push([
+                f"Director: {label} from {clock(begin)}. {body['totals']['kwh_saved']} kWh a day vs always-on.",
+                f"Director: playing the day fast to {clock(PLAY_END)}, so you can watch the caps follow the class schedule.",
+            ])
+            # Caps change with the clock, so the saver starts it. One forced tick puts the caps on now.
+            runtime.paused = False
             runtime.run_cycle(graph, force=True)
             state = {"live": live(graph), "totals": body["totals"]}
         await publisher.publish(graph)
