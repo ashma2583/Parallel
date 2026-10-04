@@ -53,6 +53,7 @@ from agents.serve import start_in_thread
 from branch import run_branches
 from graph import CampusGraph
 from stdb import SpacetimePublisher
+import storms
 import hazards
 import voice
 import weather
@@ -116,6 +117,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(storms.build_router(graph, publisher))
 
 
 class DisruptRequest(BaseModel):

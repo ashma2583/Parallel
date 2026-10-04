@@ -249,8 +249,10 @@ def keyword_policy(text: str) -> dict:
 
 def _roads(graph: CampusGraph) -> dict[str, list[str]]:
     adj: dict[str, list[str]] = {n.id: [] for n in graph.nodes.values()}
+    # Roads the weather or the director closed are not driven.
+    closed = {m["id"] for m in getattr(graph, "closed_roads", [])}
     for edge in graph.edges:
-        if edge.type != EdgeType.ROAD:
+        if edge.type != EdgeType.ROAD or edge.id in closed:
             continue
         adj[edge.source].append(edge.target)
         adj[edge.target].append(edge.source)

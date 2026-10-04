@@ -14,6 +14,7 @@ import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
+import type { WeatherState } from './lib/weather/types'
 
 export default function App() {
   const sim = useSim()
@@ -23,6 +24,9 @@ export default function App() {
   const [preview, setPreview] = useState<Branch | null>(null)
   const [scenario, setScenario] = useState<Scenario | null>(null)
   const [hazard, setHazard] = useState<Hazard | null>(null)
+  // Bumped to open the weather dock on the map.
+  const [weatherSignal, setWeatherSignal] = useState(0)
+  const weather = (sim.briefing as { weather?: WeatherState } | null)?.weather ?? null
 
   // A researched place, shown in place of the campus until it is cleared.
   const [survey, setSurvey] = useState<LocationSurvey | null>(null)
@@ -103,6 +107,10 @@ export default function App() {
             onScenario={setScenario}
             onHazard={setHazard}
             onChanged={sim.refresh}
+            onDrawWeather={() => {
+              setView('map')
+              setWeatherSignal((n) => n + 1)
+            }}
           />
 
           <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -126,6 +134,13 @@ export default function App() {
                 proposals={sim.proposals}
                 draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
                 onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
+                weather={weather}
+                weatherSignal={weatherSignal}
+                onChanged={sim.refresh}
+                onStorm={(storm) => {
+                  setScenario({ label: storm.label, detail: storm.detail })
+                  setHazard(null)
+                }}
                 onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
               />
             ) : surveyModel ? (

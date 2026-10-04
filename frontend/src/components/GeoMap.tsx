@@ -8,6 +8,11 @@ import type { SurveyGraphModel } from '../lib/surveyGraph'
 import { BACKEND_URL } from '../config'
 import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 import type { SimEdge, SimNode } from '../lib/sim'
+import { splitByClosures } from '../lib/weather/geo'
+import type { BusLine, ClosedRoute, WeatherState } from '../lib/weather/types'
+import { useWeather } from './weather/useWeather'
+import { WeatherCanvas } from './weather/WeatherCanvas'
+import { WeatherDock } from './weather/WeatherDock'
 
 setWorkerUrl(maplibreWorkerUrl)
 import { statusColor } from '../lib/status'
@@ -77,6 +82,14 @@ interface Props {
   draftPoint?: { lng: number; lat: number; name: string } | null
   onPlace?: (lng: number, lat: number) => void
   onNodeClick?: (node: SimNode) => void
+  /** briefing.weather from the engine. */
+  weather?: WeatherState | null
+  /** Open the weather dock whenever this changes. */
+  weatherSignal?: number
+  /** A drawn storm finished its run. */
+  onStorm?: (storm: { label: string; detail: string }) => void
+  /** Pull engine state after a write. */
+  onChanged?: () => void
 }
 
 export function GeoMap({
@@ -93,6 +106,10 @@ export function GeoMap({
   draftPoint = null,
   onPlace,
   onNodeClick,
+  weather = null,
+  weatherSignal = 0,
+  onStorm,
+  onChanged,
 }: Props) {
   const [map, setMap] = useState<MaplibreMap | null>(null)
   const [buses, setBuses] = useState<BusCollection>(EMPTY)
@@ -122,8 +139,41 @@ export function GeoMap({
     }
   }, [])
 
-  const power = useMemo(() => links(edges, 'power'), [edges])
-  const roads = useMemo(() => links(edges, 'road'), [edges])
+  const allPower = useMemo(() => links(edges, 'power'), [edges])
+  const allRoads = useMemo(() => links(edges, 'road'), [edges])
+
+  const busLines = useMemo<BusLine[]>(
+    () => buses.features.map((f) => ({ id: f.properties.id, name: f.properties.name, coords: f.geometry.coordinates })),
+    [buses],
+  )
+  const storm = useWeather({
+    map,
+    nodes,
+    edges,
+    proposals,
+    buses: busLines,
+    server: weather,
+    openSignal: weatherSignal,
+    onChanged: () => onChanged?.(),
+    onStorm,
+  })
+  const { closed_routes: closedRoutes, cut_edges: cutEdges, closed_roads: closedRoads } = storm.effective
+
+  // Storms are drawn at campus scale. Opening the dock from the city view moves in to campus.
+  const dockOpen = storm.dock.open
+  useEffect(() => {
+    if (!map || !dockOpen || survey || map.getZoom() >= 13) return
+    map.easeTo({ center: [-83.728, 42.2845], zoom: 13.5, duration: 700 })
+  }, [map, dockOpen, survey])
+
+  // Weather takes lines and roads out. They stay on the map, drawn as broken.
+  const [power, cutPower] = useMemo(() => splitLinks(allPower, new Set(cutEdges.map((m) => m.id))), [allPower, cutEdges])
+  const [roads, shutRoads] = useMemo(() => splitLinks(allRoads, new Set(closedRoads.map((m) => m.id))), [allRoads, closedRoads])
+  const closedLines = useMemo(() => {
+    const out: Record<string, 'suspended' | 'closed'> = {}
+    for (const route of closedRoutes) out[route.id] = route.segments === null || out[route.id] === 'suspended' ? 'suspended' : 'closed'
+    return out
+  }, [closedRoutes])
 
   const recommendedIds = USUAL_RECOMMENDED
 
@@ -172,8 +222,11 @@ export function GeoMap({
   }, [buses, recommended, showBuses, showRecommended, darkPlaces])
 
   const drawnBuses = useMemo(
-    () => catalog.flatMap((feature) => openAroundDarkStops(feature, darkPlaces)),
-    [catalog, darkPlaces],
+    () =>
+      catalog
+        .flatMap((feature) => closeForWeather(feature, closedRoutes))
+        .flatMap((feature) => (feature.properties.skipped ? [feature] : openAroundDarkStops(feature, darkPlaces))),
+    [catalog, darkPlaces, closedRoutes],
   )
 
   const legend = useMemo(
@@ -247,6 +300,18 @@ export function GeoMap({
       'line-width': 3,
       'line-opacity': 0.9,
     })
+    setGroundLines(map, 'sim-power-cut', ground(showPower ? cutPower.features : []), {
+      'line-color': '#ef4444',
+      'line-width': 2.5,
+      'line-dasharray': [1.2, 1.4],
+      'line-opacity': 0.95,
+    })
+    setGroundLines(map, 'sim-roads-shut', ground(showRoads ? shutRoads.features : []), {
+      'line-color': '#ef4444',
+      'line-width': 2,
+      'line-dasharray': [1.2, 1.4],
+      'line-opacity': 0.9,
+    })
     setGroundLines(
       map,
       'sim-buses',
@@ -268,7 +333,7 @@ export function GeoMap({
         'line-opacity': 0.95,
       },
     )
-  }, [map, basemap, showRoads, showPower, roads, power, drawnBuses, focus])
+  }, [map, basemap, showRoads, showPower, roads, power, cutPower, shutRoads, drawnBuses, focus])
 
   return (
     <div className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : ''}`}>
@@ -307,6 +372,7 @@ export function GeoMap({
                   onNodeClick?.(node)
                 }}
                 className="group flex flex-col items-center"
+                style={storm.armed ? { pointerEvents: 'none' } : undefined}
                 title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
               >
                 <span
@@ -421,33 +487,63 @@ export function GeoMap({
         />
       )}
       {legend.length > 0 && !survey && (
-        <div className="absolute bottom-8 left-4 z-10 max-h-52 w-56 overflow-y-auto rounded-md border border-line bg-panel/95 p-2 text-xs text-muted">
+        <div
+          className={`absolute left-4 z-10 max-h-52 w-60 overflow-y-auto rounded-md border border-line bg-panel/95 p-2 text-xs text-muted ${
+            storm.dock.open ? 'top-[150px]' : 'bottom-8'
+          }`}
+        >
           <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Bus lines</div>
-          {legend.map((route) => (
-            <button
-              key={route.id}
-              type="button"
-              onClick={() => setFocus((current) => (current === route.id ? null : route.id))}
-              className={`flex w-full items-center gap-2 rounded px-1 py-0.5 text-left ${
-                focus === route.id ? 'bg-raised text-text' : 'hover:text-text'
-              }`}
-            >
-              <span
-                className="h-1 w-4 shrink-0 rounded"
-                style={{ background: route.color, outline: route.dashed ? '1px dashed #f87171' : undefined }}
-              />
-              <span className="truncate">
-                {route.agency} {route.name}
-                {route.dashed ? ' · reroute' : ''}
-              </span>
-            </button>
-          ))}
+          {legend.map((route) => {
+            const out = closedLines[route.id]
+            return (
+              <div
+                key={route.id}
+                className={`group/row flex w-full items-center gap-1 rounded px-1 py-0.5 ${focus === route.id ? 'bg-raised text-text' : 'hover:text-text'}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setFocus((current) => (current === route.id ? null : route.id))}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <span
+                    className="h-1 w-4 shrink-0 rounded"
+                    style={{
+                      background: out === 'suspended' ? 'var(--color-line)' : route.color,
+                      outline: route.dashed || out ? '1px dashed #f87171' : undefined,
+                    }}
+                  />
+                  <span className={`truncate ${out === 'suspended' ? 'line-through' : ''}`}>
+                    {route.agency} {route.name}
+                    {out === 'closed' ? <span className="text-down"> · closed</span> : out === 'suspended' ? '' : route.dashed ? ' · reroute' : ''}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => storm.toggleRoute(route.id, route.name)}
+                  title={out === 'suspended' ? `Put ${route.name} back in service` : `Take ${route.name} out of service`}
+                  className={`shrink-0 rounded px-1 font-mono text-[10px] ${
+                    out === 'suspended' ? 'text-ok' : 'text-muted opacity-0 hover:text-down group-hover/row:opacity-100 focus-visible:opacity-100'
+                  }`}
+                >
+                  {out === 'suspended' ? 'restore' : 'suspend'}
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
+      <WeatherCanvas
+        map={map}
+        {...storm.canvas}
+        marks={showRoads ? storm.canvas.marks : storm.canvas.marks.filter((mark) => mark.kind !== 'road')}
+      />
+      <WeatherDock {...storm.dock} />
       {basemap !== 'vector' && (
         <>
           <LineOverlay map={map} features={showRoads ? roads.features : []} color="#94a3b8" width={2} dash="6 6" />
+          <LineOverlay map={map} features={showRoads ? shutRoads.features : []} color="#ef4444" width={2} dash="3 4" />
           <LineOverlay map={map} features={showPower ? power.features : []} color="#facc15" width={3} />
+          <LineOverlay map={map} features={showPower ? cutPower.features : []} color="#ef4444" width={2.5} dash="3 4" />
           <LineOverlay map={map} features={drawnBuses} width={focus ? 2 : 3} focus={focus} />
         </>
       )}
@@ -584,6 +680,24 @@ function cutAtStop(line: [number, number][], place: { lng: number; lat: number }
   const keep = [line.slice(0, start + 1), line.slice(end)]
   const gap = line.slice(Math.max(0, start - 1), Math.min(line.length, end + 2))
   return { keep, gap }
+}
+
+type DrawnBus = BusFeature & { properties: BusFeature['properties'] & { color: string; dashed: boolean; skipped: boolean } }
+
+/** Cut the stretches weather closed out of a line. A suspended line is closed end to end. */
+function closeForWeather(feature: DrawnBus, closures: readonly ClosedRoute[]): DrawnBus[] {
+  const mine = closures.filter((closure) => closure.id === feature.properties.id)
+  if (mine.length === 0) return [feature]
+  if (mine.some((closure) => closure.segments === null)) return [lineFeature(feature, feature.geometry.coordinates, true)]
+  const { open, shut } = splitByClosures(feature.geometry.coordinates, mine.flatMap((closure) => closure.segments ?? []))
+  return [...open.map((part) => lineFeature(feature, part, false)), ...shut.map((part) => lineFeature(feature, part, true))]
+}
+
+function splitLinks(all: ReturnType<typeof links>, out: ReadonlySet<string>) {
+  return [
+    { ...all, features: all.features.filter((feature) => !out.has(feature.properties.id)) },
+    { ...all, features: all.features.filter((feature) => out.has(feature.properties.id)) },
+  ] as const
 }
 
 function lineFeature(

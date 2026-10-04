@@ -242,6 +242,12 @@ class CampusGraph:
         self.tick_count: int = 0
         self.last_tick: TickResult | None = None
         self.proposals: dict[str, dict[str, Any]] = {}
+        # Weather drawn on the map, kept by storms.py.
+        self.storms: list[dict[str, Any]] = []
+        self.closed_routes: list[dict[str, Any]] = []
+        self.cut_edges: list[dict[str, Any]] = []
+        self.closed_roads: list[dict[str, Any]] = []
+        self.scenario_baseline: dict[str, Any] | None = None  # campus before a scenario first ran
         assert len(self.nodes) == 20, "expected the 20 approved Ann Arbor places"
         for node in self.nodes.values():
             node.baseline_occupancy = node.occupancy

@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from graph import CampusGraph, Node, NodeType, Status
+import storms
 
 COOLING_TYPES = {NodeType.DINING, NodeType.LIBRARY}
 ROUTES_PATH = Path(__file__).resolve().parent / "data" / "bus_routes.json"
@@ -37,14 +38,14 @@ def debrief_facts(graph: CampusGraph, preference: str, activity: list[str]) -> d
         "tick": graph.tick_count,
         "scale": "Kilowatts are a demo scale, not the real megawatts. University Hospital and Mott are never shed. City Hall, Blake Transit Center, and Fire Station 1 are on the city grid.",
         "nodes": nodes,
-        "briefing": build_briefing(graph, preference),
+        "briefing": {**build_briefing(graph, preference), "weather": storms.weather_digest(graph)},
         "activity": activity[-24:],
     }
 
 
 def build_briefing(graph: CampusGraph, preference: str) -> dict:
     nodes = list(graph.nodes.values())
-    disrupted = any(n.status != Status.GREEN or n.failed for n in nodes)
+    disrupted = any(n.status != Status.GREEN or n.failed for n in nodes) or storms.has_weather(graph)
     displaced = sum(max(0, n.baseline_occupancy - n.occupancy) for n in nodes if n.status == Status.RED)
 
     return {
@@ -52,9 +53,10 @@ def build_briefing(graph: CampusGraph, preference: str) -> dict:
         "disrupted": disrupted,
         "displaced": displaced,
         "priority": _priority(nodes, preference, displaced),
-        "buses": _buses(nodes),
+        "buses": _buses(nodes, graph),
         "cooling": _cooling(nodes, displaced),
         "systems": _systems(nodes),
+        "weather": storms.weather_state(graph),
     }
 
 
@@ -87,7 +89,7 @@ def _priority(nodes: list[Node], preference: str, displaced: int) -> dict:
     }
 
 
-def _buses(nodes: list[Node]) -> dict:
+def _buses(nodes: list[Node], graph: CampusGraph | None = None) -> dict:
     by_id = {n.id: n for n in nodes}
     broken: list[dict] = []
     seen: set[str] = set()
@@ -109,11 +111,51 @@ def _buses(nodes: list[Node]) -> dict:
             "skip": [by_id[nid].name for nid in dark],
             "keep": [by_id[nid].name for nid in still],
         })
+    closed = list(getattr(graph, "closed_routes", None) or [])
+    for route in closed:
+        entry = _closed_route_entry(broken, route, by_id)
+        why = storms.route_reason(graph, route)
+        # A line out at every stop lists only why, not the stops or stretches it skips.
+        whole = [text for text in entry["skip"] if text.startswith("every stop: ")]
+        if route.get("segments") is None:
+            entry["skip"] = whole + [f"every stop: {why}"]
+            entry["keep"] = []
+        elif not whole and f"the stretch {why}" not in entry["skip"]:
+            entry["skip"].append(f"the stretch {why}")
     if not broken:
         answer = "No. Every bus that serves this map still stops at lit buildings."
-    else:
+    elif not closed:
         answer = "Yes. Do not unload at a dark stop. Hold riders for the next lit stop on that route."
+    else:
+        skips = [text for entry in broken for text in entry["skip"]]
+        parts = ["Yes."]
+        if any(not text.startswith(("the stretch ", "every stop: ")) for text in skips):
+            parts.append("Do not unload at a dark stop.")
+        if any(text.startswith("the stretch ") for text in skips):
+            parts.append("Detour around the closed stretches.")
+        if any(text.startswith("every stop: ") for text in skips):
+            parts.append("Lines closed at every stop stay in the depot.")
+        parts.append("Hold riders for the next lit stop on that route.")
+        answer = " ".join(parts)
     return {"answer": answer, "reroute": broken}
+
+
+def _closed_route_entry(broken: list[dict], route: dict, by_id: dict[str, Node]) -> dict:
+    """The reroute row for a U-M line the weather or the director closed, made once per line."""
+    for entry in broken:
+        if entry["agency"] == "U-M" and entry["id"] == route["id"]:
+            return entry
+    patterns = [p for p in _patterns() if p.get("agency") == "umich" and p.get("id") == route["id"]]
+    near = list(dict.fromkeys(nid for p in patterns for nid in p.get("near_nodes") or []))
+    entry = {
+        "id": route["id"],
+        "name": patterns[0]["name"] if patterns else route.get("name") or route["id"],
+        "agency": "U-M",
+        "skip": [],
+        "keep": [by_id[nid].name for nid in near if nid in by_id and by_id[nid].status == Status.GREEN],
+    }
+    broken.append(entry)
+    return entry
 
 
 def _cooling(nodes: list[Node], displaced: int) -> dict:

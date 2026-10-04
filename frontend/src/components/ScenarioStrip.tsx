@@ -58,11 +58,13 @@ interface Props {
   /** The hazard that was run, so the briefing can explain it. Null on reset. */
   onHazard: (hazard: Hazard | null) => void
   onChanged: () => void
+  /** Open the weather tool on the map. */
+  onDrawWeather?: () => void
 }
 
 const pill = 'whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50'
 
-export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, onHazard, onChanged }: Props) {
+export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, onHazard, onChanged, onDrawWeather }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [list, setList] = useState<HazardList | null>(null)
@@ -139,6 +141,19 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, on
               {active.has(h.id) && <span className="ml-1.5 font-mono text-[10px] uppercase">warning active</span>}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={onDrawWeather}
+            title="Draw weather: pick a storm and draw its path on the Ann Arbor map"
+            aria-label="Draw weather"
+            className={`${pill} inline-flex items-center gap-1.5 border-dashed border-transit/60 bg-panel text-transit hover:border-transit`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M7 15a4.5 4.5 0 1 1 1.2-8.85A6 6 0 0 1 19.5 9 3.5 3.5 0 0 1 18 15.7" />
+              <path d="M12.5 13 10 17.5h4L11.5 22" />
+            </svg>
+            <span className="max-[1599px]:hidden">Draw weather</span>
+          </button>
           <select
             id="more-scenarios"
             aria-label="More scenarios"
@@ -188,6 +203,19 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onScenario, on
               Reset
             </button>
           </span>
+          <button
+            type="button"
+            onClick={onDrawWeather}
+            title="Draw weather: pick a storm and draw its path on the Ann Arbor map"
+            aria-label="Draw weather"
+            className={`${pill} inline-flex items-center gap-1.5 border-dashed border-transit/60 bg-panel text-transit hover:border-transit`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M7 15a4.5 4.5 0 1 1 1.2-8.85A6 6 0 0 1 19.5 9 3.5 3.5 0 0 1 18 15.7" />
+              <path d="M12.5 13 10 17.5h4L11.5 22" />
+            </svg>
+            <span className="max-[1599px]:hidden">Add weather</span>
+          </button>
           {previewName && (
             <span className="inline-flex items-center gap-2 rounded-full border border-branch bg-panel px-3 py-1.5 text-xs font-medium text-branch">
               <span className="h-1.5 w-1.5 rounded-full bg-branch" />
