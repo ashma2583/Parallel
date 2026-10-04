@@ -3,9 +3,24 @@ import { useSpacetimeDB, useTable } from 'spacetimedb/react'
 import { tables } from './module_bindings'
 import { CampusMap } from './components/CampusMap'
 import { GeoMap } from './components/GeoMap'
+import { SurveyGraph } from './components/SurveyGraph'
 import { StatusBar } from './components/StatusBar'
 import { ControlPanel } from './components/ControlPanel'
-import { fetchActivity, fetchBriefing, setPriority, type Briefing, type PriorityMode } from './lib/api'
+import {
+  fetchActivity,
+  fetchBriefing,
+  fetchProposals,
+  proposeBuilding,
+  removeProposal,
+  setPriority,
+  type Briefing,
+  type LocationSurvey,
+  type PriorityMode,
+  type ProposalImpact,
+  type ProposalPin,
+} from './lib/api'
+import type { PlanDraft } from './components/PlanBuilding'
+import { buildSurvey, darkIds } from './lib/surveyGraph'
 
 export default function App() {
   const { isActive, connectionError } = useSpacetimeDB()
@@ -21,6 +36,43 @@ export default function App() {
   const [activity, setActivity] = useState<string[]>([])
   const [briefing, setBriefing] = useState<Briefing | null>(null)
   const [view, setView] = useState<'graph' | 'map'>('graph')
+  const [survey, setSurvey] = useState<LocationSurvey | null>(null)
+  const [surveyFailed, setSurveyFailed] = useState<string[]>([])
+  const [placing, setPlacing] = useState<PlanDraft | null>(null)
+  const [draftPoint, setDraftPoint] = useState<{ lng: number; lat: number } | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [proposals, setProposals] = useState<ProposalPin[]>([])
+  const [proposalImpact, setProposalImpact] = useState<ProposalImpact | null>(null)
+  const [planError, setPlanError] = useState<string | null>(null)
+  const surveyModel = useMemo(() => (survey ? buildSurvey(survey) : null), [survey])
+  const surveyDark = useMemo(() => (surveyModel ? darkIds(surveyModel, surveyFailed) : new Set<string>()), [surveyModel, surveyFailed])
+
+  async function confirmPlacement() {
+    if (!placing || !draftPoint || confirming) return
+    setConfirming(true)
+    setPlanError(null)
+    try {
+      const impact = await proposeBuilding({ ...placing, lng: draftPoint.lng, lat: draftPoint.lat })
+      setProposalImpact(impact)
+      setProposals(await fetchProposals())
+      setPlacing(null)
+      setDraftPoint(null)
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  async function dropProposal(id: string) {
+    await removeProposal(id)
+    setProposals(await fetchProposals())
+    setProposalImpact((current) => (current?.id === id ? null : current))
+  }
+
+  function toggleSurvey(id: string) {
+    setSurveyFailed((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+  }
   const coolingIds = briefing?.cooling.open ? briefing.cooling.places.map((place) => place.id) : []
 
   async function onPriority(mode: PriorityMode) {
@@ -32,10 +84,11 @@ export default function App() {
     let stop = false
     const pull = async () => {
       try {
-        const [lines, nextBriefing] = await Promise.all([fetchActivity(), fetchBriefing()])
+        const [lines, nextBriefing, nextProposals] = await Promise.all([fetchActivity(), fetchBriefing(), fetchProposals()])
         if (stop) return
         setActivity(lines)
         setBriefing(nextBriefing)
+        setProposals(nextProposals)
       } catch {
         // The map still updates from SpacetimeDB if the REST poll misses a beat.
       }
@@ -79,8 +132,18 @@ export default function App() {
                 edges={edges}
                 coolingIds={coolingIds}
                 reroutes={briefing?.buses.reroute ?? []}
+                survey={survey}
+                surveyGraph={surveyModel}
+                surveyDark={surveyDark}
+                onToggleSurvey={toggleSurvey}
+                placing={placing !== null}
+                proposals={proposals}
+                draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
+                onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
                 onNodeClick={(n) => setSelectedId(n.id)}
               />
+            ) : surveyModel ? (
+              <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
             ) : (
               <CampusMap nodes={sortedNodes} edges={edges} coolingIds={coolingIds} onNodeClick={(n) => setSelectedId(n.id)} />
             )
@@ -101,6 +164,38 @@ export default function App() {
           activity={activity}
           briefing={briefing}
           onPriority={(mode) => void onPriority(mode)}
+          onSurvey={(next) => {
+            setSurvey(next)
+            setSurveyFailed([])
+            setView('map')
+          }}
+          onClearSurvey={() => {
+            setSurvey(null)
+            setSurveyFailed([])
+            setView('graph')
+          }}
+          placing={placing !== null}
+          pinReady={draftPoint !== null}
+          confirming={confirming}
+          proposalImpact={proposalImpact}
+          proposals={proposals}
+          onStartPlan={(draft) => {
+            setPlanError(null)
+            setDraftPoint(null)
+            setPlacing(draft)
+            setView('map')
+          }}
+          onMovePlan={() => setDraftPoint(null)}
+          onConfirmPlan={() => void confirmPlacement()}
+          onCancelPlan={() => {
+            setPlacing(null)
+            setDraftPoint(null)
+          }}
+          onRemoveProposal={(id) => void dropProposal(id)}
+          planError={planError}
+          surveyGraph={surveyModel}
+          surveyDark={surveyDark}
+          onToggleSurvey={toggleSurvey}
         />
       </div>
     </div>

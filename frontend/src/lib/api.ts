@@ -103,6 +103,98 @@ export interface Debrief {
   watch: string
 }
 
+export interface SurveyBuilding {
+  name: string
+  role: string
+  why: string
+  lat: number
+  lng: number
+}
+
+export interface SurveyLine {
+  name: string
+  agency: string
+  connects: string
+}
+
+export interface LocationSurvey {
+  name: string
+  summary: string
+  buildings: SurveyBuilding[]
+  transit: SurveyLine[]
+  sources: string[]
+}
+
+export interface ProposalImpact {
+  id: string
+  name: string
+  type: string
+  people: number
+  demand_kw: number
+  received_kw: number
+  status: string
+  feeder: string
+  feeder_label: string
+  feeder_id: string
+  supply_kw: number
+  demand_before_kw: number
+  demand_after_kw: number
+  headroom_kw: number
+  shed: string[]
+  walks_to: string
+  buses: { id: string; name: string }[]
+  lat: number
+  lng: number
+}
+
+export interface ProposalPin {
+  id: string
+  name: string
+  type: string
+  status: string
+  lat: number
+  lng: number
+  feeder_id: string
+  people: number
+  demand_kw: number
+  received_kw: number
+}
+
+export async function proposeBuilding(body: {
+  name: string
+  kind: string
+  lng: number
+  lat: number
+  demand_kw: number
+  people: number
+}): Promise<ProposalImpact> {
+  return post('/proposal', body) as Promise<ProposalImpact>
+}
+
+export async function removeProposal(id: string): Promise<void> {
+  await postDelete(`/proposal/${id}`)
+}
+
+export async function fetchProposals(): Promise<ProposalPin[]> {
+  const res = await fetch(`${BACKEND_URL}/proposals`)
+  if (!res.ok) return []
+  const data = await res.json()
+  return (data.proposals ?? []) as ProposalPin[]
+}
+
+async function postDelete(path: string): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}${path}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`${path} -> ${res.status} ${text}`)
+  }
+  return res.json()
+}
+
+export async function researchLocation(query: string): Promise<LocationSurvey> {
+  return post('/location', { query }) as Promise<LocationSurvey>
+}
+
 export async function fetchDebrief(): Promise<Debrief> {
   return post('/debrief') as Promise<Debrief>
 }

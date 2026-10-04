@@ -239,6 +239,7 @@ class CampusGraph:
         self.edges: list[Edge] = _build_edges()
         self.tick_count: int = 0
         self.last_tick: TickResult | None = None
+        self.proposals: dict[str, dict[str, Any]] = {}
         assert len(self.nodes) == 20, "expected the 20 approved Ann Arbor places"
         for node in self.nodes.values():
             node.baseline_occupancy = node.occupancy
@@ -254,6 +255,20 @@ class CampusGraph:
         node = self.get(node_id)
         node.failed = True
         return node
+
+    def add_proposal(self, node: Node, meta: dict[str, Any], power_from: str, road_to: str) -> Node:
+        """A planner's building. It joins one existing feed and one existing road."""
+        self.nodes[node.id] = node
+        self.edges.append(Edge(f"power:{power_from}->{node.id}", power_from, node.id, EdgeType.POWER))
+        self.edges.append(Edge(f"road:{road_to}->{node.id}", road_to, node.id, EdgeType.ROAD))
+        self.proposals[node.id] = meta
+        node.baseline_occupancy = node.occupancy
+        return node
+
+    def remove_proposal(self, node_id: str) -> None:
+        self.proposals.pop(node_id, None)
+        self.nodes.pop(node_id, None)
+        self.edges = [edge for edge in self.edges if edge.source != node_id and edge.target != node_id]
 
     def restore_node(self, node_id: str) -> Node:
         node = self.get(node_id)

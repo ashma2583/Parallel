@@ -3,7 +3,12 @@ import type { Node as NodeRow } from '../module_bindings/types'
 import { disrupt, resetSim, type Briefing, type PriorityMode } from '../lib/api'
 import { STATUS_COLOR, fmtKw } from '../lib/status'
 import { BriefingPanel } from './BriefingPanel'
+import { LocationPanel } from './LocationPanel'
+import { PlanBuilding, type PlanDraft } from './PlanBuilding'
+import type { ProposalImpact, ProposalPin } from '../lib/api'
 import { VoicePanel } from './VoicePanel'
+import type { LocationSurvey } from '../lib/api'
+import type { SurveyGraphModel } from '../lib/surveyGraph'
 
 interface Scenario {
   label: string
@@ -24,9 +29,47 @@ interface Props {
   activity: readonly string[]
   briefing: Briefing | null
   onPriority: (mode: PriorityMode) => void
+  onSurvey: (survey: LocationSurvey) => void
+  onClearSurvey: () => void
+  surveyGraph: SurveyGraphModel | null
+  surveyDark: ReadonlySet<string>
+  onToggleSurvey: (id: string) => void
+  placing: boolean
+  pinReady: boolean
+  confirming: boolean
+  proposalImpact: ProposalImpact | null
+  proposals: readonly ProposalPin[]
+  onStartPlan: (draft: PlanDraft) => void
+  onMovePlan: () => void
+  onConfirmPlan: () => void
+  onCancelPlan: () => void
+  onRemoveProposal: (id: string) => void
+  planError: string | null
 }
 
-export function ControlPanel({ nodes, selected, activity, briefing, onPriority }: Props) {
+export function ControlPanel({
+  nodes,
+  selected,
+  activity,
+  briefing,
+  onPriority,
+  onSurvey,
+  onClearSurvey,
+  surveyGraph,
+  surveyDark,
+  onToggleSurvey,
+  placing,
+  pinReady,
+  confirming,
+  proposalImpact,
+  proposals,
+  onStartPlan,
+  onMovePlan,
+  onConfirmPlan,
+  onCancelPlan,
+  onRemoveProposal,
+  planError,
+}: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +92,28 @@ export function ControlPanel({ nodes, selected, activity, briefing, onPriority }
       <BriefingPanel briefing={briefing} onChoose={onPriority} />
 
       <VoicePanel />
+
+      <PlanBuilding
+        placing={placing}
+        pinReady={pinReady}
+        confirming={confirming}
+        impact={proposalImpact}
+        pins={proposals}
+        onStart={onStartPlan}
+        onUndo={onMovePlan}
+        onConfirm={onConfirmPlan}
+        onCancel={onCancelPlan}
+        onRemove={onRemoveProposal}
+        error={planError}
+      />
+
+      <LocationPanel
+        onShow={onSurvey}
+        onClear={onClearSurvey}
+        graph={surveyGraph}
+        dark={surveyDark}
+        onToggle={onToggleSurvey}
+      />
 
       <section>
         <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Agent feed</h2>
