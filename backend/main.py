@@ -19,6 +19,10 @@ Environment (all optional):
     GROK_MODEL      default "grok-4"
     GEMINI_API_KEY  optional; used first when POLICY_PARSER=auto
     GEMINI_MODEL    default "gemini-2.5-flash"
+    UM_CLIENT_ID    Schedule of Classes API client id
+    UM_CLIENT_SECRET
+    UM_TERM         optional term code, default from today's date
+    SOC_CSV         optional registrar CSV path or URL
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ import asyncio
 import logging
 import os
 import threading
+import time
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -46,14 +51,16 @@ from pydantic import BaseModel, Field
 
 from agents import runtime
 import briefing
+import occupancy
 from agents.logic import STRATEGIES
 import location_agent
 import proposal
 from agents.serve import start_in_thread
-from branch import run_branches
+from branch import ScenarioBatch, run_branches, scenario_ticks
 from graph import CampusGraph
 from stdb import SpacetimePublisher
 import savings
+from stdb_actions import ActionConsumer, asgi_dispatcher
 import storms
 import hazards
 import voice
@@ -67,6 +74,22 @@ TICK_SECONDS = float(os.getenv("TICK_SECONDS", "1.0"))
 
 graph = CampusGraph()
 publisher = SpacetimePublisher()
+
+# Multiplayer actions (browsers -> SpacetimeDB `action` table -> this engine) run
+# only when STDB_ENABLED is explicitly on. Unset or "0" leaves the app as it was.
+STDB_ACTIONS = os.getenv("STDB_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+consumer: ActionConsumer | None = None
+
+
+def actions_live() -> bool:
+    """True while this engine holds the SpacetimeDB lock and is polling for actions.
+    The browser sends through the reducer only when this is true."""
+    return (
+        consumer is not None
+        and consumer.has_lock
+        and consumer.last_poll_ok is not None
+        and time.time() - consumer.last_poll_ok < 5.0
+    )
 
 
 async def _sim_loop() -> None:
@@ -89,15 +112,24 @@ async def _sim_loop() -> None:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app_: FastAPI):
+    global consumer
     runtime.bind(graph, asyncio.get_running_loop(), TICK_SECONDS)
     runtime.remember(graph)
     await publisher.start()
     start_in_thread()
     task = asyncio.create_task(_sim_loop(), name="sim-loop")
+    if STDB_ACTIONS and publisher.enabled:
+        # Claims the engine lock on its first poll, then applies queued actions.
+        consumer = ActionConsumer(publisher.identity_client(), asgi_dispatcher(app_))
+        consumer.start()
+        log.info("SpacetimeDB action consumer started")
     try:
         yield
     finally:
+        if consumer is not None:
+            await consumer.stop()
+            consumer = None
         task.cancel()
         try:
             await task
@@ -135,6 +167,8 @@ class DisruptRequest(BaseModel):
 class BranchRequest(BaseModel):
     ticks: int = Field(6, ge=1, le=60)
     strategies: list[str] | None = Field(None, examples=[["tiered", "residential"]])
+    # A planned scenario to play forward on each copy, in timed batches.
+    scenario: list[ScenarioBatch] | None = Field(None, max_length=400)
     # "saver" compares energy saver policies through 23:30 instead of response policies.
     mode: Literal["policy", "saver"] = "policy"
     weekday: Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] = "Tue"
@@ -255,14 +289,37 @@ def get_state() -> dict:
         return _state()
 
 
+@app.post("/actions/poke")
+async def poke_actions() -> dict:
+    """Browsers call this right after a reducer action lands, so it is applied now
+    instead of at the next poll. Harmless when the consumer is off."""
+    if consumer is not None:
+        consumer.poke()
+    return {"ok": consumer is not None}
+
+
 @app.get("/activity")
 def get_activity() -> dict:
-    return {**runtime.snapshot(), "saver": savings.live(graph)}
+    return {**runtime.snapshot(), "saver": savings.live(graph), "actions_live": actions_live()}
 
 
 @app.get("/bus-routes")
 def get_bus_routes() -> dict:
     return briefing.route_collection()
+
+
+@app.get("/occupancy")
+async def get_occupancy(weekday: str | None = None, turnup: float = 0.75) -> dict:
+    """Students in class, by building, across the class day.
+
+    turnup is the share of class capacity assumed to be in the room.
+    """
+    try:
+        return await occupancy.snapshot(weekday=weekday, turnup=turnup)
+    except occupancy.ScheduleError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/briefing")
@@ -566,17 +623,27 @@ def post_branch(req: BranchRequest) -> dict:
         # A heat wave still in progress is compared at its peak, not six seconds in.
         if wave and wave["step"] < wave["span"]:
             ticks = max(req.ticks, wave["span"] - wave["step"])
-        cooling = runtime.season == "summer" or graph.heat_wave is not None
-        branches = run_branches(graph, ids, ticks, runtime.season, cooling=cooling)
-        return {
+        through_peak = ticks > req.ticks
+        heat = False
+        if req.scenario:
+            # A planned scenario runs past its last hit, or to the peak of a heat wave it starts.
+            ticks, through_peak = scenario_ticks(graph, req.scenario, req.ticks)
+            heat = any(b.hazard == "extreme_heat" for b in req.scenario)
+        cooling = runtime.season == "summer" or graph.heat_wave is not None or heat
+        branches = run_branches(graph, ids, ticks, runtime.season, cooling=cooling, scenario=req.scenario)
+        body = {
             "base_tick": graph.tick_count,
             "ticks": ticks,
             "active": runtime.strategy,
             "season": runtime.season,
             "shelter": "cooling" if cooling else "warming",
-            "through_peak": ticks > req.ticks,
+            "through_peak": through_peak,
             "branches": branches,
         }
+        if req.scenario:
+            body["through"] = "heat peak" if through_peak else "scenario end"
+            body["from_baseline"] = getattr(graph, "scenario_baseline", None) is not None
+        return body
 
 
 @app.post("/verdict")

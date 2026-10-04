@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BranchPanel } from './components/BranchPanel'
+import { ClassLoad } from './components/ClassLoad'
+import { CityCanvas } from './components/CityCanvas'
 import { GeoMap, type GeoMapHandle, type WeatherStatus } from './components/GeoMap'
 import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
@@ -11,12 +13,14 @@ import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
 import { fetchHazards, proposeBuilding, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
+import { useClassLoad } from './lib/classLoad'
 import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
 import type { StormNote } from './components/weather/useWeather'
 import { endAbandoned } from './lib/weather/api'
+import type { PlannedScenario } from './lib/weather/forecast'
 import { STORM_HAZARD, type StormKind, type WeatherRequest, type WeatherState } from './lib/weather/types'
 
 /** The strip's label. One from a finished run keeps its counts in step with the campus. */
@@ -53,11 +57,15 @@ function HeatWaveBanner({ wave }: { wave: Briefing['heat_wave'] }) {
 
 export default function App() {
   const sim = useSim()
+  // Students in class by time of day. Lives here so it outlives the panel swap to branching.
+  const classLoad = useClassLoad()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [view, setView] = useState<View>('grid')
+  const [view, setView] = useState<View>('map')
   const [branching, setBranching] = useState(false)
   const [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
+  // The dock's plan when Branch opened. Each policy plays it forward on its own copy.
+  const [branchPlan, setBranchPlan] = useState<PlannedScenario | null>(null)
   const [scenario, setScenario] = useState<Label | null>(null)
   const [hazard, setHazard] = useState<Hazard | null>(null)
   // Asks the scenario dock on the map to open. Each new seq is acted on once.
@@ -143,6 +151,13 @@ export default function App() {
     setBranching(false)
     setPreview(null)
   }
+  // With a plan in the dock, the comparison plays it forward, even mid-run. Without one it waits for the run to end.
+  const openBranch = () => {
+    const plan = mapRef.current?.plannedScenario() ?? null
+    if (mapWeather.running && !plan) return
+    setBranchPlan(plan)
+    setBranching(true)
+  }
 
   // FEMA hazards picked from the strip, by id, so a run that includes one can show its brief.
   const knownHazards = useRef(new Map<string, Hazard>())
@@ -227,11 +242,11 @@ export default function App() {
   }, [])
 
   // Break, Watch, Branch, Adopt. A policy other than the default means one was adopted.
-  const step = !disrupted ? 0 : branching ? 2 : sim.strategy !== DEFAULT_STRATEGY ? 3 : 1
-  // A fork taken while a scenario plays is out of date before it shows, so branching waits for the run to end.
+  const step = !disrupted && !branching ? 0 : branching ? 2 : sim.strategy !== DEFAULT_STRATEGY ? 3 : 1
+  // Mid-run, Branch only opens to replay the plan: a plain fork taken then is out of date before it shows.
   const onStep = (index: number) => {
     if (index === 1) closeBranch()
-    if (index >= 2 && disrupted && !mapWeather.running) setBranching(true)
+    if (index >= 2 && (disrupted || mapWeather.planned)) openBranch()
   }
 
   return (
@@ -279,6 +294,9 @@ export default function App() {
                   placing={placing !== null}
                   proposals={sim.proposals}
                   draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
+                  classSpots={classLoad.spots}
+                  classClock={classLoad.clock}
+                  onClassSlot={classLoad.setSlot}
                   onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
                   weather={weather}
                   weatherRequest={weatherRequest}
@@ -300,9 +318,25 @@ export default function App() {
                     })
                   }
                   onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
+                  onCampusChange={() => {
+                    setSelectedId(null)
+                    setPlacing(null)
+                    setDraftPoint(null)
+                  }}
                 />
               </div>
             )}
+            {view === 'city' &&
+              (surveyModel ? (
+                <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
+              ) : (
+                <CityCanvas
+                  nodes={nodes}
+                  edges={sim.edges}
+                  selectedId={selectedId}
+                  onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
+                />
+              ))}
             {view === 'grid' &&
               (surveyModel ? (
                 <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
@@ -383,6 +417,13 @@ export default function App() {
                 sim.refresh()
                 closeBranch()
               }}
+              scenario={branchPlan}
+              onAdoptAndRun={() => {
+                sim.refresh()
+                closeBranch()
+                setView('map')
+                mapRef.current?.runPlan()
+              }}
             />
           ) : saving ? (
             <SaverPanel live={sim.saver} onClose={() => setSaving(false)} onChanged={sim.refresh} />
@@ -391,11 +432,10 @@ export default function App() {
               sim={sim}
               disrupted={disrupted}
               running={mapWeather.running}
+              planned={mapWeather.planned}
               hazard={hazard}
               demo={demo}
-              onBranch={() => {
-                if (!mapWeather.running) setBranching(true)
-              }}
+              onBranch={openBranch}
               onCommand={(result) => {
                 if (result.policy.action === 'reset') {
                   mapRef.current?.clearWeather()
@@ -407,6 +447,7 @@ export default function App() {
                 else if (result.policy.action === 'fail') offerLabel({ label: 'Director’s order', detail: result.transcript })
                 sim.refresh()
               }}
+              people={<ClassLoad load={classLoad} />}
               plan={
                 <>
                   <PlanBuilding
@@ -439,7 +480,7 @@ export default function App() {
                     onClear={() => {
                       setSurvey(null)
                       setSurveyFailed([])
-                      setView('grid')
+                      setView('city')
                     }}
                     graph={surveyModel}
                     dark={surveyDark}

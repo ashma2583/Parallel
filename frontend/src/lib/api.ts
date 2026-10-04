@@ -5,6 +5,8 @@
  */
 import { BACKEND_URL } from '../config'
 import { fromApiNode, type ApiNode, type SimNode } from './sim'
+import { reducerLive, sendDefault } from './actions'
+import type { ScenarioBatch } from './weather/forecast'
 
 export type DisruptAction = 'fail' | 'restore' | 'derate'
 
@@ -25,16 +27,28 @@ export function startHeatWave() {
   return post('/heat-wave')
 }
 
+/**
+ * Disrupt, reset and adopt go through the shared action queue when SpacetimeDB is
+ * live and the engine is consuming it (every director sees the result). Otherwise
+ * they are the plain REST calls, exactly as before.
+ */
+async function act(kind: string, path: string, body?: Record<string, unknown>): Promise<unknown> {
+  if (!reducerLive()) return post(path, body)
+  const res = await sendDefault(kind, body ?? {})
+  if (!res.ok) throw new Error(`${path} -> ${res.restStatus ?? 'failed'} ${res.error ?? ''}`.trim())
+  return res
+}
+
 export function disrupt(nodeIds: string[], action: DisruptAction = 'fail', reason?: string, factor?: number) {
-  return post('/disrupt', { node_ids: nodeIds, action, reason, factor })
+  return act('disrupt', '/disrupt', { node_ids: nodeIds, action, reason, factor })
 }
 
 export function resetSim() {
-  return post('/reset')
+  return act('reset', '/reset')
 }
 
 export function adoptStrategy(strategy: string) {
-  return post('/strategy', { strategy })
+  return act('strategy', '/strategy', { strategy })
 }
 
 export interface BranchMetrics {
@@ -67,18 +81,27 @@ export interface BranchResult {
   season: Season
   shelter?: 'cooling' | 'warming'
   throughPeak?: boolean
+  /** Set when a planned scenario was played forward: how far each copy ran. */
+  through?: 'scenario end' | 'heat peak'
+  /** The copies started from the campus a scenario run puts back, not the live one. */
+  fromBaseline?: boolean
   branches: Branch[]
 }
 
-/** Fork the live state and run every response policy forward. */
-export async function runBranches(ticks = 6): Promise<BranchResult> {
-  const data = (await post('/branch', { ticks })) as {
+/**
+ * Fork the live state and run every response policy forward. With a scenario,
+ * each copy also plays the planned hits at their ticks.
+ */
+export async function runBranches(ticks = 6, scenario?: ScenarioBatch[]): Promise<BranchResult> {
+  const data = (await post('/branch', scenario?.length ? { ticks, scenario } : { ticks })) as {
     base_tick: number
     ticks: number
     active: string
     season?: Season
     shelter?: 'cooling' | 'warming'
     through_peak?: boolean
+    through?: 'scenario end' | 'heat peak'
+    from_baseline?: boolean
     branches: (Omit<Branch, 'nodes'> & { nodes: ApiNode[] })[]
   }
   return {
@@ -88,6 +111,8 @@ export async function runBranches(ticks = 6): Promise<BranchResult> {
     season: data.season ?? 'fall',
     shelter: data.shelter ?? (data.season === 'summer' ? 'cooling' : 'warming'),
     throughPeak: data.through_peak ?? false,
+    through: data.through,
+    fromBaseline: data.from_baseline ?? false,
     branches: data.branches.map((b) => ({ ...b, nodes: b.nodes.map(fromApiNode) })),
   }
 }
@@ -405,4 +430,57 @@ export async function researchLocation(query: string): Promise<LocationSurvey> {
 
 export async function fetchDebrief(): Promise<Debrief> {
   return post('/debrief') as Promise<Debrief>
+}
+
+export interface ClassSlot {
+  minutes: number
+  label: string
+  students: number
+  events?: number
+}
+
+export interface ClassBuilding {
+  code: string
+  name: string
+  campus: string
+  lat: number | null
+  lng: number | null
+  node_id: string | null
+  students: number[]
+}
+
+export interface ClassLoad {
+  weekday: string
+  turnup: number
+  focus: number
+  note: string | null
+  term: string
+  term_name: string
+  source: string
+  source_label: string
+  slots: ClassSlot[]
+  buildings: ClassBuilding[]
+  meeting_count: number
+  event_count?: number
+}
+
+export interface ClassSpot {
+  code: string
+  name: string
+  lat: number
+  lng: number
+  nodeId: string | null
+  students: number
+}
+
+export async function fetchClassLoad(weekday?: string, turnup = 0.75): Promise<ClassLoad> {
+  const params = new URLSearchParams({ turnup: String(turnup) })
+  if (weekday) params.set('weekday', weekday)
+  const res = await fetch(`${BACKEND_URL}/occupancy?${params}`)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const detail = typeof data.detail === 'string' ? data.detail : res.statusText
+    throw new Error(detail)
+  }
+  return data as ClassLoad
 }

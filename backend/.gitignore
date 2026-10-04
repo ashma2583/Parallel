@@ -1,8 +1,13 @@
 .venv/
 .env
 .env.local
+data/class-schedule.json
+data/class-schedule.json.tmp
 __pycache__/
 *.pyc
 spacetimedb/node_modules/
 spacetimedb/.spacetime/
 spacetimedb/dist/
+
+# Phase 5: engine identity for SpacetimeDB (stdb_actions.py)
+.stdb_engine_token
