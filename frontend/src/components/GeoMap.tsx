@@ -371,8 +371,30 @@ export function GeoMap({
         </select>
       </label>
       {!isUmich && (
-        <div className="absolute right-4 top-16 z-10 rounded bg-panel/90 px-2.5 py-1.5 font-mono text-[10px] text-muted">
-          MAP PREVIEW ONLY · SIMULATION REMAINS U-M
+        <div className="absolute right-4 top-16 z-10 flex max-w-64 items-center gap-2.5 rounded-lg border border-line bg-panel/95 px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-white p-1">
+            {campus.logo && (
+              <img
+                src={campus.logo}
+                alt=""
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none'
+                  event.currentTarget.nextElementSibling?.classList.remove('hidden')
+                }}
+                className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain"
+              />
+            )}
+            <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-5 w-5 text-slate-600 ${campus.logo ? 'hidden' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6M8 10h.01M12 10h.01M16 10h.01" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-xs font-semibold text-text">{campus.name}</div>
+            <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wide text-muted">
+              {campus.landmarks.length} landmarks · {campus.routes.length} illustrative routes
+            </div>
+            <div className="mt-0.5 text-[9px] text-muted">Preview only · simulation remains U-M</div>
+          </div>
         </div>
       )}
       {showLayerPanel ? (
