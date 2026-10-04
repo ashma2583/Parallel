@@ -37,7 +37,7 @@ The console ranks final outcomes by people in powered shelters, then fewer peopl
 1. **Hook (15 s).** "PARALLEL is a digital twin of the University of Michigan campus: 20 real buildings on the 3 real power feeds, the real U-M bus routes, and the real Fall 2026 class schedule. You throw a disaster at it and see what your decision does before you make it."
 2. **The map (30 s, Duke + bottleOfVacuum).** Open **Ann Arbor**.
    - Buses move along the real routes; their icons follow the streets in 2D and 3D.
-   - Yellow People circles show students in class right now.
+   - Yellow People circles show estimated scheduled students at the simulation clock's time.
    - Zoom out to the national view with school logos, then click the U-M logo (or pick University of Michigan) to fly back.
 3. **Plan a storm and compare before it hits (60 s).** Click the **Tornado** pill and drag a path from South Quad through Markley. Add **Extreme cold** from the strip.
    - Press **Compare all five policies**: each policy plays your planned scenario on its own copy *before* anything hits the live campus.

@@ -25,6 +25,8 @@ A campus resilience teaching simulator informed by University of Michigan locati
 
 ## Evidence the reviewer can inspect
 
+**Recorded integration checks:** the test run documented in [docs/fetch.md](fetch.md) passed **13/13 local conversation steps** and **4/4 mailbox steps**. Checks verified replies and resulting simulator state, including failed nodes, adopted policy and agreement with a fresh policy comparison. ASI:One planner mode also reached the coordinator and received three answered messages. These are documented integration results, not a fresh validation of today's deployment.
+
 Follow [DEMO.md](../DEMO.md) for the short live demonstration and [README.md](../README.md) for setup and source links. Compare essential demand served, shelter population, people left dark and relocations. Show energy-saver results against the timeclock baseline with the assumptions visible. [Fetch.ai evidence](fetch.md) records integration test conditions and example conversations.
 
 The console ranks powered-shelter population, then fewer people dark, then shelter power. The ASI:One Energy Planner separately ranks essential service, then fewer people dark, then fewer relocations. Adoption applies a response policy to the live simulation.

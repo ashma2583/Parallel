@@ -84,10 +84,10 @@
 
   <section class="sec" id="agents">
     <div class="wrap">
-      <div class="sec-head reveal"><span class="k q">Agents</span><h2>They act on who is in each building right now</h2></div>
+      <div class="sec-head reveal"><span class="k q">Agents</span><h2>Decisions respond to estimated occupancy</h2></div>
       <div class="feats">
-        <div class="feat reveal"><span class="k n">Energy agent</span><h3>Sheds load by priority</h3><p>Every tick it cuts demand where supply falls short, lowest priority first. Hospitals are never shed. It reads the live headcount from the class schedule, so an empty lecture hall goes before a full one.</p></div>
-        <div class="feat reveal"><span class="k n">Transit agent</span><h3>Moves people to shelter</h3><p>When a building goes dark, it moves the people inside to a cooling or warming shelter that still has power. It sees the people who are actually there at that time of day.</p></div>
+        <div class="feat reveal"><span class="k n">Energy agent</span><h3>Allocates scarce power</h3><p>Each tick it sheds demand according to the chosen policy, excluding critical-priority buildings from deliberate shedding. The people-per-kW policy uses occupancy estimates to compare how many people each kilowatt serves.</p></div>
+        <div class="feat reveal"><span class="k n">Transit agent</span><h3>Models relocation to powered buildings</h3><p>When a building goes dark, its modeled occupants move to the nearest eligible powered building reachable along open roads. If none is reachable, they remain in place. Headcounts are schedule-derived estimates; relocation is illustrative.</p></div>
         <div class="feat reveal"><span class="k n">Hard limit</span><h3>No invented power</h3><p>Supply on a feed is a ceiling. Agents shed, reroute and relocate. They cannot create kilowatts that the feed does not have.</p></div>
       </div>
     </div>
@@ -124,7 +124,7 @@
         <div class="reveal">
           <span class="k n">Energy saver focus</span>
           <h3>Cap power where nobody is</h3>
-          <p>Switch it on in the app. It caps power in empty buildings by time of day, using the class schedule, and never below what the people inside need. It counts the kilowatt-hours it saves.</p>
+          <p>Use schedule-aware caps to reduce modeled demand when buildings are quieter, with headroom and preconditioning before occupancy rises. Compare modeled reductions against always-on and timeclock baselines. Hospitals are excluded from energy-saver caps.</p>
           <ul class="lvls">
             <li><div class="lvl-h"><b>Comfort</b><span class="mono">20% headroom</span></div><div class="hr"><i style="width:80%"></i><u style="width:16%"></u></div><span class="t">Classrooms and libraries</span></li>
             <li><div class="lvl-h"><b>Balanced</b><span class="mono">10% headroom</span></div><div class="hr"><i style="width:80%"></i><u style="width:8%"></u></div><span class="t">Adds dining halls and labs</span></li>
@@ -139,7 +139,7 @@
     <div class="wrap">
       <div class="sec-head reveal"><span class="k q">Optional layers</span><h2>Sponsor tech, switched on when it is there</h2></div>
       <div class="feats">
-        <div class="feat reveal"><span class="k n">Fetch.ai</span><h3>A coordinator on ASI:One</h3><p>The PARALLEL Coordinator agent lives on ASI:One. Ask it &ldquo;an ice storm hit North Campus, what should we do?&rdquo; and Energy, Transit and Repair-crew planner agents each propose a plan. Each plan is tested in the simulator, and you get ranked options. Reply &ldquo;adopt 1&rdquo; to take one.</p></div>
+        <div class="feat reveal"><span class="k n">Fetch.ai</span><h3>Intent becomes simulator action</h3><p>Reach the running PARALLEL Coordinator through ASI:One. Ask &ldquo;an ice storm hit North Campus, what should we do?&rdquo; to execute simulator tools. Three planning functions provide tested energy-policy options, transit guidance and repair priorities. Reply &ldquo;adopt 1&rdquo; to apply an option.</p></div>
         <div class="feat reveal"><span class="k n">SpacetimeDB</span><h3>Live multiplayer</h3><p>Open two windows and they share one campus. An &ldquo;N online&rdquo; badge shows who else is in it.</p></div>
         <div class="feat reveal"><span class="k n">Language models</span><h3>Grok first, Claude as fallback</h3><p>Briefings and text try Grok first and fall back to Claude, then to deterministic text, so the app always has words. Voice commands use Grok.</p></div>
       </div>
