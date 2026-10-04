@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BranchPanel } from './components/BranchPanel'
+import { CityCanvas } from './components/CityCanvas'
 import { GeoMap } from './components/GeoMap'
 import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
@@ -18,7 +19,7 @@ import { buildSurvey, darkIds } from './lib/surveyGraph'
 export default function App() {
   const sim = useSim()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [view, setView] = useState<View>('grid')
+  const [view, setView] = useState<View>('map')
   const [branching, setBranching] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
   const [scenario, setScenario] = useState<Scenario | null>(null)
@@ -124,9 +125,17 @@ export default function App() {
                 draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
                 onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
                 onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
+                onCampusChange={() => setSelectedId(null)}
               />
             ) : surveyModel ? (
               <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
+            ) : view === 'city' ? (
+              <CityCanvas
+                nodes={nodes}
+                edges={sim.edges}
+                selectedId={selectedId}
+                onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
+              />
             ) : (
               <Schematic
                 nodes={nodes}
@@ -224,7 +233,7 @@ export default function App() {
                     onClear={() => {
                       setSurvey(null)
                       setSurveyFailed([])
-                      setView('grid')
+                      setView('city')
                     }}
                     graph={surveyModel}
                     dark={surveyDark}

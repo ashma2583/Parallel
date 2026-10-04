@@ -15,25 +15,38 @@
   --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  --color-ink: #090b0f;
-  --color-panel: #0f1217;
-  --color-raised: #161a21;
-  --color-line: #222832;
-  --color-text: #ece9e2;
-  --color-muted: #8f95a1;
+  --color-ink: #0b1424;
+  --color-panel: #0d1626;
+  --color-raised: #111d2f;
+  --color-line: #1f2d47;
+  --color-text: #e6edf7;
+  --color-muted: #8ea0bb;
   --color-faint: #6b7280;
 
   --color-ok: #3ddc97;
-  --color-warn: #ff8a3d;
-  --color-down: #ff5d5d;
-  --color-flow: #cfe3ff;
+  --color-warn: #ffb24d;
+  --color-down: #ff6b6b;
+  --color-flow: #9fd6ff;
   --color-branch: #a48bff;
-  --color-onbranch: #090b0f;
+  --color-onbranch: #0b1424;
   --color-transit: #7cc4ff;
 }
 
 :root {
   color-scheme: dark;
+  --city-ground: #0b1424;
+  --city-plane: #0d1929;
+  --city-road-major: #1d2a3d;
+  --city-road: #152238;
+  --city-lit: #5ec8ff;
+  --city-lit-deep: #287cad;
+  --city-dark-building: #253047;
+  --city-reduced: #ffb24d;
+  --city-filler: #122036;
+  --city-pin: #5ec8ff;
+  --city-pin-off: #ff6b6b;
+  --city-pin-off-bolt: #e6edf7;
+  --city-text: #e6edf7;
 }
 
 /* Light mode follows the system, or the choice saved by the landing page's toggle. */
@@ -43,6 +56,10 @@
     --color-text: #12151a; --color-muted: #5a616d; --color-faint: #7a808a;
     --color-ok: #0f9d63; --color-warn: #d9650d; --color-down: #d93a3a; --color-flow: #3b5b8c;
     --color-branch: #5b3fd6; --color-onbranch: #fbfbf9; --color-transit: #2a6fb0;
+    --city-ground: #f3f4f1; --city-plane: #e9ece7; --city-road-major: #cbd0cc; --city-road: #d9dcd6;
+    --city-lit: #3b5b8c; --city-lit-deep: #273e65; --city-dark-building: #6b7280; --city-reduced: #d9650d;
+    --city-filler: #d1d5d1; --city-pin: #3b5b8c; --city-pin-off: #d93a3a; --city-pin-off-bolt: #fff;
+    --city-text: #12151a;
     color-scheme: light;
   }
   :root:not([data-theme='dark']) .map-raster .maplibregl-canvas {
@@ -54,6 +71,10 @@
   --color-text: #12151a; --color-muted: #5a616d; --color-faint: #7a808a;
   --color-ok: #0f9d63; --color-warn: #d9650d; --color-down: #d93a3a; --color-flow: #3b5b8c;
   --color-branch: #5b3fd6; --color-onbranch: #fbfbf9; --color-transit: #2a6fb0;
+  --city-ground: #f3f4f1; --city-plane: #e9ece7; --city-road-major: #cbd0cc; --city-road: #d9dcd6;
+  --city-lit: #3b5b8c; --city-lit-deep: #273e65; --city-dark-building: #6b7280; --city-reduced: #d9650d;
+  --city-filler: #d1d5d1; --city-pin: #3b5b8c; --city-pin-off: #d93a3a; --city-pin-off-bolt: #fff;
+  --city-text: #12151a;
   color-scheme: light;
 }
 :root[data-theme='light'] .map-raster .maplibregl-canvas {

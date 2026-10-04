@@ -1,0 +1,108 @@
+
+  <!-- top-left: break something / status -->
+  <div style="position:absolute; left:16px; top:16px; z-index:5; display:flex; flex-direction:column; gap:10px; max-width:min(560px, calc(100% - 440px));">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path d="M4 1 V21 M14 1 V8 C14 12 8 12 8 16 V21" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"></path></svg>
+      <div style="line-height:1.2;"><div style="font-size:13px; font-weight:600; letter-spacing:.3em;">PARALLEL</div><div style="font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted);">Ann Arbor campus twin</div></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+      <sc-if value="{{ pristine }}" hint-placeholder-val="{{ true }}">
+        <span style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); margin-right:4px;">Break something</span>
+        <sc-for list="{{ scenarios }}" as="sc" hint-placeholder-count="5"><button type="button" onClick="{{ sc.onClick }}" title="{{ sc.detail }}" style="white-space:nowrap; border-radius:999px; border:1px solid var(--hair); background:var(--panel); padding:6px 12px; font-size:12px; font-weight:500; color:var(--text); cursor:pointer; backdrop-filter:blur(8px);" style-hover="border-color:var(--dark); color:var(--dark);">{{ sc.label }}</button></sc-for>
+      </sc-if>
+      <sc-if value="{{ disrupted }}" hint-placeholder-val="{{ false }}">
+        <span style="display:inline-flex; align-items:center; gap:10px; border-radius:999px; border:1px solid var(--hair); background:var(--panel); padding:6px 6px 6px 12px; font-size:12px; backdrop-filter:blur(8px);"><span style="width:6px; height:6px; border-radius:50%; background:var(--dark);"></span><span style="font-weight:500;">{{ scenarioLabel }}</span><span style="color:var(--muted);">{{ scenarioDetail }}</span><button type="button" onClick="{{ reset }}" style="border:0; border-radius:999px; background:var(--ground); color:var(--muted); padding:3px 10px; font-size:11px; cursor:pointer;" style-hover="color:var(--text);">Reset</button></span>
+        <sc-if value="{{ previewing }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:8px; border-radius:999px; border:1px solid var(--accent); color:var(--accent); background:var(--panel); padding:6px 12px; font-size:12px; font-weight:500;"><span style="width:6px; height:6px; border-radius:50%; background:var(--accent);"></span>Previewing {{ previewName }}</span></sc-if>
+      </sc-if>
+    </div>
+  </div>
+
+  <!-- top-centre: stepper -->
+  <ol style="position:absolute; left:50%; top:16px; transform:translateX(-50%); z-index:5; list-style:none; margin:0; padding:3px; display:{{ stepperDisplay }}; align-items:center; gap:2px; border-radius:999px; border:1px solid var(--hair); background:var(--panel); backdrop-filter:blur(8px); white-space:nowrap;">
+    <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+      <li style="display:flex; align-items:center; gap:2px;">
+        <button type="button" onClick="{{ s.onClick }}" style="display:flex; align-items:center; gap:8px; border:0; border-radius:999px; padding:5px 10px 5px 5px; background:{{ s.bg }}; color:{{ s.color }}; cursor:pointer; font-size:12px; font-weight:500;"><span style="display:inline-flex; width:18px; height:18px; flex-shrink:0; align-items:center; justify-content:center; border-radius:50%; font-family:'IBM Plex Mono',monospace; font-size:10px; border:1px solid {{ s.ringColor }}; background:{{ s.numBg }}; color:{{ s.numColor }};">{{ s.n }}</span>{{ s.label }}</button>
+        <sc-if value="{{ s.notLast }}" hint-placeholder-val="{{ true }}"><span style="width:12px; height:1px; background:var(--hair);"></span></sc-if>
+      </li>
+    </sc-for>
+  </ol>
+
+  <!-- right: floating panel -->
+  <aside style="position:absolute; right:16px; top:16px; bottom:16px; z-index:5; width:380px; max-width:calc(100% - 32px); display:flex; flex-direction:column; border-radius:12px; border:1px solid var(--hair); background:var(--panel); backdrop-filter:blur(12px); box-shadow:0 20px 50px rgba(0,0,0,.35); overflow:hidden;">
+    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid var(--hair);">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted);">Essential served</span><span style="font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:500; line-height:1; font-variant-numeric:tabular-nums; color:{{ essentialColor }};">{{ essentialPct }}</span></div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); white-space:nowrap;">unserved <span style="color:{{ unservedColor }};">{{ unservedKw }}</span> · t{{ tick }}</div>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); border-bottom:1px solid var(--hair);">
+      <sc-for list="{{ zones }}" as="z" hint-placeholder-count="4"><div style="padding:8px 12px; border-right:1px solid var(--hair);"><div style="display:flex; justify-content:space-between; align-items:baseline;"><span style="font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.12em; color:var(--muted);">{{ z.zone }}</span><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:{{ z.color }};">{{ z.pct }}</span></div><div style="margin-top:5px; height:2px; background:var(--hair); border-radius:2px; overflow:hidden;"><div style="height:100%; width:{{ z.width }}; background:{{ z.color }}; transition:width .5s;"></div></div></div></sc-for>
+    </div>
+
+    <sc-if value="{{ liveMode }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:14px 16px; border-bottom:1px solid var(--hair);">
+        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.14em; color:var(--muted);">Response policy</div>
+        <div style="margin-top:4px; font-size:15px; font-weight:600;">{{ policyName }}</div>
+        <div style="font-size:12px; color:var(--muted); margin-top:2px;">{{ policyDesc }}</div>
+        <button type="button" onClick="{{ openBranch }}" style="margin-top:12px; display:flex; width:100%; align-items:center; justify-content:center; gap:8px; border:0; border-radius:8px; background:var(--accent); color:var(--on-accent); padding:10px 14px; font-size:13px; font-weight:600; cursor:pointer;" style-hover="filter:brightness(1.08);"><svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true"><path d="M2 1 V13 M10 1 V5 C10 8 5 7 5 10 V13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>Compare all five policies</button>
+        <p style="margin:8px 0 0; font-size:11px; color:var(--muted);">{{ branchHint }}</p>
+      </div>
+      <div style="display:flex; min-height:0; flex:1; flex-direction:column; padding:12px 16px 0;">
+        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); margin-bottom:10px;">Agent feed</div>
+        <div style="min-height:0; flex:1; overflow-y:auto; padding-right:6px; margin-right:-6px;">
+          <sc-if value="{{ feedEmpty }}" hint-placeholder-val="{{ true }}"><p style="margin:0; font-size:12px; color:var(--muted);">Agents idle. The grid is balanced.</p></sc-if>
+          <ol style="list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px;">
+            <sc-for list="{{ feed }}" as="ln" hint-placeholder-count="0"><li style="display:grid; grid-template-columns:36px 1fr; gap:10px; align-items:baseline;"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted);">{{ ln.t }}</span><div><div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.12em; color:{{ ln.color }};">{{ ln.who }}</div><div style="margin-top:2px; font-size:12px; line-height:1.5;">{{ ln.text }}</div></div></li></sc-for>
+          </ol>
+        </div>
+      </div>
+      <div style="padding:12px 16px 14px; border-top:1px solid var(--hair);">
+        <div style="display:flex; align-items:center; gap:4px; border-radius:8px; border:1px solid var(--hair); background:var(--ground); padding:4px;" style-focus="border-color:var(--accent);">
+          <button type="button" title="Hold to talk" aria-label="Hold to talk" style="display:flex; height:30px; width:30px; flex-shrink:0; align-items:center; justify-content:center; border:0; border-radius:6px; background:var(--panel); color:var(--muted); cursor:pointer;" style-hover="color:var(--text);"><svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"><rect x="3.5" y="0.5" width="5" height="9" rx="2.5" fill="currentColor"></rect><path d="M1 7 A5 5 0 0 0 11 7 M6 12 V15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button>
+          <input value="{{ command }}" onChange="{{ setCommand }}" onKeyDown="{{ commandKey }}" placeholder="Director’s order: the power plant just failed" style="min-width:0; flex:1; background:transparent; border:0; outline:none; padding:0 6px; font-size:13px; color:var(--text); font-family:inherit;">
+          <button type="button" onClick="{{ sendCommand }}" style="border:0; background:none; border-radius:4px; padding:6px 10px; font-size:12px; font-weight:600; color:var(--accent); cursor:pointer; opacity:{{ sendOpacity }};">Send</button>
+        </div>
+        <sc-if value="{{ heard }}" hint-placeholder-val="{{ false }}"><p style="margin:8px 0 0; font-size:12px; color:var(--muted);">Understood as <span style="font-family:'IBM Plex Mono',monospace; color:var(--text);">{{ heard }}</span></p></sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ branching }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Branch comparison" style="display:flex; flex-direction:column; min-height:0; flex:1;">
+        <div style="padding:14px 16px 12px; border-bottom:1px solid var(--hair); display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+          <div><div style="font-size:15px; font-weight:600;">Branch timeline</div><p style="margin:4px 0 0; font-size:12px; color:var(--muted); line-height:1.5;">{{ branchIntro }}</p></div>
+          <button type="button" onClick="{{ closeBranch }}" style="flex-shrink:0; border-radius:6px; border:1px solid var(--hair); background:none; padding:5px 10px; font-size:12px; color:var(--muted); cursor:pointer;" style-hover="color:var(--text);">Back to live</button>
+        </div>
+        <sc-if value="{{ identical }}" hint-placeholder-val="{{ false }}"><p style="margin:12px 16px 0; border-radius:6px; border:1px solid var(--hair); background:var(--ground); padding:8px 12px; font-size:12px; color:var(--muted);">Every policy ends in the same place. Policies only diverge when a feed is short but not dead, so try the heat wave scenario.</p></sc-if>
+        <div style="min-height:0; flex:1; overflow-y:auto; overflow-x:hidden;">
+          <sc-for list="{{ branches }}" as="b" hint-placeholder-count="5">
+            <div onMouseEnter="{{ b.onHover }}" onMouseLeave="{{ b.onLeave }}" onClick="{{ b.onSelect }}" style="border-bottom:1px solid var(--hair); padding:12px 16px; cursor:pointer; border-left:2px solid {{ b.edge }}; background:{{ b.bg }}; animation: rise .3s ease-out both; animation-delay:{{ b.delay }};">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                <div style="display:flex; align-items:center; gap:8px; min-width:0;"><span style="font-size:14px; font-weight:600; white-space:nowrap;">{{ b.label }}</span>
+                  <sc-if value="{{ b.isLive }}" hint-placeholder-val="{{ false }}"><span style="font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.12em; border:1px solid var(--hair); border-radius:3px; padding:2px 5px; color:var(--muted);">Live</span></sc-if>
+                  <sc-if value="{{ b.isBest }}" hint-placeholder-val="{{ false }}"><span style="font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.12em; border-radius:3px; padding:2px 5px; background:var(--accent); color:var(--on-accent);">Best</span></sc-if>
+                </div>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:500; line-height:1; font-variant-numeric:tabular-nums; color:{{ b.essColor }};">{{ b.ess }}<span style="font-size:12px; color:var(--muted);">%</span></span>
+              </div>
+              <div style="margin-top:8px; height:3px; background:var(--hair); border-radius:999px; overflow:hidden;"><div style="height:100%; width:{{ b.barW }}; background:{{ b.essColor }};"></div></div>
+              <div style="margin-top:8px; display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap;"><span><span style="color:{{ b.darkColor }};">{{ b.dark }}</span> dark</span><span><span style="color:var(--text);">{{ b.moved }}</span> moved</span><span><span style="color:{{ b.reducedColor }};">{{ b.reduced }}</span> reduced</span><sc-if value="{{ b.showDelta }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto; color:{{ b.deltaColor }};">{{ b.delta }} pts</span></sc-if></div>
+              <sc-if value="{{ b.open }}" hint-placeholder-val="{{ false }}">
+                <p style="margin:10px 0 0; font-size:12px; color:var(--muted); line-height:1.5;">{{ b.description }}</p>
+                <dl style="margin:10px 0 0;"><sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="3"><div style="display:flex; justify-content:space-between; gap:12px; border-top:1px solid var(--hair); padding:5px 0; font-size:12px;"><dt style="color:var(--muted);">{{ r.label }}</dt><dd style="margin:0; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; color:{{ r.color }};">{{ r.value }}</dd></div></sc-for></dl>
+                <button type="button" onClick="{{ b.onAdopt }}" style="margin-top:12px; width:100%; border-radius:8px; border:1px solid {{ b.btnBorder }}; background:{{ b.btnBg }}; padding:8px 12px; font-size:13px; font-weight:600; color:{{ b.btnColor }}; cursor:pointer;">{{ b.btnLabel }}</button>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <p style="margin:0; padding:10px 16px; border-top:1px solid var(--hair); font-size:11px; color:var(--muted); line-height:1.5;">Hover a policy to preview it on the city. A constraint-based teaching model, not a forecast.</p>
+      </div>
+    </sc-if>
+  </aside>
+
+  <!-- bottom-left: inspector -->
+  <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; left:16px; bottom:16px; z-index:5; width:300px; border-radius:12px; border:1px solid var(--hair); background:var(--panel); backdrop-filter:blur(12px); padding:14px 16px; animation: rise .25s ease-out both; box-shadow:0 12px 32px rgba(0,0,0,.3);">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;"><div><div style="font-size:15px; font-weight:600; line-height:1.3;">{{ sel.name }}</div><div style="margin-top:2px; font-size:12px; color:var(--muted);">{{ sel.kind }}</div></div><span style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:500; color:{{ sel.color }}; white-space:nowrap;"><span style="width:6px; height:6px; border-radius:50%; background:{{ sel.color }};"></span>{{ sel.statusLabel }}</span></div>
+      <dl style="margin:12px 0 0; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px 12px;"><sc-for list="{{ sel.rows }}" as="row" hint-placeholder-count="3"><div><dt style="font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted);">{{ row.label }}</dt><dd style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:13px; font-variant-numeric:tabular-nums;">{{ row.value }}</dd></div></sc-for></dl>
+      <div style="display:flex; gap:8px; margin-top:14px;"><button type="button" onClick="{{ toggleSelected }}" style="flex:1; border-radius:8px; border:1px solid {{ sel.btnColor }}; background:none; padding:6px 12px; font-size:13px; font-weight:500; color:{{ sel.btnColor }}; cursor:pointer;">{{ sel.btnLabel }}</button><button type="button" onClick="{{ clearSelection }}" style="border-radius:8px; border:1px solid var(--hair); background:none; padding:6px 12px; font-size:13px; color:var(--muted); cursor:pointer;">Close</button></div>
+    </div>
+  </sc-if>
+  <!-- bottom-centre: controls hint -->
+  <div style="position:absolute; left:50%; bottom:16px; transform:translateX(-50%); z-index:4; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); background:var(--panel); border:1px solid var(--hair); border-radius:999px; padding:5px 12px; white-space:nowrap; backdrop-filter:blur(8px);">{{ controlsHint }}</div>
