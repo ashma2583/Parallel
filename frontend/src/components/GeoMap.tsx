@@ -12,6 +12,7 @@ import { CAMPUSES, MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 import type { SimEdge, SimNode } from '../lib/sim'
 import { splitByClosures } from '../lib/weather/geo'
 import type { BusLine, ClosedRoute, LngLat, WeatherRequest, WeatherState } from '../lib/weather/types'
+import type { PlannedScenario } from '../lib/weather/forecast'
 import { useWeather, type StormNote } from './weather/useWeather'
 import { WeatherCanvas } from './weather/WeatherCanvas'
 import { WeatherDock } from './weather/WeatherDock'
@@ -85,6 +86,10 @@ function routeColor(id: string): string {
 export interface GeoMapHandle {
   /** Stop a running scenario and forget weather kept in the browser. Call before a campus reset. */
   clearWeather: () => void
+  /** The scenario plan as timed batches for Branch, or null when there is nothing new to play. */
+  plannedScenario: () => PlannedScenario | null
+  /** Play the dock's plan on the live campus, as its Run button does. */
+  runPlan: () => void
 }
 
 /** Weather on the map, for the scenario strip. */
@@ -98,6 +103,8 @@ export interface WeatherStatus {
    * of its campus-wide conditions, and "storm:<kind>" for weather drawn on the map.
    */
   hazards: string[]
+  /** The dock has a plan the last run has not already played. */
+  planned?: boolean
 }
 
 interface Props {
@@ -272,7 +279,9 @@ export function GeoMap({
   const { closed_routes: closedRoutes, cut_edges: cutEdges, closed_roads: closedRoads } = storm.effective
 
   const clearWeather = storm.clear
-  useImperativeHandle(ref, () => ({ clearWeather }), [clearWeather])
+  const plannedScenario = storm.planned
+  const runPlan = storm.dock.onRun
+  useImperativeHandle(ref, () => ({ clearWeather, plannedScenario, runPlan }), [clearWeather, plannedScenario, runPlan])
 
   const weatherActive = storm.effective.storms.length + closedRoutes.length + cutEdges.length + closedRoads.length > 0
   const running = storm.dock.phase === 'running'
@@ -282,8 +291,8 @@ export function GeoMap({
     statusRef.current = onWeatherStatus
   })
   useEffect(() => {
-    statusRef.current?.({ active: weatherActive, running, hazards: hazardKey ? hazardKey.split(',') : [] })
-  }, [weatherActive, running, hazardKey])
+    statusRef.current?.({ active: weatherActive, running, hazards: hazardKey ? hazardKey.split(',') : [], planned: storm.plannable })
+  }, [weatherActive, running, hazardKey, storm.plannable])
 
   // Back from the grid view: the container may have changed size while hidden.
   useEffect(() => {

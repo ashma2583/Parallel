@@ -184,8 +184,10 @@ const TABS = [
 interface Props {
   sim: Sim
   disrupted: boolean
-  /** A scenario is playing on the map. Comparing waits until it ends. */
+  /** A scenario is playing on the map. Comparing waits until it ends, unless there is a plan to replay. */
   running?: boolean
+  /** The scenario dock has a plan the last run has not played. Branch plays it forward. */
+  planned?: boolean
   /** Heat-wave demo: point at the briefing, the feed, and the policy comparison. */
   demo?: boolean
   onBranch: () => void
@@ -199,7 +201,7 @@ interface Props {
 }
 
 /** Right panel while watching the live campus: current policy, feed and briefing, director's order. */
-export function LivePanel({ sim, disrupted, running = false, demo = false, onBranch, onCommand, plan, people, hazard }: Props) {
+export function LivePanel({ sim, disrupted, running = false, planned = false, demo = false, onBranch, onCommand, plan, people, hazard }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('briefing')
   const [cue, setCue] = useState(demo)
   const policy = strategyFor(sim.strategy)
@@ -225,7 +227,7 @@ export function LivePanel({ sim, disrupted, running = false, demo = false, onBra
         <button
           type="button"
           onClick={onBranch}
-          disabled={running}
+          disabled={running && !planned}
           className={`mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-branch px-3.5 py-2.5 text-[16px] font-semibold text-onbranch transition enabled:hover:brightness-110 disabled:bg-raised disabled:text-faint ${demo ? 'demo-button' : ''}`}
         >
           <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden>
@@ -234,7 +236,11 @@ export function LivePanel({ sim, disrupted, running = false, demo = false, onBra
           Compare all five policies
         </button>
         <p className="mt-2 text-[15px] text-muted">
-          {running
+          {planned
+            ? running
+              ? 'Replays the scenario playing now from its start, on a copy of the campus for each policy.'
+              : 'Plays your planned scenario forward on a copy of the campus for each policy, before it hits the live one.'
+            : running
             ? 'Finish or stop the scenario run first. A comparison forked mid-run is out of date before it shows.'
             : disrupted
               ? 'Forks the campus and runs each policy 6 ticks on its own copy.'

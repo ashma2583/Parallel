@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { adoptStrategy, fetchVerdict, runBranches, type Branch, type BranchResult } from '../lib/api'
+import type { PlannedScenario } from '../lib/weather/forecast'
 import { STATUS_COLOR, fmtPeople } from '../lib/status'
 
 interface Props {
@@ -9,6 +10,10 @@ interface Props {
   onPreview: (branch: Branch | null) => void
   onClose: () => void
   onAdopted: () => void
+  /** A planned scenario from the dock. Each copy plays it forward before it hits the live campus. */
+  scenario?: PlannedScenario | null
+  /** Adopt, then play the scenario on the live campus. Offered when a plan is ready and not playing. */
+  onAdoptAndRun?: () => void
 }
 
 const points = (ratio: number) => Math.round(ratio * 1000) / 10
@@ -23,13 +28,22 @@ function best(branches: Branch[]): string | undefined {
   )[0]?.id
 }
 
+/** Header for a comparison that played the dock's plan forward. */
+function scenarioLine(plan: PlannedScenario, result: BranchResult): string {
+  const what = `${plan.events} event${plan.events === 1 ? '' : 's'}, through ${plan.through}`
+  const peak = result.through === 'heat peak' ? ', then on to the peak of the heat wave' : ''
+  if (plan.running) return `Each policy replays your scenario (${what}) from its start on its own copy${peak}, ${result.ticks} ticks. The live run keeps going.`
+  const start = result.fromBaseline ? ' from the campus a run starts from,' : ''
+  return `Each policy plays your planned scenario (${what})${start} on its own copy${peak} before anything hits the live campus.`
+}
+
 const essentialColor = (ratio: number) => (ratio >= 0.999 ? STATUS_COLOR.Green : ratio >= 0.8 ? STATUS_COLOR.Amber : STATUS_COLOR.Red)
 
 /**
  * Right panel while branching. The engine forks the live state and runs every
  * response policy forward on its own copy; each row is one outcome.
  */
-export function BranchPanel({ demo = false, onPreview, onClose, onAdopted }: Props) {
+export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scenario = null, onAdoptAndRun }: Props) {
   const [result, setResult] = useState<BranchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [opened, setOpened] = useState<string | null>(null)
@@ -38,11 +52,13 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted }: Pro
   const [verdict, setVerdict] = useState<string | null>(null)
   const [cue, setCue] = useState(demo)
 
+  // The plan as it was when the panel opened. Edits after that need a fresh comparison.
+  const [plan] = useState(scenario)
   useEffect(() => {
-    runBranches()
+    runBranches(6, plan?.batches)
       .then(setResult)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-  }, [])
+  }, [plan])
 
   useEffect(() => {
     if (!result) return
@@ -73,11 +89,12 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted }: Pro
       .catch(() => {})
   }, [result])
 
-  const adopt = async (id: string) => {
+  const adopt = async (id: string, run = false) => {
     setAdopting(id)
     try {
       await adoptStrategy(id)
-      onAdopted()
+      if (run && onAdoptAndRun) onAdoptAndRun()
+      else onAdopted()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setAdopting(null)
@@ -95,11 +112,15 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted }: Pro
         <div>
           <div className="text-[22px] font-semibold">Branch timeline</div>
           <p className="mt-1 text-[16px] leading-normal text-muted">
-            {result
+            {result && plan && result.through
+              ? scenarioLine(plan, result)
+              : result
               ? result.throughPeak
                 ? `Forked at t${result.baseTick}. Each policy is run to the peak of the heat wave, ${result.ticks} ticks ahead, on its own copy. The live clock is still earlier.`
                 : `Forked at t${result.baseTick}. Each policy ran ${result.ticks} ticks on its own copy of the campus with the same agents and supply. The live campus has not changed.`
-              : 'Forking the live campus and running each response policy…'}
+              : plan
+                ? `Playing your planned scenario on five copies of the campus…`
+                : 'Forking the live campus and running each response policy…'}
           </p>
         </div>
         <button type="button" onClick={onClose} className="shrink-0 rounded-md border border-line px-2.5 py-[5px] text-sm text-muted transition hover:text-text">
@@ -125,7 +146,9 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted }: Pro
       {error && <p className="mx-4 mt-3 text-sm text-down">{error}</p>}
       {identical && (
         <p className="mx-4 mt-3 rounded-md border border-line bg-ink px-3 py-2 text-sm text-muted">
-          Every policy ends in the same place. Policies only diverge when a feed is short but not dead, so try the heat wave scenario.
+          {plan
+            ? 'Every policy ends in the same place under this plan. Policies only diverge when a feed is short but not dead, so add Extreme cold or Extreme heat to it.'
+            : 'Every policy ends in the same place. Policies only diverge when a feed is short but not dead, so try the heat wave scenario.'}
         </p>
       )}
 
@@ -200,6 +223,19 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted }: Pro
                   >
                     {isLive ? 'Running on the live campus' : adopting === b.id ? 'Adopting…' : 'Adopt this timeline'}
                   </button>
+                  {plan && !plan.running && onAdoptAndRun && (
+                    <button
+                      type="button"
+                      disabled={adopting !== null}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void adopt(b.id, true)
+                      }}
+                      className="mt-2 w-full rounded-md border border-branch px-3 py-2 text-base font-semibold text-branch transition enabled:hover:bg-branch/15 disabled:opacity-50"
+                    >
+                      {isLive ? 'Run the scenario live' : 'Adopt and run the scenario live'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -208,7 +244,7 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted }: Pro
       </div>
 
       <p className="border-t border-line px-4 py-3 text-[15px] leading-normal text-muted">
-        Hover a policy to preview who stays lit. The three intakes, the buildings, and the U-M bus lines are real. The kilowatts are a scaled model.
+        {plan ? 'Hover a policy to preview the campus once the scenario has played out.' : 'Hover a policy to preview who stays lit.'} The three intakes, the buildings, and the U-M bus lines are real. The kilowatts are a scaled model.
       </p>
     </div>
   )

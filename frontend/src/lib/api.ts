@@ -6,6 +6,7 @@
 import { BACKEND_URL } from '../config'
 import { fromApiNode, type ApiNode, type SimNode } from './sim'
 import { reducerLive, sendDefault } from './actions'
+import type { ScenarioBatch } from './weather/forecast'
 
 export type DisruptAction = 'fail' | 'restore' | 'derate'
 
@@ -80,18 +81,27 @@ export interface BranchResult {
   season: Season
   shelter?: 'cooling' | 'warming'
   throughPeak?: boolean
+  /** Set when a planned scenario was played forward: how far each copy ran. */
+  through?: 'scenario end' | 'heat peak'
+  /** The copies started from the campus a scenario run puts back, not the live one. */
+  fromBaseline?: boolean
   branches: Branch[]
 }
 
-/** Fork the live state and run every response policy forward. */
-export async function runBranches(ticks = 6): Promise<BranchResult> {
-  const data = (await post('/branch', { ticks })) as {
+/**
+ * Fork the live state and run every response policy forward. With a scenario,
+ * each copy also plays the planned hits at their ticks.
+ */
+export async function runBranches(ticks = 6, scenario?: ScenarioBatch[]): Promise<BranchResult> {
+  const data = (await post('/branch', scenario?.length ? { ticks, scenario } : { ticks })) as {
     base_tick: number
     ticks: number
     active: string
     season?: Season
     shelter?: 'cooling' | 'warming'
     through_peak?: boolean
+    through?: 'scenario end' | 'heat peak'
+    from_baseline?: boolean
     branches: (Omit<Branch, 'nodes'> & { nodes: ApiNode[] })[]
   }
   return {
@@ -101,6 +111,8 @@ export async function runBranches(ticks = 6): Promise<BranchResult> {
     season: data.season ?? 'fall',
     shelter: data.shelter ?? (data.season === 'summer' ? 'cooling' : 'warming'),
     throughPeak: data.through_peak ?? false,
+    through: data.through,
+    fromBaseline: data.from_baseline ?? false,
     branches: data.branches.map((b) => ({ ...b, nodes: b.nodes.map(fromApiNode) })),
   }
 }
