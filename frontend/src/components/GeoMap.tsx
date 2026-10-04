@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Map, Marker, NavigationControl } from '@vis.gl/react-maplibre'
-import { setWorkerUrl, type Map as MaplibreMap } from 'maplibre-gl'
+import { setWorkerUrl, type ExpressionSpecification, type Map as MaplibreMap } from 'maplibre-gl'
 import type { Feature, FeatureCollection, GeoJsonProperties, LineString } from 'geojson'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -107,7 +107,10 @@ export function GeoMap({
   const [showCampusPower, setShowCampusPower] = useState(true)
   const [showCampusLandmarks, setShowCampusLandmarks] = useState(true)
   const [threeD, setThreeD] = useState(true)
+  const [mapTheme, setMapTheme] = useState<'day' | 'night'>('day')
+  const mapThemeRef = useRef<'day' | 'night'>('day')
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
+  const dayPaintValues = useRef(new globalThis.Map<string, string | ExpressionSpecification>())
   const [campusId, setCampusId] = useState<(typeof CAMPUSES)[number]['id']>('umich')
   const [campusOverview, setCampusOverview] = useState(false)
   const [showSchoolMarkers, setShowSchoolMarkers] = useState(false)
@@ -237,6 +240,19 @@ export function GeoMap({
   }
 
   useEffect(() => {
+    mapThemeRef.current = mapTheme
+  }, [mapTheme])
+
+  useEffect(() => {
+    if (!map) return
+    map.getCanvas().style.filter = basemap === 'raster'
+      ? mapTheme === 'night'
+        ? 'invert(1) hue-rotate(180deg) brightness(0.75) contrast(0.95) saturate(0.6)'
+        : 'saturate(0.45) contrast(0.95) brightness(1.02)'
+      : ''
+  }, [map, basemap, mapTheme])
+
+  useEffect(() => {
     if (!map) return
     const updateOverview = () => {
       const zoom = map.getZoom()
@@ -271,7 +287,8 @@ export function GeoMap({
       const vector = Boolean(map.getSource('openmaptiles'))
       setBasemap(vector ? 'vector' : 'raster')
       if (threeD && vector) {
-        addBuildings(map)
+        addBuildings(map, mapThemeRef.current)
+        applyMapTheme(map, mapThemeRef.current, dayPaintValues.current)
       }
       map.easeTo({
         pitch: threeD && vector ? 60 : 0,
@@ -287,6 +304,20 @@ export function GeoMap({
       map.off('style.load', apply)
     }
   }, [map, threeD, campus])
+
+  useEffect(() => {
+    if (!map || basemap !== 'vector') return
+    const apply = () => {
+      if (!map.isStyleLoaded()) return
+      applyMapTheme(map, mapTheme, dayPaintValues.current)
+      if (threeD) addBuildings(map, mapTheme)
+    }
+    apply()
+    map.on('style.load', apply)
+    return () => {
+      map.off('style.load', apply)
+    }
+  }, [map, basemap, mapTheme, threeD])
 
   useEffect(() => {
     if (!map || !survey || survey.buildings.length === 0) return
@@ -425,6 +456,11 @@ export function GeoMap({
             </>
           )}
           <Toggle label="3D buildings" checked={threeD} onChange={setThreeD} />
+          <Toggle
+            label="Night map"
+            checked={mapTheme === 'night'}
+            onChange={(enabled) => setMapTheme(enabled ? 'night' : 'day')}
+          />
         </div>
       ) : (
         <button type="button" onClick={() => setShowLayerPanel(true)} className="absolute left-4 top-3.5 z-10 rounded-md border border-line bg-panel/95 px-3 py-2 text-xs text-text shadow">
@@ -992,10 +1028,26 @@ function lineFeature(
   }
 }
 
-function addBuildings(map: MaplibreMap) {
+function addBuildings(map: MaplibreMap, theme: 'day' | 'night') {
   if (!map.getSource('openmaptiles')) return
   if (map.getLayer('building')) map.setLayoutProperty('building', 'visibility', 'none')
-  if (map.getLayer('buildings-3d')) return
+  const buildingColor: string | ExpressionSpecification = theme === 'night'
+    ? '#26394d'
+    : [
+        'interpolate',
+        ['linear'],
+        ['coalesce', ['get', 'render_height'], 8],
+        0,
+        '#efe6da',
+        12,
+        '#d9cfc3',
+        30,
+        '#b7aa9c',
+      ]
+  if (map.getLayer('buildings-3d')) {
+    map.setPaintProperty('buildings-3d', 'fill-extrusion-color', buildingColor)
+    return
+  }
   const before = map.getStyle().layers?.find((layer) => layer.type === 'symbol')?.id
   map.addLayer(
     {
@@ -1006,17 +1058,7 @@ function addBuildings(map: MaplibreMap) {
       minzoom: 13,
       filter: ['!=', ['get', 'hide_3d'], true],
       paint: {
-        'fill-extrusion-color': [
-          'interpolate',
-          ['linear'],
-          ['coalesce', ['get', 'render_height'], 8],
-          0,
-          '#efe6da',
-          12,
-          '#d9cfc3',
-          30,
-          '#b7aa9c',
-        ],
+        'fill-extrusion-color': buildingColor,
         'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
         'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
         'fill-extrusion-opacity': 1,
@@ -1024,6 +1066,80 @@ function addBuildings(map: MaplibreMap) {
     },
     before,
   )
+}
+
+function applyMapTheme(
+  map: MaplibreMap,
+  theme: 'day' | 'night',
+  dayValues: globalThis.Map<string, string | ExpressionSpecification>,
+) {
+  const night = theme === 'night'
+  const setColor = (
+    layerId: string,
+    property: 'background-color' | 'fill-color' | 'line-color' | 'text-color' | 'text-halo-color',
+    nightColor: string,
+  ) => {
+    const key = `${layerId}:${property}`
+    const current = map.getPaintProperty(layerId, property) as string | ExpressionSpecification | undefined
+    if (!dayValues.has(key)) {
+      if (current === undefined) return
+      dayValues.set(key, current)
+    }
+    const color = night ? nightColor : dayValues.get(key)
+    if (!color) return
+    switch (property) {
+      case 'background-color':
+        map.setPaintProperty(layerId, 'background-color', color)
+        break
+      case 'fill-color':
+        map.setPaintProperty(layerId, 'fill-color', color)
+        break
+      case 'line-color':
+        map.setPaintProperty(layerId, 'line-color', color)
+        break
+      case 'text-color':
+        map.setPaintProperty(layerId, 'text-color', color)
+        break
+      case 'text-halo-color':
+        map.setPaintProperty(layerId, 'text-halo-color', color)
+        break
+    }
+  }
+
+  for (const layer of map.getStyle().layers ?? []) {
+    if (layer.type === 'background') {
+      setColor(layer.id, 'background-color', '#091421')
+      continue
+    }
+    if (layer.type === 'fill') {
+      const sourceLayer = 'source-layer' in layer ? layer['source-layer'] : undefined
+      const color = sourceLayer === 'water'
+        ? '#12385c'
+        : sourceLayer === 'park' || sourceLayer === 'landcover'
+          ? '#18362f'
+          : sourceLayer === 'landuse'
+            ? '#1b2735'
+            : '#253244'
+      setColor(layer.id, 'fill-color', color)
+    } else if (layer.type === 'line') {
+      const sourceLayer = 'source-layer' in layer ? layer['source-layer'] : undefined
+      const casing = layer.id.includes('casing')
+      const majorRoad = /motorway|trunk|primary/.test(layer.id)
+      const color = sourceLayer === 'waterway'
+        ? '#23517b'
+        : sourceLayer === 'transportation'
+          ? casing ? '#172333' : majorRoad ? '#75859b' : '#47596e'
+          : '#536479'
+      setColor(layer.id, 'line-color', color)
+    } else if (layer.type === 'symbol') {
+      setColor(layer.id, 'text-color', '#d7e2ed')
+      setColor(layer.id, 'text-halo-color', '#111e2c')
+    }
+  }
+
+  map.setLight(night
+    ? { anchor: 'viewport', color: '#b7c9e2', intensity: 0.28, position: [1.5, 210, 35] }
+    : { anchor: 'viewport', color: '#fff3d7', intensity: 0.72, position: [1.15, 210, 45] })
 }
 
 function setGroundLines(
@@ -1081,9 +1197,10 @@ function CampusDot({ label, ring = '#38bdf8', selected = false, bolt = false, ti
       role="img"
       aria-label={label}
       title={title ?? label}
-      className={`flex h-4 w-4 items-center justify-center rounded-full border-2 bg-sky-600 shadow-[0_0_8px_rgba(56,189,248,0.55)] ${
+      tabIndex={bolt ? 0 : undefined}
+      className={`flex h-4 w-4 items-center justify-center rounded-full border-2 bg-sky-600 shadow-[0_0_8px_rgba(56,189,248,0.55)] transition-transform duration-150 ${
         selected ? 'scale-125' : ''
-      }`}
+      } ${bolt ? 'hover:scale-150 focus-visible:scale-150' : ''}`}
       style={{ borderColor: ring }}
     >
       {bolt && <svg aria-hidden="true" viewBox="0 0 12 16" className="h-2.5 w-2 text-white" fill="currentColor"><path d="M7.1 0 1.8 8h3.5L4.7 16l5.5-9H6.7L7.1 0Z" /></svg>}
