@@ -98,7 +98,7 @@ const FAULT_GLYPH = (
 )
 
 /** Small controls used inside the dock. */
-export type UiGlyph = 'play' | 'stop' | 'plus' | 'minus' | 'close' | 'chevron' | 'clock' | 'link' | 'layers' | 'replay'
+export type UiGlyph = 'play' | 'stop' | 'plus' | 'minus' | 'close' | 'chevron' | 'clock' | 'link' | 'layers' | 'replay' | 'check' | 'alert'
 
 const UI_GLYPHS: Record<UiGlyph, ReactNode> = {
   play: <path d="M7.5 5.2v13.6a.8.8 0 0 0 1.2.7l11-6.8a.8.8 0 0 0 0-1.4l-11-6.8a.8.8 0 0 0-1.2.7Z" fill="currentColor" stroke="none" />,
@@ -130,6 +130,13 @@ const UI_GLYPHS: Record<UiGlyph, ReactNode> = {
     <>
       <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9" />
       <path d="M4.5 4.5V9H9" />
+    </>
+  ),
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  alert: (
+    <>
+      <path d="M10.3 4.9a2 2 0 0 1 3.4 0l7.1 12.3a2 2 0 0 1-1.7 3H4.9a2 2 0 0 1-1.7-3l7.1-12.3Z" />
+      <path d="M12 9.5v4M12 16.8h.01" />
     </>
   ),
 }

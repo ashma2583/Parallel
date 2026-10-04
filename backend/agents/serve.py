@@ -18,7 +18,6 @@ import threading
 from uagents import Agent, Bureau, Context, Model
 
 from agents import runtime
-from agents.logic import apply_policy
 
 log = logging.getLogger("parallel.agents")
 
@@ -102,9 +101,7 @@ def _run() -> None:
                     if box.get("done"):
                         event.set()
                         continue
-                    notes = apply_policy(sim, policy)
-                    runtime.push(notes)
-                    runtime.run_cycle(sim, force=True)
+                    notes = runtime.apply_order(sim, policy)
                     box["notes"] = notes
                     box["done"] = True
                     tick = sim.tick_count

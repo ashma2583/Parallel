@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BranchPanel } from './components/BranchPanel'
-import { GeoMap } from './components/GeoMap'
+import { GeoMap, type GeoMapHandle, type WeatherStatus } from './components/GeoMap'
 import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
 import { LocationPanel } from './components/LocationPanel'
@@ -9,12 +9,19 @@ import { ScenarioStrip, type Scenario } from './components/ScenarioStrip'
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
-import { proposeBuilding, removeProposal, type Branch, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
+import { fetchHazards, proposeBuilding, removeProposal, type Branch, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
 import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
-import type { WeatherState } from './lib/weather/types'
+import type { StormNote } from './components/weather/useWeather'
+import { endAbandoned } from './lib/weather/api'
+import { STORM_HAZARD, type StormKind, type WeatherRequest, type WeatherState } from './lib/weather/types'
+
+/** The strip's label. One from a finished run keeps its counts in step with the campus. */
+type Label = Scenario & { run?: Required<Pick<StormNote, 'counts' | 'conditions'>> }
+
+const RUNNING: Scenario = { label: 'Scenario running', detail: 'Reset stops it' }
 
 export default function App() {
   const sim = useSim()
@@ -22,11 +29,17 @@ export default function App() {
   const [view, setView] = useState<View>('grid')
   const [branching, setBranching] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
-  const [scenario, setScenario] = useState<Scenario | null>(null)
+  const [scenario, setScenario] = useState<Label | null>(null)
   const [hazard, setHazard] = useState<Hazard | null>(null)
-  // Bumped to open the weather dock on the map.
-  const [weatherSignal, setWeatherSignal] = useState(0)
+  // Asks the scenario dock on the map to open. Each new seq is acted on once.
+  const [weatherRequest, setWeatherRequest] = useState<WeatherRequest | null>(null)
+  const [mapWeather, setMapWeather] = useState<WeatherStatus>({ active: false, running: false, hazards: [] })
   const weather = (sim.briefing as { weather?: WeatherState } | null)?.weather ?? null
+  const mapRef = useRef<GeoMapHandle>(null)
+
+  // The map stays mounted once shown, so a scenario keeps running behind the grid view.
+  const [mapSeen, setMapSeen] = useState(view === 'map')
+  if (view === 'map' && !mapSeen) setMapSeen(true)
 
   // A researched place, shown in place of the campus until it is cleared.
   const [survey, setSurvey] = useState<LocationSurvey | null>(null)
@@ -67,7 +80,24 @@ export default function App() {
 
   // While a policy is hovered in the branch list, the whole console shows its end state.
   const nodes = preview ? preview.nodes : sim.nodes
-  const disrupted = isDisrupted(sim.nodes)
+  // Weather that only closes lines or roads leaves every building green, but there is still something to reset.
+  const disrupted = isDisrupted(sim.nodes) || hasWeather(weather) || mapWeather.active || mapWeather.running
+  // Once the campus is back to normal the last label no longer applies; the next disruption brings its own.
+  const [wasDisrupted, setWasDisrupted] = useState(disrupted)
+  if (wasDisrupted !== disrupted) {
+    setWasDisrupted(disrupted)
+    if (!disrupted && scenario) setScenario(null)
+  }
+  // Counted the way the zone bars count them: buildings with no power, failed or not, and no feeds.
+  const darkCount = useMemo(() => zoneLoads(sim.nodes).reduce((sum, z) => sum + z.dark, 0), [sim.nodes])
+  // A director's order or a manual override that lands mid-run must not replace the running label.
+  const runningRef = useRef(mapWeather.running)
+  useEffect(() => {
+    runningRef.current = mapWeather.running
+  })
+  const offerLabel = (next: Scenario) => {
+    if (!runningRef.current) setScenario((current) => current ?? next)
+  }
   const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
   const zones = useMemo(() => zoneLoads(nodes), [nodes])
   const totals = useMemo(() => loadTotals(nodes), [nodes])
@@ -79,6 +109,64 @@ export default function App() {
     setPreview(null)
   }
 
+  // FEMA hazards picked from the strip, by id, so a run that includes one can show its brief.
+  const knownHazards = useRef(new Map<string, Hazard>())
+  // Which FEMA hazard a drawn kind came from, e.g. winter storm rather than heavy snow for a blizzard.
+  const pickedFor = useRef(new Map<StormKind, string>())
+  const lastAsk = useRef<{ key: string; at: number } | null>(null)
+
+  const requestWeather = (ask: Omit<WeatherRequest, 'seq'>, from: Hazard | null) => {
+    setPlacing(null)
+    setDraftPoint(null)
+    setView('map')
+    if (from) knownHazards.current.set(from.id, from)
+    if (from && ask.kind) pickedFor.current.set(ask.kind, from.id)
+    // A double or triple click on a condition or fault adds it once.
+    const key = `${ask.kind ?? ''}|${ask.hazard ?? ''}|${ask.fault ?? ''}`
+    const now = performance.now()
+    const repeat = !ask.kind && lastAsk.current?.key === key && now - lastAsk.current.at < 700
+    lastAsk.current = { key, at: now }
+    if (repeat) return
+    setWeatherRequest((current) => ({ ...ask, seq: (current?.seq ?? 0) + 1 }))
+  }
+
+  // The Briefing's hazard and the refuge label follow the run that just started, not a pill click:
+  // its first condition, or weather drawn on the map, that FEMA has a brief for.
+  const hazardAsk = useRef(0)
+  const showRunHazard = (parts: readonly string[]) => {
+    const first = parts[0]
+    const drawn = first?.startsWith('storm:') ? (first.slice(6) as StormKind) : null
+    const id = drawn ? (pickedFor.current.get(drawn) ?? STORM_HAZARD[drawn]) : first
+    // Drawn weather does what was drawn, not the campus-wide effect FEMA's brief assumes.
+    const asRun = (h: Hazard | undefined) => (h && drawn ? { ...h, effect: null } : (h ?? null))
+    const ask = ++hazardAsk.current
+    const known = id ? knownHazards.current.get(id) : undefined
+    setHazard(asRun(known))
+    if (!id || known) return
+    fetchHazards()
+      .then((list) => {
+        const found = list?.hazards.find((h) => h.id === id)
+        if (found) knownHazards.current.set(id, found)
+        if (ask === hazardAsk.current) setHazard(asRun(found))
+      })
+      .catch(() => {})
+  }
+
+  const afterReset = () => {
+    hazardAsk.current++
+    setScenario(null)
+    setHazard(null)
+    sim.refresh()
+  }
+
+  // A reload part way through a run leaves its storms active on the engine. End them, once, before any run here starts.
+  const refreshOnce = useRef(sim.refresh)
+  useEffect(() => {
+    void endAbandoned().then((ended) => {
+      if (ended) refreshOnce.current()
+    })
+  }, [])
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeBranch()
@@ -89,9 +177,10 @@ export default function App() {
 
   // Break, Watch, Branch, Adopt. A policy other than the default means one was adopted.
   const step = !disrupted ? 0 : branching ? 2 : sim.strategy !== DEFAULT_STRATEGY ? 3 : 1
+  // A fork taken while a scenario plays is out of date before it shows, so branching waits for the run to end.
   const onStep = (index: number) => {
     if (index === 1) closeBranch()
-    if (index >= 2 && disrupted) setBranching(true)
+    if (index >= 2 && disrupted && !mapWeather.running) setBranching(true)
   }
 
   return (
@@ -102,58 +191,74 @@ export default function App() {
         <main className="relative flex min-w-0 flex-col">
           <ScenarioStrip
             disrupted={disrupted}
-            scenario={scenario}
+            scenario={mapWeather.running ? RUNNING : scenario ? shownLabel(scenario, darkCount, weather) : weatherNote(weather, darkCount)}
             previewName={preview?.label ?? null}
-            onScenario={setScenario}
-            onHazard={setHazard}
-            onChanged={sim.refresh}
-            onDrawWeather={() => {
-              setView('map')
-              setWeatherSignal((n) => n + 1)
-            }}
+            onRequest={requestWeather}
+            onResetting={() => mapRef.current?.clearWeather()}
+            onReset={afterReset}
           />
 
           <div className="relative min-h-0 flex-1 overflow-hidden">
-            {sim.nodes.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted">
+            {mapSeen && (
+              // Opacity as well: MapLibre's attribution sets its own visibility.
+              <div className={`absolute inset-0 ${view === 'map' ? '' : 'invisible opacity-0'}`} inert={view !== 'map'}>
+                <GeoMap
+                  ref={mapRef}
+                  active={view === 'map'}
+                  nodes={nodes}
+                  edges={sim.edges}
+                  selectedId={selectedId}
+                  coolingIds={coolingIds}
+                  reroutes={sim.briefing?.buses.reroute ?? []}
+                  survey={survey}
+                  surveyGraph={surveyModel}
+                  surveyDark={surveyDark}
+                  onToggleSurvey={toggleSurvey}
+                  placing={placing !== null}
+                  proposals={sim.proposals}
+                  draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
+                  onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
+                  weather={weather}
+                  weatherRequest={weatherRequest}
+                  onChanged={sim.refresh}
+                  onWeatherStatus={(next) => {
+                    // A run starts from the restored campus, so the last label, and any comparison forked before it, no longer apply.
+                    if (next.running && !mapWeather.running) {
+                      setScenario(null)
+                      closeBranch()
+                      showRunHazard(next.hazards)
+                    }
+                    setMapWeather(next)
+                  }}
+                  onStorm={(storm) =>
+                    setScenario({
+                      label: storm.label,
+                      detail: storm.detail,
+                      run: storm.counts && storm.conditions ? { counts: storm.counts, conditions: storm.conditions } : undefined,
+                    })
+                  }
+                  onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
+                />
+              </div>
+            )}
+            {view === 'grid' &&
+              (surveyModel ? (
+                <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
+              ) : (
+                <Schematic
+                  nodes={nodes}
+                  edges={sim.edges}
+                  selectedId={selectedId}
+                  coolingIds={coolingIds}
+                  refugeLabel={hazard && hazard.id !== 'extreme_heat' ? 'SHELTER' : 'COOLING CENTER'}
+                  onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
+                />
+              ))}
+            {sim.nodes.length === 0 && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-ink text-sm text-muted">
                 <span>Waiting for the simulation engine…</span>
                 <code className="font-mono text-xs">cd backend &amp;&amp; uvicorn main:app --port 8000</code>
               </div>
-            ) : view === 'map' ? (
-              <GeoMap
-                nodes={nodes}
-                edges={sim.edges}
-                selectedId={selectedId}
-                coolingIds={coolingIds}
-                reroutes={sim.briefing?.buses.reroute ?? []}
-                survey={survey}
-                surveyGraph={surveyModel}
-                surveyDark={surveyDark}
-                onToggleSurvey={toggleSurvey}
-                placing={placing !== null}
-                proposals={sim.proposals}
-                draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
-                onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
-                weather={weather}
-                weatherSignal={weatherSignal}
-                onChanged={sim.refresh}
-                onStorm={(storm) => {
-                  setScenario({ label: storm.label, detail: storm.detail })
-                  setHazard(null)
-                }}
-                onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
-              />
-            ) : surveyModel ? (
-              <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
-            ) : (
-              <Schematic
-                nodes={nodes}
-                edges={sim.edges}
-                selectedId={selectedId}
-                coolingIds={coolingIds}
-                refugeLabel={hazard && hazard.id !== 'extreme_heat' ? 'SHELTER' : 'COOLING CENTER'}
-                onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
-              />
             )}
 
             {selected && (
@@ -163,7 +268,7 @@ export default function App() {
                 corner={view === 'map' ? 'top-right' : 'bottom-left'}
                 onClose={() => setSelectedId(null)}
                 onToggled={(node, failed) => {
-                  if (failed && !scenario) setScenario({ label: 'Manual override', detail: `${node.name} failed` })
+                  if (failed) offerLabel({ label: 'Manual override', detail: `${node.name} failed` })
                   sim.refresh()
                 }}
               />
@@ -213,14 +318,19 @@ export default function App() {
             <LivePanel
               sim={sim}
               disrupted={disrupted}
+              running={mapWeather.running}
               hazard={hazard}
-              onBranch={() => setBranching(true)}
+              onBranch={() => {
+                if (!mapWeather.running) setBranching(true)
+              }}
               onCommand={(result) => {
                 if (result.policy.action === 'reset') {
+                  mapRef.current?.clearWeather()
+                  hazardAsk.current++
                   setScenario(null)
                   setHazard(null)
                 }
-                else if (result.policy.action === 'fail' && !scenario) setScenario({ label: 'Director’s order', detail: result.transcript })
+                else if (result.policy.action === 'fail') offerLabel({ label: 'Director’s order', detail: result.transcript })
                 sim.refresh()
               }}
               plan={
@@ -269,4 +379,45 @@ export default function App() {
       </div>
     </div>
   )
+}
+
+function hasWeather(weather: WeatherState | null): boolean {
+  if (!weather) return false
+  return weather.storms.length + weather.closed_routes.length + weather.cut_edges.length + weather.closed_roads.length > 0
+}
+
+const counted = (n: number, one: string, verb: string) => (n ? [`${n} ${one}${n > 1 ? 's' : ''} ${verb}`] : [])
+
+/**
+ * A finished run's label, with its counts as the campus has them now: dark buildings as the
+ * zone bars count them, and lines, bus lines and roads as the engine has them closed. So a
+ * building restored after the run comes off the strip too. Its conditions keep their own words.
+ */
+function shownLabel(label: Label, dark: number, weather: WeatherState | null): Scenario {
+  const { run } = label
+  if (!run) return label
+  const { counts, conditions } = run
+  const parts = [
+    ...conditions,
+    ...counted(dark, 'building', 'dark'),
+    ...(conditions.length === 0 ? counted(counts.feeds, 'feed', 'derated') : []),
+    ...counted(weather ? weather.cut_edges.length : counts.lines, 'line', 'down'),
+    ...counted(weather ? new Set(weather.closed_routes.map((r) => r.id)).size : counts.buses, 'bus line', 'closed'),
+    ...counted(weather ? weather.closed_roads.length : counts.roads, 'road', 'closed'),
+  ]
+  const text = parts.join(', ')
+  return { label: label.label, detail: text ? text.charAt(0).toUpperCase() + text.slice(1) : 'Nothing on campus was hit' }
+}
+
+/** A label for weather on record when this page did not start it, e.g. after a reload or a suspended line. */
+function weatherNote(weather: WeatherState | null, dark: number): Scenario | null {
+  if (!weather || !hasWeather(weather)) return null
+  const lines = new Set(weather.closed_routes.map((route) => route.id)).size
+  const detail = [
+    ...counted(dark, 'building', 'dark'),
+    ...counted(lines, 'bus line', 'out'),
+    ...counted(weather.closed_roads.length, 'road', 'closed'),
+    ...counted(weather.cut_edges.length, 'power line', 'cut'),
+  ].join(', ')
+  return { label: weather.storms.length ? 'Weather on record' : 'Director’s order', detail }
 }

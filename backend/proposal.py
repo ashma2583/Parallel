@@ -13,6 +13,7 @@ import math
 from functools import lru_cache
 from pathlib import Path
 
+from agents.logic import NO_EVACUEES
 from graph import CampusGraph, Node, NodeType, Priority, supply_for
 
 # Same coordinates as the map. City buildings are not part of a campus feed.
@@ -162,7 +163,7 @@ def _feeder_picture(graph: CampusGraph, feeder: str) -> dict:
         for node in graph.nodes.values()
         if node.feeder == feeder and not node.is_supplier
     )
-    return {"supply": supply_for(graph.nodes, feeder), "demand": demand}
+    return {"supply": supply_for(graph.nodes, feeder, graph.cut_edges), "demand": demand}
 
 
 def _nearest_feed(lng: float, lat: float) -> tuple[str, str, str]:
@@ -177,10 +178,11 @@ def _source_for(feeder: str) -> str:
 
 
 def _nearest_building(graph: CampusGraph, lng: float, lat: float) -> str:
+    """Where its people walk if it goes dark. Like the transit agent, never a feed or a hospital."""
     best = "angell"
     best_distance = float("inf")
     for node_id, coord in PLACES.items():
-        if node_id not in graph.nodes or node_id in {"cpp", "north_switch"}:
+        if node_id not in graph.nodes or graph.nodes[node_id].type in NO_EVACUEES:
             continue
         distance = _meters(lng, lat, *coord)
         if distance < best_distance:

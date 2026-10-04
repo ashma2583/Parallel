@@ -1,0 +1,306 @@
+{
+ "name": "Eastern Michigan University",
+ "summary": "Main campus in Ypsilanti, MI; key facilities for power resilience include central heating plant, large residence halls, academic cores, library, student center, public safety, and nearest ED hospital.",
+ "power": {
+  "utility": "DTE Energy",
+  "on_campus_plant": "Heating Plant",
+  "how_it_is_fed": "Campus fed via Coral Substation with two 15/20/25 MVA transformers from two DTE 40 kV feeder lines at 13.2 kV. On-campus co-generation/Energy Center supplements."
+ },
+ "buildings": [
+  {
+   "name": "Heating Plant",
+   "role": "power",
+   "why": "Campus physical power/steam plant serving the entire site.",
+   "lat": 42.2489086,
+   "lng": -83.6286772,
+   "located": "map",
+   "osm": "way/156672485",
+   "moved_m": 186,
+   "id": "heating-plant-0",
+   "feed": null
+  },
+  {
+   "name": "EMU Coral Substation",
+   "role": "power",
+   "lat": 42.2555572,
+   "lng": -83.6309859,
+   "located": "map",
+   "osm": "way/561279618",
+   "moved_m": null,
+   "why": "Electrical substation, about 598 m from the centre of campus. From OpenStreetMap.",
+   "id": "emu-coral-substation-1",
+   "feed": null
+  },
+  {
+   "name": "Wolcott Substation",
+   "role": "power",
+   "lat": 42.2510628,
+   "lng": -83.6121138,
+   "located": "map",
+   "osm": "way/1193413552",
+   "moved_m": null,
+   "why": "Electrical substation operated by DTE Energy, about 1226 m from the centre of campus. From OpenStreetMap.",
+   "id": "wolcott-substation-2",
+   "feed": null
+  },
+  {
+   "name": "Trinity Health Ann Arbor Hospital",
+   "role": "hospital",
+   "why": "Nearest hospital with emergency department and inpatient beds, approximately 2 miles from campus.",
+   "lat": 42.265667,
+   "lng": -83.6522377,
+   "located": "map",
+   "osm": "relation/9355019",
+   "moved_m": 5352,
+   "id": "trinity-health-ann-arbor-hospital-3",
+   "feed": "emu-coral-substation-1"
+  },
+  {
+   "name": "Best Hall",
+   "role": "housing",
+   "why": "One of the largest residence halls by capacity on campus.",
+   "lat": 42.2507361,
+   "lng": -83.6219227,
+   "located": "map",
+   "osm": "way/503245565",
+   "moved_m": 373,
+   "id": "best-hall-4",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Buell Hall",
+   "role": "housing",
+   "why": "Major residence hall housing hundreds of students.",
+   "lat": 42.2511133,
+   "lng": -83.6229471,
+   "located": "map",
+   "osm": "way/156697579",
+   "moved_m": 647,
+   "id": "buell-hall-5",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Sellers Hall",
+   "role": "housing",
+   "why": "Large traditional residence hall serving many residents.",
+   "lat": 42.2520828,
+   "lng": -83.6236828,
+   "located": "map",
+   "osm": "way/182275329",
+   "moved_m": 315,
+   "id": "sellers-hall-6",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "The Village",
+   "role": "housing",
+   "why": "Large apartment-style housing complex, main building serves hundreds.",
+   "lat": 42.2540583,
+   "lng": -83.6298495,
+   "located": "map",
+   "osm": "way/182175961",
+   "moved_m": 648,
+   "id": "the-village-7",
+   "feed": "emu-coral-substation-1"
+  },
+  {
+   "name": "Bruce T. Halle Library",
+   "role": "academic",
+   "why": "Main campus library, critical study and resource hub.",
+   "lat": 42.2486837,
+   "lng": -83.6276568,
+   "located": "map",
+   "osm": "way/156672477",
+   "moved_m": 299,
+   "id": "bruce-t-halle-library-8",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Student Center",
+   "role": "civic",
+   "why": "Primary student union and activity center.",
+   "lat": 42.2516834,
+   "lng": -83.627405,
+   "located": "map",
+   "osm": "way/156672469",
+   "moved_m": 298,
+   "id": "student-center-9",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Pray-Harrold",
+   "role": "academic",
+   "why": "One of the largest classroom buildings on campus.",
+   "lat": 42.2495766,
+   "lng": -83.6225895,
+   "located": "map",
+   "osm": "way/156159939",
+   "moved_m": 843,
+   "id": "pray-harrold-10",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Mark Jefferson Science Complex",
+   "role": "research",
+   "why": "Major science and research facility with labs.",
+   "lat": 42.2474416,
+   "lng": -83.6266405,
+   "located": "map",
+   "osm": "way/181288442",
+   "moved_m": 632,
+   "id": "mark-jefferson-science-complex-11",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Marshall Building",
+   "role": "academic",
+   "why": "Large academic building for health and human services.",
+   "lat": 42.2480595,
+   "lng": -83.6239479,
+   "located": "map",
+   "osm": "way/156159950",
+   "moved_m": 630,
+   "id": "marshall-building-12",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Sill Hall",
+   "role": "academic",
+   "why": "Significant classroom and academic building.",
+   "lat": 42.2486112,
+   "lng": -83.6200916,
+   "located": "map",
+   "osm": "relation/2741998",
+   "moved_m": 1224,
+   "id": "sill-hall-13",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Porter Building",
+   "role": "academic",
+   "why": "Major education and classroom facility.",
+   "lat": 42.2489042,
+   "lng": -83.6235755,
+   "located": "map",
+   "osm": "way/156159947",
+   "moved_m": 449,
+   "id": "porter-building-14",
+   "feed": "heating-plant-0"
+  },
+  {
+   "name": "Public Safety Building",
+   "role": "civic",
+   "why": "Police and public safety headquarters for the campus.",
+   "lat": 42.2541693,
+   "lng": -83.6283345,
+   "located": "map",
+   "osm": "node/1921775186",
+   "moved_m": 232,
+   "id": "public-safety-building-15",
+   "feed": "emu-coral-substation-1"
+  },
+  {
+   "name": "McKenny Hall",
+   "role": "civic",
+   "why": "Historic administrative and student life building.",
+   "lat": 42.2462417,
+   "lng": -83.6255513,
+   "located": "map",
+   "osm": "way/182174120",
+   "moved_m": 727,
+   "id": "mckenny-hall-16",
+   "feed": "heating-plant-0"
+  }
+ ],
+ "transit": [
+  {
+   "name": "AAATA Bus Routes",
+   "agency": "Ann Arbor Area Transportation Authority",
+   "connects": "Connects campus to Ypsilanti and Ann Arbor hubs including Student Center stops."
+  }
+ ],
+ "sources": [
+  "https://campusinfo.umich.edu/campusmap",
+  "http://dbpedia.org/resource/List_of_Eastern_Michigan_University_buildings",
+  "https://www.campus-maps.com/eastern-michigan-university/",
+  "https://en.wikipedia.org/wiki/List_of_Eastern_Michigan_University_buildings",
+  "https://www.waze.com/live-map/directions/eastern-michigan-university-oakwood-st-900-ypsilanti?to=place.w.181141927.1811288193.269544",
+  "https://www.latlong.net/poi/eastern-michigan-university-680203"
+ ],
+ "power_sites": [
+  {
+   "name": "EMU Coral Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "",
+   "lat": 42.2555572,
+   "lng": -83.6309859,
+   "osm": "way/561279618",
+   "source": "",
+   "distance_m": 598
+  },
+  {
+   "name": "Wolcott Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "DTE Energy",
+   "lat": 42.2510628,
+   "lng": -83.6121138,
+   "osm": "way/1193413552",
+   "source": "",
+   "distance_m": 1226
+  },
+  {
+   "name": "Ypsilanti Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "DTE Energy",
+   "lat": 42.2419371,
+   "lng": -83.6124727,
+   "osm": "way/1193414125",
+   "source": "",
+   "distance_m": 1569
+  },
+  {
+   "name": "Superior Generation Plant",
+   "named": true,
+   "kind": "plant",
+   "operator": "DTE Energy",
+   "lat": 42.2641838,
+   "lng": -83.6419016,
+   "osm": "way/1012941301",
+   "source": "oil",
+   "distance_m": 1906
+  },
+  {
+   "name": "Power plant",
+   "named": false,
+   "kind": "plant",
+   "operator": "DTE Electric Company",
+   "lat": 42.2604424,
+   "lng": -83.6097156,
+   "osm": "way/1015357240",
+   "source": "solar",
+   "distance_m": 1764
+  },
+  {
+   "name": "Hatci Substation",
+   "named": true,
+   "kind": "substation",
+   "operator": "DTE Energy",
+   "lat": 42.2740741,
+   "lng": -83.6309397,
+   "osm": "way/544250925",
+   "source": "",
+   "distance_m": 2579
+  }
+ ],
+ "placement": {
+  "checked": true,
+  "power_checked": true,
+  "on_map": 17,
+  "from_model": 0,
+  "dropped": [],
+  "note": "Positions come from OpenStreetMap. Which building is on which feed is assumed: each is put on its nearest power source."
+ }
+}

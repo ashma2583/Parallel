@@ -144,6 +144,16 @@ export const STORM_SPECS: Record<StormKind, StormSpec> = {
 
 export const STORM_KINDS = Object.keys(STORM_SPECS) as StormKind[]
 
+/** The FEMA hazard each kind of drawn weather stands for, so the Briefing can show its brief. Tools have none. */
+export const STORM_HAZARD: Partial<Record<StormKind, string>> = {
+  tornado: 'tornado',
+  thunderstorm: 'thunderstorm_wind',
+  ice: 'ice_storm',
+  flood: 'flash_flood',
+  blizzard: 'heavy_snow',
+  lightning: 'lightning',
+}
+
 /** How fast a storm plays out, as a multiple of its natural pace. */
 export const RUN_SPEEDS = [0.5, 1, 2] as const
 
@@ -187,8 +197,11 @@ export interface Impact {
   route?: { id: string; name: string; segments: LngLat[][] }
 }
 
+/** Each thing counted once. */
 export interface ImpactCounts {
+  /** Nodes that go dark: buildings hit or cut off, and failed feeds. */
   buildings: number
+  /** Feeds still running, at reduced output. */
   feeds: number
   lines: number
   buses: number
@@ -286,6 +299,12 @@ export interface WeatherCanvasProps {
   selectedId: string | null
   /** Campus-wide conditions that have arrived in the current run. */
   campus: CampusEffect[]
+  /** Clock time the scenario starts at, "HH:MM", for the planned storms' start tags. */
+  startsAt?: string
+  /** The basemap is light whatever the theme, e.g. the 3D view. */
+  lightMap?: boolean
+  /** Draw nothing, e.g. while the basemap is switching. */
+  hidden?: boolean
 }
 
 /** What the storm being drawn would do if released now. */
@@ -326,8 +345,15 @@ export interface WeatherDockProps {
   live: LiveStorm[]
   /** Hits landed so far in the current or last run, oldest first. */
   landed: Impact[]
-  /** Summary of the last finished run. */
-  last: { label: string; counts: ImpactCounts } | null
+  /**
+   * Summary of the last run. Stopped when Stop ended it part way, failed when the
+   * engine refused part of it. Note says what a condition did when nothing was counted.
+   */
+  last: { label: string; counts: ImpactCounts; stopped?: boolean; failed?: boolean; note?: string } | null
+  /** The map can take a drawing. False while it is still loading. */
+  ready?: boolean
+  /** Why drawing on the map is off for now, e.g. a planned building's pin is being placed. The draw tools say so. */
+  blocked?: string | null
   /** Storms on record since the last reset. */
   history: StormRecord[]
   /** Run speed multiplier, one of RUN_SPEEDS. */
@@ -335,7 +361,15 @@ export interface WeatherDockProps {
   onSpeed: (speed: number) => void
   /** The engine has no /storms routes (not restarted yet). Hits still apply through /disrupt. */
   degraded: boolean
+  /** Short, plain words. */
   error: string | null
+  /** The engine's own words for the error, for a tooltip. */
+  errorDetail?: string | null
+  /** The run has played out on screen and its last hits are still on the way to the engine. */
+  settling?: boolean
+  /** Clock time the scenario starts at, "HH:MM". */
+  startsAt?: string
+  onStartsAt?: (v: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -417,7 +451,7 @@ export function simClock(startsAt: string, seconds: number): string {
 
 export interface ScenarioPlan {
   events: ScenarioEvent[]
-  /** Clock time the scenario starts at, "HH:MM". Building occupancy by time of day will key off this. */
+  /** Clock time the scenario starts at, "HH:MM". Only the clock labels use it; who is on campus does not change. */
   startsAt: string
 }
 

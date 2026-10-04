@@ -154,6 +154,8 @@ const TABS = [
 interface Props {
   sim: Sim
   disrupted: boolean
+  /** A scenario is playing on the map. Comparing waits until it ends. */
+  running?: boolean
   onBranch: () => void
   onCommand: (result: CommandResult) => void
   /** Planning tools: add a building to the campus, or research another place. */
@@ -163,7 +165,7 @@ interface Props {
 }
 
 /** Right panel while watching the live campus: current policy, feed and briefing, director's order. */
-export function LivePanel({ sim, disrupted, onBranch, onCommand, plan, hazard }: Props) {
+export function LivePanel({ sim, disrupted, running = false, onBranch, onCommand, plan, hazard }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('feed')
   const policy = strategyFor(sim.strategy)
 
@@ -176,7 +178,8 @@ export function LivePanel({ sim, disrupted, onBranch, onCommand, plan, hazard }:
         <button
           type="button"
           onClick={onBranch}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-branch px-3.5 py-2.5 text-[13px] font-semibold text-onbranch transition hover:brightness-110"
+          disabled={running}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-branch px-3.5 py-2.5 text-[13px] font-semibold text-onbranch transition enabled:hover:brightness-110 disabled:bg-raised disabled:text-faint"
         >
           <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden>
             <path d="M2 1 V13 M10 1 V5 C10 8 5 7 5 10 V13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -184,9 +187,11 @@ export function LivePanel({ sim, disrupted, onBranch, onCommand, plan, hazard }:
           Compare all five policies
         </button>
         <p className="mt-2 text-[11px] text-muted">
-          {disrupted
-            ? 'Forks the campus and runs each policy 6 ticks on its own copy.'
-            : 'Break something first. With every building served, all five policies end in the same place.'}
+          {running
+            ? 'Finish or stop the scenario run first. A comparison forked mid-run is out of date before it shows.'
+            : disrupted
+              ? 'Forks the campus and runs each policy 6 ticks on its own copy.'
+              : 'Break something first. With every building served, all five policies end in the same place.'}
         </p>
       </div>
 

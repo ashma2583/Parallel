@@ -57,6 +57,27 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
     return notes
 
 
+def fresh_start() -> None:
+    """After a campus reset: the default policy and an empty feed. Caller holds `lock`."""
+    global strategy
+    strategy = DEFAULT_STRATEGY
+    activity.clear()
+    activity_ticks.clear()
+
+
+def apply_order(sim: CampusGraph, policy: dict) -> list[str]:
+    """
+    Apply a coordinator policy, log it, and run a cycle. A spoken or typed reset
+    ends like the Reset button: default policy, feed started afresh. Caller holds `lock`.
+    """
+    notes = apply_policy(sim, policy)
+    if policy.get("action") == "reset":
+        fresh_start()
+    push(notes)
+    run_cycle(sim, force=True)
+    return notes
+
+
 def push(lines: list[str]) -> None:
     global revision
     activity.extend(lines)

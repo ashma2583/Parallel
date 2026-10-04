@@ -62,7 +62,7 @@ export function BranchPanel({ onPreview, onClose, onAdopted }: Props) {
           <div className="text-[15px] font-semibold">Branch timeline</div>
           <p className="mt-1 text-xs leading-normal text-muted">
             {result
-              ? `Forked at t${result.baseTick}. Each policy ran ${result.ticks} ticks on its own copy of the campus with the same agents and supply. The live campus has not changed.`
+              ? `Forked at t${result.baseTick}. Each policy ran ${result.ticks} ticks on its own copy of the campus with the same agents and supply. Comparing leaves the live campus as it is.`
               : 'Forking the live campus and running each response policy…'}
           </p>
         </div>
