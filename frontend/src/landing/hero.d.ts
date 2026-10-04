@@ -39,4 +39,5 @@ export interface HeroPolicy {
 
 export function mount(svg: SVGSVGElement, opts?: HeroOptions): Hero
 export function drawStep(svg: SVGSVGElement, step: number): void
+export function drawPolicy(svg: SVGSVGElement, index: number): void
 export const POLICIES: HeroPolicy[]

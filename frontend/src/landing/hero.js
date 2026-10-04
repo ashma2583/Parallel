@@ -1,7 +1,7 @@
 /* PARALLEL hero. Self-contained: graph data, constraint model, SVG drawing, tick controller.
    Reads page colour tokens: --powered --reduced --dark --line --accent --hair --panel --text --muted.
-   The model below mirrors backend/graph.py and backend/agents/logic.py, so the numbers on the
-   landing page are the numbers the engine produces for the same scenario. */
+   A simplified preview of backend/graph.py and backend/agents/logic.py for one heat-wave scenario. The numbers on the
+   landing page come from this small model, not from the live app. */
 
   // campus-graph.json, inlined. x/y are the layout positions from the app.
   var NODES = [
@@ -308,8 +308,8 @@
       if (k === 0) return 't+0 · campus nominal · all buildings served';
       if (k === 1) return 't+1 · heat wave, 95°F · Central Power Plant at 35%, north feed at 50%';
       if (k <= N + 1) { var n = byId[order[k - 2]]; return 't+' + k + ' · energy agent sheds ' + n.short + ' · transit agent moves ' + n.occupancy; }
-      if (k === N + 2) return 'branch · four policies, four copies of the campus, same supply';
-      return 'adopt · ' + best.policy.name + ' · ' + pct(best.res.essential) + ' essential demand served';
+      if (k === N + 2) return 'compare · five policies, five copies of the campus, same supply';
+      return 'adopt · ' + best.policy.name + ' · ' + pct(best.res.essential) + ' essential demand served (preview model)';
     }
     function setTick(k, instant) {
       k = Math.max(0, Math.min(TOTAL - 1, k)); tick = k;
@@ -364,8 +364,15 @@
     var liveRes = solve(POLICIES[0], SCENARIO);
     if (step === 1 || step === 2) {
       var gr = drawGraph(svg, { r: 22 });
-      if (step === 1) { setState(gr, 'cpp', 'reduced'); setState(gr, 'north_switch', 'reduced'); }
-      else applyAll(gr, liveRes.states);
+      if (step === 1) {
+        // A drawn storm path across the campus, with the two feeds it is about to reach.
+        var storm = 'M 20 640 C 380 560, 640 420, 900 300 S 1300 110, 1460 60';
+        el('path', { d: storm, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 64, 'stroke-linecap': 'round', opacity: 0.14 }, svg);
+        el('path', { d: storm, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 4, 'stroke-linecap': 'round', 'stroke-dasharray': '4 14', opacity: 0.95 }, svg);
+        el('circle', { cx: 20, cy: 640, r: 12, fill: 'var(--accent)' }, svg);
+        el('circle', { cx: 1460, cy: 60, r: 12, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 4 }, svg);
+        setState(gr, 'cpp', 'reduced'); setState(gr, 'north_switch', 'reduced');
+      } else applyAll(gr, liveRes.states);
       return;
     }
     if (step === 4) {
@@ -390,4 +397,12 @@
     el('circle', { cx: hub.x, cy: hub.y, r: 7, fill: 'var(--accent)' }, svg);
   }
 
-export { mountHero as mount, drawStep, solve, pct, fmtK, POLICIES, SCENARIO, NODES };
+// One policy's shed order on the heat-wave preview, drawn small. viewBox 1440x680 (+margin).
+  function drawPolicy(svg, i) {
+    svg.innerHTML = '';
+    ensureStyle(svg);
+    svg.setAttribute('viewBox', '-30 -30 1500 740');
+    applyAll(drawGraph(svg, { roads: false, r: 30 }), solve(POLICIES[i], SCENARIO).states);
+  }
+
+export { mountHero as mount, drawStep, drawPolicy, solve, pct, fmtK, POLICIES, SCENARIO, NODES };

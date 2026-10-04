@@ -5,7 +5,7 @@ import '@fontsource/ibm-plex-sans/600.css'
 import '@fontsource/ibm-plex-mono/400.css'
 import '@fontsource/ibm-plex-mono/500.css'
 import './landing.css'
-import { drawStep, mount } from './hero.js'
+import { drawPolicy, drawStep, mount } from './hero.js'
 
 const $ = <T extends Element>(selector: string) => document.querySelector<T>(selector)!
 
@@ -49,6 +49,7 @@ function startHero() {
   Object.assign(window, { parallelHero: hero })
 
   document.querySelectorAll<SVGSVGElement>('[data-parallel-step]').forEach((svg) => drawStep(svg, Number(svg.dataset.parallelStep)))
+  document.querySelectorAll<SVGSVGElement>('[data-parallel-policy]').forEach((svg) => drawPolicy(svg, Number(svg.dataset.parallelPolicy)))
 }
 
 function startTheme() {

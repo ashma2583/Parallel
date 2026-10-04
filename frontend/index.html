@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PARALLEL · Ann Arbor campus twin</title>
-<meta name="description" content="A live simulation of the University of Michigan campus power grid. Break a feed, branch the timeline, compare five response policies, adopt one.">
+<meta name="description" content="A digital twin of the University of Michigan campus. Draw a storm, stack conditions and grid faults, press Run, then compare five response policies before you commit.">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <script>try{var t=localStorage.getItem('parallel-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 </head>
@@ -18,8 +18,8 @@
       <span><span class="word">PARALLEL</span><span class="sub" style="display:block">Ann Arbor campus twin</span></span>
     </a>
     <div class="nav-actions">
-      <a class="btn nav-cta" href="/app" tabindex="-1">Run a scenario <span class="arrow">→</span></a>
-      <a class="ghost" href="/app?demo=heat-wave">Heat wave demo</a>
+      <a class="btn nav-cta" href="/app.html" tabindex="-1">Open the simulator <span class="arrow">→</span></a>
+      <a class="ghost demo-nav" href="/app.html?demo=heat-wave">Heat wave demo</a>
       <button class="ghost" id="theme" type="button" aria-label="Switch colour mode">Light</button>
     </div>
   </div>
@@ -27,10 +27,10 @@
 
   <div class="wrap">
     <div class="copy">
-      <div class="hero-cap"><span class="dot"></span><span>Live model · Ann Arbor campus · heat wave, 95°F</span></div>
+      <div class="hero-cap"><span class="dot"></span><span>Preview · heat wave, 95°F · simplified campus model</span></div>
       <h1>See what your decision does before you make it.</h1>
-      <p class="lede">PARALLEL simulates the University of Michigan campus power grid: twenty real buildings on three feeds, with an energy agent that sheds load and a transit agent that moves people. Cut a feed, watch what happens, then fork the campus and run five response policies side by side.</p>
-      <div class="hero-actions"><a class="btn btn-lg" href="/app">Run a scenario <span class="arrow">→</span></a><a class="btn btn-lg btn-line" href="/app?demo=heat-wave">Heat wave demo</a><span class="hint">Runs in the browser. Nothing to install.</span></div>
+      <p class="lede">PARALLEL is a digital twin of the University of Michigan campus: twenty real buildings on three real power feeds, the real bus routes, and the real Fall 2026 class schedule. Draw a storm, add heat, cold or grid faults, and press Run. Agents shed load and move people. Then compare five response policies before you commit.</p>
+      <div class="hero-actions"><a class="btn btn-lg" href="/app.html">Open the simulator <span class="arrow">→</span></a><a class="btn btn-lg btn-line" href="/app.html?demo=heat-wave">Heat wave demo</a><span class="hint">Runs in the browser. Nothing to install.</span></div>
     </div>
     <div class="console" id="console">
       <div class="readouts">
@@ -44,91 +44,125 @@
           <span class="cnt"><i style="background:var(--dark)"></i><span id="c-dark">0</span></span>
         </div>
       </div>
-      <svg class="console-svg" data-parallel-hero data-manual aria-label="Campus one-line diagram. Click a building to fail it."></svg>
+      <svg class="console-svg" data-parallel-hero data-manual aria-label="Campus one-line diagram. Click a building to knock it out."></svg>
       <div class="console-foot">
         <ul class="log" id="log"></ul>
-        <div class="console-hint"><span>Click any building to fail it.</span><button class="ghost" id="reset" type="button">Reset campus</button></div>
+        <div class="console-hint"><span>Click any building to knock it out.</span><button class="ghost" id="reset" type="button">Reset preview</button></div>
       </div>
     </div>
   </div>
 </header>
 
 <main>
+  <section class="sec" id="twin">
+    <div class="wrap">
+      <div class="trust">
+        <p class="limit reveal">The campus is real. <b>The storm is yours to draw.</b></p>
+        <ul class="facts reveal">
+          <li><span class="num">20</span><span class="t"><b>Real buildings on 3 real feeds.</b> Hospitals, dorms, libraries and labs, wired to the power feeds the way the campus is.</span></li>
+          <li><span class="num">Bus</span><span class="t"><b>Real U-M bus routes.</b> Buses move along their routes, and a line closes when the storm reaches it.</span></li>
+          <li><span class="num">Fall 26</span><span class="t"><b>The real class schedule.</b> Students in class per building by time of day at 75% turnout, plus campus events.</span></li>
+          <li><span class="num">39</span><span class="t"><b>Campuses nationwide.</b> Zoom out from Ann Arbor to a national view of 39 campuses.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <section class="sec" id="how">
     <div class="wrap">
-      <div class="sec-head reveal"><span class="k q">How a run goes</span><h2>What happens when you cut a feed</h2></div>
+      <div class="sec-head reveal"><span class="k q">How a run goes</span><h2>Build a scenario, run it, pick a response</h2></div>
       <div class="ruler">
         <div class="steps">
-          <div class="step reveal" data-t="t+0"><svg data-parallel-step="1" aria-hidden="true"></svg><span class="k n">01 · Break something</span><h3>Trip a feed or start a heat wave</h3><p>Fail the Central Power Plant, or cut it to 35% and the north feed to 50%. Or click any building and fail it.</p></div>
-          <div class="step reveal" data-t="t+1"><svg data-parallel-step="2" aria-hidden="true"></svg><span class="k n">02 · Watch it cascade</span><h3>Twenty buildings on three feeds react</h3><p>An energy agent sheds load. A transit agent moves people out of dark buildings. Nothing is scripted. No agent can invent power that is not there.</p></div>
-          <div class="step reveal" data-t="t+9"><svg data-parallel-step="3" aria-hidden="true"></svg><span class="k n">03 · Branch the timeline</span><h3>Five policies on five copies</h3><p>The engine forks the campus and runs each response policy forward on its own copy, with the same agents and the same supply.</p></div>
-          <div class="step reveal" data-t="t+11"><svg data-parallel-step="4" aria-hidden="true"></svg><span class="k n">04 · Compare and adopt</span><h3>Pick one. The live campus switches to it.</h3><p>Essential demand served, people relocated, buildings dark, side by side. Adopt a timeline and the live campus follows it.</p></div>
+          <div class="step reveal" data-t="t+0"><svg data-parallel-step="1" aria-hidden="true"></svg><span class="k n">01 · Build a scenario</span><h3>Draw the storm. Stack the conditions.</h3><p>Draw a tornado, derecho, thunderstorm, ice storm or blizzard path on the map. Add extreme heat, extreme cold or high wind, and grid faults. Set a start time.</p></div>
+          <div class="step reveal" data-t="t+1 · 4 min"><svg data-parallel-step="2" aria-hidden="true"></svg><span class="k n">02 · Press Run</span><h3>One clock, one tick every four minutes</h3><p>The storm lands hits as it moves. Power lines are cut, bus lines close and buildings go dark.</p></div>
+          <div class="step reveal" data-t="peak"><svg data-parallel-step="3" aria-hidden="true"></svg><span class="k n">03 · Compare five policies</span><h3>Five policies on five copies</h3><p>Each response policy runs your scenario on its own copy of the campus through the peak, with the same storm and the same supply.</p></div>
+          <div class="step reveal" data-t="adopt"><svg data-parallel-step="4" aria-hidden="true"></svg><span class="k n">04 · Adopt the best</span><h3>The live campus follows it</h3><p>Policies are ranked by people in a lit shelter. Adopt the best and the live campus switches to it.</p></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="agents">
+    <div class="wrap">
+      <div class="sec-head reveal"><span class="k q">Agents</span><h2>They act on who is in each building right now</h2></div>
+      <div class="feats">
+        <div class="feat reveal"><span class="k n">Energy agent</span><h3>Sheds load by priority</h3><p>Every tick it cuts demand where supply falls short, lowest priority first. Hospitals are never shed. It reads the live headcount from the class schedule, so an empty lecture hall goes before a full one.</p></div>
+        <div class="feat reveal"><span class="k n">Transit agent</span><h3>Moves people to shelter</h3><p>When a building goes dark, it moves the people inside to a cooling or warming shelter that still has power. It sees the people who are actually there at that time of day.</p></div>
+        <div class="feat reveal"><span class="k n">Hard limit</span><h3>No invented power</h3><p>Supply on a feed is a ceiling. Agents shed, reroute and relocate. They cannot create kilowatts that the feed does not have.</p></div>
       </div>
     </div>
   </section>
 
   <section class="sec" id="compare">
     <div class="wrap">
-      <div class="sec-head reveal"><span class="k q">Branch timeline</span><h2>One fork from a real run</h2></div>
-      <div class="cmp reveal">
-        <div class="cmp-labels"><div class="cell lbl">Policy</div><div class="cell lbl">Essential demand served</div><div class="cell lbl">Critical care served</div><div class="cell lbl">People relocated</div><div class="cell lbl">People on reduced power</div><div class="cell lbl">Buildings dark</div></div>
-        <div class="cmp-col">
-          <div class="cell head"><h3>Priority tiers <span class="tag">Live now</span></h3><p>Shed the lowest priority tier first. Critical care is never shed.</p></div>
-          <div class="cell"><div class="v big" data-l="Essential demand served">92.7<small>%</small></div><div class="bar"><i style="width:92.7%"></i></div></div>
-          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
-          <div class="cell"><div class="v" data-l="People relocated">3.0k</div></div>
-          <div class="cell"><div class="v red" data-l="People on reduced power">52</div></div>
-          <div class="cell"><div class="v dark" data-l="Buildings dark">6</div></div>
+      <div class="sec-head reveal"><span class="k q">Five policies</span><h2>Compare them all before you commit</h2></div>
+      <div class="pols reveal">
+        <div class="pol"><svg data-parallel-policy="0" aria-hidden="true"></svg><h3>Priority tiers</h3><p>Shed the lowest priority tier first. Critical care is never shed.</p></div>
+        <div class="pol"><svg data-parallel-policy="1" aria-hidden="true"></svg><h3>Protect residential</h3><p>Keep dorms powered. Academic and commons buildings go dark first.</p></div>
+        <div class="pol"><svg data-parallel-policy="2" aria-hidden="true"></svg><h3>Protect classes</h3><p>Keep classrooms and libraries powered. Residence halls go dark first.</p></div>
+        <div class="pol"><svg data-parallel-policy="3" aria-hidden="true"></svg><h3>Most people per kW</h3><p>Shed the buildings that serve the fewest people per kilowatt first.</p></div>
+        <div class="pol"><svg data-parallel-policy="4" aria-hidden="true"></svg><h3>Ration evenly</h3><p>No load shedding. Every building on the feed gets the same share.</p></div>
+      </div>
+      <p class="cmp-note reveal">Each policy runs <span class="mono">your scenario</span> on its own copy of the campus through the peak, with the same agents, the same storm and the same supply. They are ranked by <span class="mono">people in a lit shelter</span>. The live campus does not change until you adopt one. The shed orders pictured use the simplified heat-wave preview model above.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="focus">
+    <div class="wrap">
+      <div class="sec-head reveal"><span class="k q">Two ways in</span><h2>A heat wave, or a quieter day to save energy</h2></div>
+      <div class="duo">
+        <div class="reveal">
+          <span class="k n">Heat wave demo</span>
+          <h3>Plant output falls over four hours</h3>
+          <p>On a hot afternoon the plant's output drops across four hours. Rings on the map show where to go and where to leave.</p>
+          <ul class="rings">
+            <li><i class="ring go"></i><b>GO / COOL</b> a powered shelter to move to</li>
+            <li><i class="ring leave"></i><b>LEAVE</b> a building that has gone dark</li>
+          </ul>
+          <a class="btn btn-line demo-link" href="/app.html?demo=heat-wave">Start the heat wave demo <span class="arrow">→</span></a>
         </div>
-        <div class="cmp-col">
-          <div class="cell head"><h3>Protect residential <span class="tag best">Best</span></h3><p>Keep dorms powered. Academic and commons buildings go dark first.</p></div>
-          <div class="cell"><div class="v big" data-l="Essential demand served">92.7<small>%</small></div><div class="bar"><i style="width:92.7%"></i></div></div>
-          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
-          <div class="cell"><div class="v" data-l="People relocated">2.2k</div></div>
-          <div class="cell"><div class="v red" data-l="People on reduced power">52</div></div>
-          <div class="cell"><div class="v dark" data-l="Buildings dark">6</div></div>
-        </div>
-        <div class="cmp-col">
-          <div class="cell head"><h3>Protect classes</h3><p>Keep classrooms and libraries powered. Residence halls go dark first.</p></div>
-          <div class="cell"><div class="v big" data-l="Essential demand served">81.5<small>%</small><span class="d">−11.2 pts vs live</span></div><div class="bar"><i style="width:81.5%"></i></div></div>
-          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
-          <div class="cell"><div class="v" data-l="People relocated">3.1k</div></div>
-          <div class="cell"><div class="v red" data-l="People on reduced power">552</div></div>
-          <div class="cell"><div class="v dark" data-l="Buildings dark">5</div></div>
-        </div>
-        <div class="cmp-col">
-          <div class="cell head"><h3>Most people per kW</h3><p>Shed the buildings that serve the fewest people per kilowatt first.</p></div>
-          <div class="cell"><div class="v big" data-l="Essential demand served">89<small>%</small><span class="d">−3.7 pts vs live</span></div><div class="bar"><i style="width:89%"></i></div></div>
-          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
-          <div class="cell"><div class="v" data-l="People relocated">1.9k</div></div>
-          <div class="cell"><div class="v red" data-l="People on reduced power">502</div></div>
-          <div class="cell"><div class="v dark" data-l="Buildings dark">5</div></div>
-        </div>
-        <div class="cmp-col">
-          <div class="cell head"><h3>Ration evenly</h3><p>No load shedding. Every building on the feed gets the same share.</p></div>
-          <div class="cell"><div class="v big" data-l="Essential demand served">80<small>%</small><span class="d">−12.7 pts vs live</span></div><div class="bar"><i style="width:80%"></i></div></div>
-          <div class="cell"><div class="v" data-l="Critical care served">100%</div></div>
-          <div class="cell"><div class="v" data-l="People relocated">4.0k</div></div>
-          <div class="cell"><div class="v red" data-l="People on reduced power">2.9k</div></div>
-          <div class="cell"><div class="v dark" data-l="Buildings dark">6</div></div>
+        <div class="reveal">
+          <span class="k n">Energy saver focus</span>
+          <h3>Cap power where nobody is</h3>
+          <p>Switch it on in the app. It caps power in empty buildings by time of day, using the class schedule, and never below what the people inside need. It counts the kilowatt-hours it saves.</p>
+          <ul class="lvls">
+            <li><div class="lvl-h"><b>Comfort</b><span class="mono">20% headroom</span></div><div class="hr"><i style="width:80%"></i><u style="width:16%"></u></div><span class="t">Classrooms and libraries</span></li>
+            <li><div class="lvl-h"><b>Balanced</b><span class="mono">10% headroom</span></div><div class="hr"><i style="width:80%"></i><u style="width:8%"></u></div><span class="t">Adds dining halls and labs</span></li>
+            <li><div class="lvl-h"><b>Aggressive</b><span class="mono">no headroom</span></div><div class="hr"><i style="width:80%"></i></div><span class="t">Adds residence halls</span></li>
+          </ul>
         </div>
       </div>
-      <p class="cmp-note reveal">Scenario: <span class="mono">Heat wave, 95°F</span>. Forked at tick 8. Each policy ran 6 ticks on its own copy of the campus, with the same agents and the same supply. Best is the highest essential service; fewer people moved breaks a tie. The live campus did not change until a policy was adopted.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="sponsors">
+    <div class="wrap">
+      <div class="sec-head reveal"><span class="k q">Optional layers</span><h2>Sponsor tech, switched on when it is there</h2></div>
+      <div class="feats">
+        <div class="feat reveal"><span class="k n">Fetch.ai</span><h3>A coordinator on ASI:One</h3><p>The PARALLEL Coordinator agent lives on ASI:One. Ask it &ldquo;an ice storm hit North Campus, what should we do?&rdquo; and Energy, Transit and Repair-crew planner agents each propose a plan. Each plan is tested in the simulator, and you get ranked options. Reply &ldquo;adopt 1&rdquo; to take one.</p></div>
+        <div class="feat reveal"><span class="k n">SpacetimeDB</span><h3>Live multiplayer</h3><p>Open two windows and they share one campus. An &ldquo;N online&rdquo; badge shows who else is in it.</p></div>
+        <div class="feat reveal"><span class="k n">Language models</span><h3>Grok first, Claude as fallback</h3><p>Briefings and text try Grok first and fall back to Claude, then to deterministic text, so the app always has words. Voice commands use Grok.</p></div>
+      </div>
     </div>
   </section>
 
   <section class="sec" id="trust">
     <div class="wrap">
       <div class="trust">
-        <p class="limit reveal">This is a <b>constraint-based teaching model</b>, not a forecast of the real grid. The numbers come from running the simulation. Use them to practise a decision, not to predict an outage.</p>
+        <p class="limit reveal">This is a <b>teaching model</b>, not a forecast of the real grid. Use it to practise a decision, not to predict an outage.</p>
         <ul class="facts reveal">
-          <li><span class="num">20</span><span class="t"><b>Real buildings.</b> Markley, South Quad, University Hospital, Mott, Duderstadt, NCRC and fourteen more, with demand in kW and occupancy.</span></li>
-          <li><span class="num">3</span><span class="t"><b>Real feeds.</b> The Central Power Plant, the hospital's own utility intake, and the North Campus Switching Station, wired the way the campus is.</span></li>
-          <li><span class="num">38</span><span class="t"><b>Power lines and roads.</b> Fifteen lines carry power. Twenty-three roads carry people when the transit agent moves them.</span></li>
-          <li><span class="num">0</span><span class="t"><b>Invented kilowatts.</b> Supply is a hard limit on every feed. Agents shed, reroute and relocate. They never create power.</span></li>
+          <li><span class="num">Real</span><span class="t"><b>Building locations, feed topology, GTFS bus routes, the class schedule, FEMA and NOAA hazard frequencies, and live NWS weather.</b></span></li>
+          <li><span class="num">Scaled</span><span class="t"><b>Kilowatts.</b> Power figures are a scaled demo model, not metered campus data.</span></li>
+          <li><span class="num">Rules</span><span class="t"><b>Storm effects.</b> What a storm does to lines, buses and buildings follows written rules.</span></li>
         </ul>
       </div>
+    </div>
+  </section>
+
+  <section class="sec close" id="go">
+    <div class="wrap">
+      <h2 class="reveal">Draw a storm and see who is still in the light.</h2>
+      <div class="row reveal"><a class="btn btn-lg" href="/app.html">Open the simulator <span class="arrow">→</span></a><a class="btn btn-lg btn-line" href="/app.html?demo=heat-wave">Heat wave demo</a><span class="hint">Runs in the browser. Nothing to install.</span></div>
     </div>
   </section>
 
