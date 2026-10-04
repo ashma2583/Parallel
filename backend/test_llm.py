@@ -115,6 +115,19 @@ class TimeoutTests(ChainCase):
         self.assertEqual(got, ({"n": 2}, "b"))
         self.assertLess(time.monotonic() - started, 1.5)
 
+    def test_a_timeout_parks_the_provider_at_once(self) -> None:
+        calls: list[str] = []
+        self.chain(a=fake("a", {"n": 1}, delay=5, calls=calls), b=fake("b", {"n": 2}, calls=calls))
+        run(llm.complete_json("s", "u", providers=["a", "b"], timeout=0.2, total_timeout=2))
+        calls.clear()
+        self.assertEqual(run(llm.complete_json("s", "u", providers=["a", "b"], timeout=0.2, total_timeout=2)), ({"n": 2}, "b"))
+        self.assertEqual(calls, ["b"])  # the second request did not wait for a again
+
+    def test_a_provider_cut_short_by_the_total_cap_is_not_parked(self) -> None:
+        self.chain(a=fake("a", error=RuntimeError("down")), b=fake("b", {"n": 2}, delay=5))
+        run(llm.complete_json("s", "u", providers=["a", "b"], timeout=1.0, total_timeout=0.4))
+        self.assertNotIn("b", llm.status()["parked"])
+
     def test_total_cap_stops_the_chain(self) -> None:
         calls: list[str] = []
         self.chain(**{n: fake(n, {"n": 1}, delay=5, calls=calls) for n in "abcd"})
@@ -203,6 +216,19 @@ class RequestShapeTests(unittest.TestCase):
         for reply in ({"stop_reason": "refusal", "content": []}, {"stop_reason": "max_tokens", "content": [{"type": "thinking"}]}):
             with self.assertRaises(llm.ProviderError):
                 self.call("claude", reply)
+
+    def test_json_line_goes_to_claude_only_when_there_is_no_schema(self) -> None:
+        _, sent = self.call("claude", {"content": [{"type": "text", "text": "{}"}]})
+        self.assertTrue(sent["body"]["system"].endswith(llm.JSON_ONLY))
+        _, sent = self.call("claude", {"content": [{"type": "text", "text": "{}"}]}, schema={"type": "object", "properties": {}})
+        self.assertEqual(sent["body"]["system"], "be brief")
+        _, sent = self.call("grok", {"choices": [{"message": {"content": "{}"}}]})
+        self.assertNotIn(llm.JSON_ONLY, json.dumps(sent["body"]))
+
+    def test_high_effort_beyond_high_keeps_thinking_on(self) -> None:
+        _, sent = self.call("claude", {"content": [{"type": "text", "text": "{}"}]}, extra_env={"LLM_CLAUDE_EFFORT": "xhigh"})
+        self.assertNotIn("thinking", sent["body"])  # between_tools is rejected above high
+        self.assertEqual(sent["body"]["output_config"]["effort"], "xhigh")
 
     def test_other_claude_models_get_thinking_headroom(self) -> None:
         _, sent = self.call("claude", {"content": [{"type": "text", "text": "{}"}]}, extra_env={"LLM_CLAUDE_MODEL": "claude-opus-5-5"})
