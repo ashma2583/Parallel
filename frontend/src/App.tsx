@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSpacetimeDB, useTable } from 'spacetimedb/react'
 import { tables } from './module_bindings'
 import { CampusMap } from './components/CampusMap'
@@ -16,6 +16,7 @@ import {
   type Briefing,
   type LocationSurvey,
   type PriorityMode,
+  type ClassSpot,
   type ProposalImpact,
   type ProposalPin,
 } from './lib/api'
@@ -44,6 +45,20 @@ export default function App() {
   const [proposals, setProposals] = useState<ProposalPin[]>([])
   const [proposalImpact, setProposalImpact] = useState<ProposalImpact | null>(null)
   const [planError, setPlanError] = useState<string | null>(null)
+  const [classSpots, setClassSpots] = useState<ClassSpot[]>([])
+  const [classSlot, setClassSlot] = useState(0)
+  const [classClock, setClassClock] = useState<{
+    count: number
+    label: string
+    students: number
+    dayPeak: number
+  } | null>(null)
+  const onClassSpots = useCallback((spots: ClassSpot[]) => setClassSpots(spots), [])
+  const onClassSlot = useCallback((slot: number) => setClassSlot(slot), [])
+  const onClassClock = useCallback(
+    (clock: { count: number; label: string; students: number; dayPeak: number } | null) => setClassClock(clock),
+    [],
+  )
   const surveyModel = useMemo(() => (survey ? buildSurvey(survey) : null), [survey])
   const surveyDark = useMemo(() => (surveyModel ? darkIds(surveyModel, surveyFailed) : new Set<string>()), [surveyModel, surveyFailed])
 
@@ -125,24 +140,27 @@ export default function App() {
               Ann Arbor
             </button>
           </div>
-          {nodesReady && nodes.length > 0 ? (
-            view === 'map' ? (
-              <GeoMap
-                nodes={sortedNodes}
-                edges={edges}
-                coolingIds={coolingIds}
-                reroutes={briefing?.buses.reroute ?? []}
-                survey={survey}
-                surveyGraph={surveyModel}
-                surveyDark={surveyDark}
-                onToggleSurvey={toggleSurvey}
-                placing={placing !== null}
-                proposals={proposals}
-                draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
-                onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
-                onNodeClick={(n) => setSelectedId(n.id)}
-              />
-            ) : surveyModel ? (
+          {view === 'map' ? (
+            <GeoMap
+              nodes={sortedNodes}
+              edges={edges}
+              coolingIds={coolingIds}
+              reroutes={briefing?.buses.reroute ?? []}
+              survey={survey}
+              surveyGraph={surveyModel}
+              surveyDark={surveyDark}
+              onToggleSurvey={toggleSurvey}
+              placing={placing !== null}
+              proposals={proposals}
+              draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
+              classSpots={classSpots}
+              classClock={classClock ? { ...classClock, slot: classSlot } : null}
+              onClassSlot={onClassSlot}
+              onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
+              onNodeClick={(n) => setSelectedId(n.id)}
+            />
+          ) : nodesReady && nodes.length > 0 ? (
+            surveyModel ? (
               <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
             ) : (
               <CampusMap nodes={sortedNodes} edges={edges} coolingIds={coolingIds} onNodeClick={(n) => setSelectedId(n.id)} />
@@ -193,6 +211,10 @@ export default function App() {
           }}
           onRemoveProposal={(id) => void dropProposal(id)}
           planError={planError}
+          onClassSpots={onClassSpots}
+          classSlot={classSlot}
+          onClassSlot={onClassSlot}
+          onClassClock={onClassClock}
           surveyGraph={surveyModel}
           surveyDark={surveyDark}
           onToggleSurvey={toggleSurvey}

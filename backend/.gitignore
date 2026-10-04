@@ -1,5 +1,7 @@
 .venv/
 .env
+data/class-schedule.json
+data/class-schedule.json.tmp
 __pycache__/
 *.pyc
 spacetimedb/node_modules/

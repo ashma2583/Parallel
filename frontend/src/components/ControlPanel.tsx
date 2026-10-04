@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import type { Node as NodeRow } from '../module_bindings/types'
-import { disrupt, resetSim, type Briefing, type PriorityMode } from '../lib/api'
+import { disrupt, resetSim, type Briefing, type ClassSpot, type LocationSurvey, type PriorityMode, type ProposalImpact, type ProposalPin } from '../lib/api'
 import { STATUS_COLOR, fmtKw } from '../lib/status'
 import { BriefingPanel } from './BriefingPanel'
 import { LocationPanel } from './LocationPanel'
 import { PlanBuilding, type PlanDraft } from './PlanBuilding'
-import type { ProposalImpact, ProposalPin } from '../lib/api'
+import { ClassLoad } from './ClassLoad'
 import { VoicePanel } from './VoicePanel'
-import type { LocationSurvey } from '../lib/api'
 import type { SurveyGraphModel } from '../lib/surveyGraph'
 
 interface Scenario {
@@ -45,6 +44,10 @@ interface Props {
   onCancelPlan: () => void
   onRemoveProposal: (id: string) => void
   planError: string | null
+  onClassSpots: (spots: ClassSpot[]) => void
+  classSlot: number
+  onClassSlot: (slot: number) => void
+  onClassClock: (clock: { count: number; label: string; students: number; dayPeak: number } | null) => void
 }
 
 export function ControlPanel({
@@ -69,6 +72,10 @@ export function ControlPanel({
   onCancelPlan,
   onRemoveProposal,
   planError,
+  onClassSpots,
+  classSlot,
+  onClassSlot,
+  onClassClock,
 }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,6 +97,8 @@ export function ControlPanel({
   return (
     <aside className="flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-l border-slate-800 bg-slate-950/80 p-4 text-sm backdrop-blur">
       <BriefingPanel briefing={briefing} onChoose={onPriority} />
+
+      <ClassLoad onSpots={onClassSpots} slot={classSlot} onSlot={onClassSlot} onClock={onClassClock} />
 
       <VoicePanel />
 

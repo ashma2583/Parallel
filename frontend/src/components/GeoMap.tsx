@@ -4,7 +4,7 @@ import { setWorkerUrl, type Map as MaplibreMap } from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Edge as EdgeRow, Node as NodeRow } from '../module_bindings/types'
-import type { Briefing, LocationSurvey, ProposalPin } from '../lib/api'
+import type { Briefing, ClassSpot, LocationSurvey, ProposalPin } from '../lib/api'
 import type { SurveyGraphModel } from '../lib/surveyGraph'
 import { BACKEND_URL } from '../config'
 import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
@@ -74,6 +74,9 @@ interface Props {
   placing?: boolean
   proposals?: readonly ProposalPin[]
   draftPoint?: { lng: number; lat: number; name: string } | null
+  classSpots?: readonly ClassSpot[]
+  classClock?: { slot: number; count: number; label: string; students: number; dayPeak: number } | null
+  onClassSlot?: (slot: number) => void
   onPlace?: (lng: number, lat: number) => void
   onNodeClick?: (node: NodeRow) => void
 }
@@ -89,6 +92,9 @@ export function GeoMap({
   placing = false,
   proposals = [],
   draftPoint = null,
+  classSpots = [],
+  classClock = null,
+  onClassSlot,
   onPlace,
   onNodeClick,
 }: Props) {
@@ -101,6 +107,23 @@ export function GeoMap({
   const [threeD, setThreeD] = useState(false)
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
   const [focus, setFocus] = useState<string | null>(null)
+  const [showClasses, setShowClasses] = useState(true)
+  const visibleClasses = useMemo(
+    () => (showClasses ? classSpots.filter((spot) => spot.students > 0 && inTown(spot.lng, spot.lat)) : []),
+    [classSpots, showClasses],
+  )
+  const classMax = classClock?.dayPeak || visibleClasses.reduce((max, spot) => Math.max(max, spot.students), 0)
+  const classByNode = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const spot of visibleClasses) {
+      if (spot.nodeId) counts[spot.nodeId] = (counts[spot.nodeId] ?? 0) + spot.students
+    }
+    return counts
+  }, [visibleClasses])
+  const labeledClasses = useMemo(
+    () => new Set([...visibleClasses].sort((a, b) => b.students - a.students).slice(0, 8).map((spot) => spot.code)),
+    [visibleClasses],
+  )
 
   useEffect(() => {
     let stop = false
@@ -275,6 +298,7 @@ export function GeoMap({
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
         <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
+        <Toggle label="Class load" checked={showClasses} onChange={setShowClasses} />
         <Toggle label="3D view" checked={threeD} onChange={setThreeD} />
       </div>
       <Map
@@ -290,11 +314,35 @@ export function GeoMap({
         cursor={placing ? 'crosshair' : undefined}
       >
         <NavigationControl position="bottom-right" showCompass />
+        {visibleClasses.map((spot) => {
+          const share = classMax > 0 ? spot.students / classMax : 0
+          const size = 14 + Math.sqrt(share) * 52
+          return (
+            <Marker key={`class-${spot.code}`} longitude={spot.lng} latitude={spot.lat} anchor="center">
+              <div
+                title={`${spot.name}: ${spot.students.toLocaleString()} students in class`}
+                onClick={(event) => event.stopPropagation()}
+                className="flex items-center justify-center rounded-full border border-slate-950/70 text-[9px] font-bold text-slate-950"
+                style={{
+                  width: size,
+                  height: size,
+                  background: `rgba(255, 203, 5, ${0.28 + share * 0.72})`,
+                  boxShadow: `0 0 ${8 + share * 18}px rgba(255, 203, 5, ${0.25 + share * 0.6})`,
+                }}
+              >
+                {labeledClasses.has(spot.code) && size >= 34 && (
+                  <span>{spot.students >= 1000 ? `${(spot.students / 1000).toFixed(1)}k` : spot.students}</span>
+                )}
+              </div>
+            </Marker>
+          )
+        })}
         {nodes.map((node) => {
           const place = PLACES[node.id]
           if (!place || CITY.has(node.id)) return null
           const color = statusColor(node.status)
           const cooling = coolingIds.includes(node.id)
+          const inClass = classByNode[node.id]
           return (
             <Marker key={node.id} longitude={place.lng} latitude={place.lat} anchor="bottom">
               <button
@@ -304,9 +352,12 @@ export function GeoMap({
                   onNodeClick?.(node)
                 }}
                 className="flex flex-col items-center"
-                title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
+                title={`${node.name} · ${node.status}${inClass ? ` · ${inClass.toLocaleString()} in class` : ''}${cooling ? ' · cooling center' : ''}`}
               >
                 {cooling && <span className="mb-0.5 text-[9px] font-bold tracking-wide text-cyan-300">COOLING</span>}
+                {inClass ? (
+                  <span className="mb-0.5 text-[9px] font-bold text-amber-300">{inClass.toLocaleString()} in class</span>
+                ) : null}
                 <span
                   className="max-w-36 truncate rounded bg-slate-950/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-100 shadow"
                   style={{ border: `1px solid ${color}` }}
@@ -367,6 +418,28 @@ export function GeoMap({
           )
         })}
       </Map>
+      {classClock && onClassSlot && (
+        <div className="absolute bottom-4 left-1/2 z-10 w-[min(34rem,calc(100%-8rem))] -translate-x-1/2 rounded-md border border-slate-700 bg-slate-950/90 px-3 py-2 text-slate-100 shadow-lg">
+          <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
+            <span className="font-semibold">{classClock.label}</span>
+              <span className="font-mono text-amber-200">{classClock.students.toLocaleString()} people</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, classClock.count - 1)}
+            value={Math.min(classClock.slot, Math.max(0, classClock.count - 1))}
+            onChange={(event) => onClassSlot(Number(event.target.value))}
+            aria-label="Time of day"
+            className="w-full"
+          />
+          <div className="mt-0.5 flex justify-between text-[10px] text-slate-500">
+            <span>8:00 AM</span>
+            <span>Student density</span>
+            <span>10:00 PM</span>
+          </div>
+        </div>
+      )}
       {proposals.length > 0 && (
         <LineOverlay
           map={map}
@@ -673,6 +746,10 @@ function Toggle({
       {label}
     </label>
   )
+}
+
+function inTown(lng: number, lat: number) {
+  return lng > -83.82 && lng < -83.64 && lat > 42.23 && lat < 42.33
 }
 
 function links(edges: readonly EdgeRow[], kind: string) {
