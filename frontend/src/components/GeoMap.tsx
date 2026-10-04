@@ -1414,6 +1414,9 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
   const vehicleRefs = useRef(new globalThis.Map<string, SVGGElement>())
   // Survives route changes (a storm closing a stretch) so buses do not restart from zero.
   const clockRef = useRef(0)
+  // Smoothed compass heading per bus. Kept across effect restarts: the routes are rebuilt on every
+  // engine tick (node status feeds the dark-stop cut), and a reset there would snap a bus mid U-turn.
+  const headingsRef = useRef(new globalThis.Map<string, number>())
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   )
@@ -1451,8 +1454,9 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
   useEffect(() => {
     if (!map || vehicles.length === 0) return
     const elements = vehicleRefs.current
-    // Smoothed compass heading per bus, so the turn at the end of a line is a quick U-turn, not a flip.
-    const headings = new globalThis.Map<string, number>()
+    // Smoothed so the turn at the end of a line is a quick U-turn, not a flip.
+    const headings = headingsRef.current
+    for (const key of headings.keys()) if (!vehicles.some((vehicle) => vehicle.key === key)) headings.delete(key)
     let last = performance.now()
     let frame = 0
 
@@ -1471,7 +1475,8 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
       const height = canvas.clientHeight
       if (width === 0 || height === 0) return
       const zoom = map.getZoom()
-      const seconds = (reducedMotion ? 0 : clockRef.current) / 1000
+      // Reduced motion stops the clock, so buses hold where they are instead of jumping to their start.
+      const seconds = clockRef.current / 1000
       for (const vehicle of vehicles) {
         const element = elements.get(vehicle.key)
         if (!element) continue
