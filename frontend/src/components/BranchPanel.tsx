@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { adoptStrategy, fetchVerdict, runBranches, type Branch, type BranchResult } from '../lib/api'
 import type { PlannedScenario } from '../lib/weather/forecast'
 import { STATUS_COLOR, fmtPeople } from '../lib/status'
+import { TICK_MINUTES, simClock } from '../lib/weather/types'
 
 interface Props {
   /** Heat-wave demo: point at hover, Best, and Adopt. */
@@ -14,6 +15,8 @@ interface Props {
   scenario?: PlannedScenario | null
   /** Adopt, then play the scenario on the live campus. Offered when a plan is ready and not playing. */
   onAdoptAndRun?: () => void
+  /** Time of day at an engine tick, from the one sim clock. */
+  clockAt: (tick: number) => string
 }
 
 const points = (ratio: number) => Math.round(ratio * 1000) / 10
@@ -30,11 +33,12 @@ function best(branches: Branch[]): string | undefined {
 
 /** Header for a comparison that played the dock's plan forward. */
 function scenarioLine(plan: PlannedScenario, result: BranchResult): string {
-  const what = `${plan.events} event${plan.events === 1 ? '' : 's'}, through ${plan.through}`
-  const peak = result.through === 'heat peak' ? ', then on to the peak of the heat wave' : ''
-  if (plan.running) return `Each policy replays your scenario (${what}) from its start on its own copy${peak}, ${result.ticks} ticks. The live run keeps going.`
+  const what = `${plan.events} event${plan.events === 1 ? '' : 's'}`
+  const through = result.through === 'heat peak' ? 'through the heat peak' : 'through your planned scenario'
+  const until = `${through}, ${plan.startsAt} to ${simClock(plan.startsAt, result.ticks)}`
+  if (plan.running) return `Each policy replays your scenario (${what}) from its start on its own copy, ${until}. The live run keeps going.`
   const start = result.fromBaseline ? ' from the campus a run starts from,' : ''
-  return `Each policy plays your planned scenario (${what})${start} on its own copy${peak} before anything hits the live campus.`
+  return `Each policy plays your planned scenario (${what})${start} on its own copy, ${until}, before anything hits the live campus.`
 }
 
 const essentialColor = (ratio: number) => (ratio >= 0.999 ? STATUS_COLOR.Green : ratio >= 0.8 ? STATUS_COLOR.Amber : STATUS_COLOR.Red)
@@ -43,7 +47,7 @@ const essentialColor = (ratio: number) => (ratio >= 0.999 ? STATUS_COLOR.Green :
  * Right panel while branching. The engine forks the live state and runs every
  * response policy forward on its own copy; each row is one outcome.
  */
-export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scenario = null, onAdoptAndRun }: Props) {
+export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scenario = null, onAdoptAndRun, clockAt }: Props) {
   const [result, setResult] = useState<BranchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [opened, setOpened] = useState<string | null>(null)
@@ -116,8 +120,8 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scena
               ? scenarioLine(plan, result)
               : result
               ? result.throughPeak
-                ? `Forked at t${result.baseTick}. Each policy is run to the peak of the heat wave, ${result.ticks} ticks ahead, on its own copy. The live clock is still earlier.`
-                : `Forked at t${result.baseTick}. Each policy ran ${result.ticks} ticks on its own copy of the campus with the same agents and supply. The live campus has not changed.`
+                ? `Forked at ${clockAt(result.baseTick)}. Each policy runs through the heat peak, to ${clockAt(result.baseTick + result.ticks)}, on its own copy. The live clock is still earlier.`
+                : `Forked at ${clockAt(result.baseTick)}. Each policy ran the next ${result.ticks * TICK_MINUTES} minutes on its own copy of the campus with the same agents and supply. The live campus has not changed.`
               : plan
                 ? `Playing your planned scenario on five copies of the campus…`
                 : 'Forking the live campus and running each response policy…'}

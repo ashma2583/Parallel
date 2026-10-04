@@ -105,6 +105,9 @@ export interface WeatherStatus {
   hazards: string[]
   /** The dock has a plan the last run has not already played. */
   planned?: boolean
+  /** The plan's start time and run speed, for the one sim clock. */
+  startsAt?: string
+  speed?: number
 }
 
 interface Props {
@@ -291,8 +294,15 @@ export function GeoMap({
     statusRef.current = onWeatherStatus
   })
   useEffect(() => {
-    statusRef.current?.({ active: weatherActive, running, hazards: hazardKey ? hazardKey.split(',') : [], planned: storm.plannable })
-  }, [weatherActive, running, hazardKey, storm.plannable])
+    statusRef.current?.({
+      active: weatherActive,
+      running,
+      hazards: hazardKey ? hazardKey.split(',') : [],
+      planned: storm.plannable,
+      startsAt: storm.dock.startsAt,
+      speed: storm.dock.speed,
+    })
+  }, [weatherActive, running, hazardKey, storm.plannable, storm.dock.startsAt, storm.dock.speed])
 
   // Back from the grid view: the container may have changed size while hidden.
   useEffect(() => {
@@ -1245,7 +1255,7 @@ export function GeoMap({
           <button
             type="button"
             onClick={() => onClassSlot?.(classClock.slot - 1)}
-            disabled={!onClassSlot || classClock.slot <= 0}
+            disabled={!onClassSlot || classClock.following || classClock.slot <= 0}
             aria-label="Half an hour earlier"
             className="grid h-6 w-6 place-items-center rounded-full text-muted hover:bg-raised hover:text-text disabled:opacity-30"
           >
@@ -1254,7 +1264,7 @@ export function GeoMap({
           <button
             type="button"
             onClick={() => onClassSlot?.(classClock.slot + 1)}
-            disabled={!onClassSlot || classClock.slot >= classClock.count - 1}
+            disabled={!onClassSlot || classClock.following || classClock.slot >= classClock.count - 1}
             aria-label="Half an hour later"
             className="grid h-6 w-6 place-items-center rounded-full text-muted hover:bg-raised hover:text-text disabled:opacity-30"
           >
@@ -1262,6 +1272,7 @@ export function GeoMap({
           </button>
           <span className="ml-1 h-2 w-2 shrink-0 rounded-full bg-people" />
           <span className="whitespace-nowrap font-semibold">{classClock.label}</span>
+          {classClock.following && <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.12em] text-people">clock</span>}
           <span className="whitespace-nowrap font-mono tabular-nums text-muted">{classClock.students.toLocaleString()} in class</span>
         </div>
       )}

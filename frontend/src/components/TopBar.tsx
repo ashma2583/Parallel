@@ -4,6 +4,7 @@ import { setClock } from '../lib/api'
 import { tables } from '../module_bindings'
 import { essentialServed, type Sim, type SimNode } from '../lib/sim'
 import { STATUS_COLOR } from '../lib/status'
+import type { SimClock } from '../lib/simClock'
 
 export type View = 'city' | 'grid' | 'map'
 
@@ -24,6 +25,8 @@ interface Props {
   onStep: (index: number) => void
   view: View
   onView: (view: View) => void
+  /** The one time-of-day clock. */
+  clock: SimClock
 }
 
 /** "Live · N directors": shown only while this window is connected to SpacetimeDB. */
@@ -44,7 +47,7 @@ function PresenceBadge() {
   )
 }
 
-export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
+export function TopBar({ sim, nodes, step, onStep, view, onView, clock }: Props) {
   const ready = nodes.length > 0
   const essential = ready ? essentialServed(nodes) : 1
   const essentialColor = essential >= 0.999 ? STATUS_COLOR.Green : essential >= 0.8 ? STATUS_COLOR.Amber : STATUS_COLOR.Red
@@ -96,7 +99,7 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
             {ready ? `${Math.round(essential * 100)}%` : '—'}
           </span>
         </div>
-        <Clock tick={sim.summary?.tick} />
+        <Clock clock={clock} />
         <div className="flex whitespace-nowrap rounded-md border border-line bg-ink p-0.5 text-xs font-medium">
           {(['city', 'grid', 'map'] as const).map((v) => (
             <button
@@ -114,33 +117,37 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
   )
 }
 
-function Clock({ tick }: { tick: number | undefined }) {
+function Clock({ clock }: { clock: SimClock }) {
   const [paused, setPaused] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   async function pause(next: boolean) {
-    const clock = await setClock({ paused: next })
-    setPaused(clock.paused)
+    const state = await setClock({ paused: next })
+    setPaused(state.paused)
     setError(null)
   }
 
+  // Jump to a time of day: forward runs the engine there, back recalls a saved moment.
   async function go() {
-    const target = Number(draft)
-    if (!Number.isFinite(target) || target < 1) return
+    if (!draft.trim()) return
+    const target = clock.tickFor(draft)
+    if (target === null || target < 1) {
+      setError('Type a time like 15:30.')
+      return
+    }
     try {
-      const clock = await setClock({ until: Math.round(target) })
-      setPaused(clock.paused)
+      const state = await setClock({ until: target })
+      setPaused(state.paused)
       setDraft('')
       setError(null)
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setError(message)
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
   return (
-    <div className="flex items-center gap-1.5 font-mono text-xs" title={error ?? 'Pause, or jump to a saved tick'}>
+    <div className="flex items-center gap-1.5 font-mono text-xs" title={error ?? 'Time of day. A tick is 4 minutes. Pause, or jump to a time.'}>
       <button
         type="button"
         onClick={() => void pause(!paused)}
@@ -148,16 +155,19 @@ function Clock({ tick }: { tick: number | undefined }) {
       >
         {paused ? 'Play' : 'Pause'}
       </button>
-      <span className="text-muted">t{tick ?? '—'}</span>
+      <span className="min-w-[3.25rem] text-center text-[15px] font-medium tabular-nums text-text" aria-label={`Time of day ${clock.label}`}>
+        {clock.label}
+      </span>
       <input
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') void go()
         }}
-        placeholder="tick"
-        aria-label="Jump to tick"
-        className="w-12 rounded border border-line bg-ink px-1.5 py-1 text-text outline-none"
+        placeholder="HH:MM"
+        aria-label="Jump to a time of day"
+        aria-invalid={error !== null}
+        className={`w-14 rounded border bg-ink px-1.5 py-1 text-text outline-none ${error ? 'border-down' : 'border-line'}`}
       />
       <button type="button" onClick={() => void go()} className="rounded px-1.5 py-1 text-[11px] font-semibold text-branch">
         Go

@@ -29,6 +29,8 @@ export interface PlannedScenario {
   names: string[]
   /** Clock time the last event finishes, "HH:MM". */
   through: string
+  /** Clock time the scenario starts, "HH:MM". */
+  startsAt: string
   /** The run is playing now. The copies replay it from its start. */
   running: boolean
   batches: ScenarioBatch[]
@@ -105,6 +107,7 @@ export function planScenario(plan: ScenarioPlan, campus: Campus, running = false
     events: plan.events.length,
     names: plan.events.map(eventLabel),
     through: startClock(plan.startsAt, planTotal(plan.events, 1) / 1000),
+    startsAt: startClock(plan.startsAt, 0),
     running,
     batches: [...byTick.values()].sort((a, b) => a.tick - b.tick),
   }

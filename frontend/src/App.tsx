@@ -13,6 +13,7 @@ import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
 import { fetchHazards, proposeBuilding, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
 import { useClassLoad } from './lib/classLoad'
+import { useSimClock } from './lib/simClock'
 import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
@@ -56,8 +57,6 @@ function HeatWaveBanner({ wave }: { wave: Briefing['heat_wave'] }) {
 
 export default function App() {
   const sim = useSim()
-  // Students in class by time of day. Lives here so it outlives the panel swap to branching.
-  const classLoad = useClassLoad()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('map')
   const [branching, setBranching] = useState(false)
@@ -70,6 +69,14 @@ export default function App() {
   const [weatherRequest, setWeatherRequest] = useState<WeatherRequest | null>(null)
   const [mapWeather, setMapWeather] = useState<WeatherStatus>({ active: false, running: false, hazards: [] })
   const weather = (sim.briefing as { weather?: WeatherState } | null)?.weather ?? null
+  // The one clock. A scenario run or heat wave moves it; the People time follows it then.
+  const clock = useSimClock({
+    tick: sim.summary?.tick,
+    run: mapWeather.running ? { startsAt: mapWeather.startsAt ?? '14:00', speed: mapWeather.speed ?? 1 } : null,
+    wave: sim.briefing?.heat_wave ?? null,
+  })
+  // Students in class by time of day. Lives here so it outlives the panel swap to branching.
+  const classLoad = useClassLoad(clock.following ? clock.minutes : null)
   const mapRef = useRef<GeoMapHandle>(null)
 
   // The map stays mounted once shown, so a scenario keeps running behind the grid view.
@@ -249,7 +256,7 @@ export default function App() {
 
   return (
     <div className="grid h-full min-h-[640px] grid-cols-[minmax(0,1fr)] grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-ink text-text">
-      <TopBar sim={sim} nodes={nodes} step={step} onStep={onStep} view={view} onView={setView} />
+      <TopBar sim={sim} nodes={nodes} step={step} onStep={onStep} view={view} onView={setView} clock={clock} />
 
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_340px] min-[1100px]:grid-cols-[minmax(0,1fr)_400px]">
         <main className="relative flex min-w-0 flex-col">
@@ -404,6 +411,7 @@ export default function App() {
                 closeBranch()
               }}
               scenario={branchPlan}
+              clockAt={clock.at}
               onAdoptAndRun={() => {
                 sim.refresh()
                 closeBranch()
@@ -417,6 +425,7 @@ export default function App() {
               disrupted={disrupted}
               running={mapWeather.running}
               planned={mapWeather.planned}
+              clockAt={clock.at}
               hazard={hazard}
               demo={demo}
               onBranch={openBranch}
