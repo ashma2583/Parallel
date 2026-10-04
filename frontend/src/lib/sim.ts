@@ -128,7 +128,19 @@ export function useSim(): Sim {
   const [nodeRows] = useTable(tables.node)
   const [edgeRows] = useTable(tables.edge)
   const [simRows] = useTable(tables.simState)
-  const stdbLive = isActive && nodeRows.length > 0
+  // SpacetimeDB keeps its last rows after the engine stops publishing. Trust them only while fresh.
+  const [stdbFresh, setStdbFresh] = useState(false)
+  useEffect(() => {
+    const check = () => {
+      const at = simRows[0]?.updatedAt as { toDate?: () => Date; microsSinceUnixEpoch?: bigint } | undefined
+      const ms = at?.toDate ? at.toDate().getTime() : Number(at?.microsSinceUnixEpoch ?? 0n) / 1000
+      setStdbFresh(ms > 0 && Date.now() - ms < 5000)
+    }
+    check()
+    const timer = setInterval(check, 1000)
+    return () => clearInterval(timer)
+  }, [simRows])
+  const stdbLive = isActive && nodeRows.length > 0 && stdbFresh
 
   const [engine, setEngine] = useState<EngineState | null>(null)
   const [engineUp, setEngineUp] = useState(false)
