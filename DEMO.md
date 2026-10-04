@@ -25,7 +25,9 @@ The agent is **PARALLEL Coordinator**, address `agent1qgx5x29ews09d95fph5uz32vw7
 
 **Built for moments when keeping the lights on means keeping people safe.** PARALLEL is a campus resilience simulator for safer decisions and smarter energy use.
 
-Use this sequence for the main judging panel: problem and campus (20 s), one scenario (30 s), compare five policies and apply one (50 s), Balanced energy saver and its timeclock baseline (40 s), limitations and closing (25 s). Keep ASI:One and multiplayer for sponsor demonstrations. The longer walkthrough below is also useful for recording a separate sponsor video.
+**Main track: Actually Intelligent (AI).** Lead with AI interpreting intent, executing simulator tools and explaining tested outcomes.
+
+Use this sequence for the main judging panel: problem and campus (20 s), one scenario (30 s), compare five policies and apply one (50 s), AI command or a prepared ASI:One tool-execution demonstration (40 s), limitations and closing (25 s). Show energy saver and multiplayer as optional extensions. The longer walkthrough below is also useful for recording a separate sponsor video.
 
 The console ranks final outcomes by people in powered shelters, then fewer people left dark, then shelter power. The ASI:One Energy Planner separately prioritizes essential service. Adoption applies a policy to the live simulation; it does not replace the campus with the projected branch end state.
 

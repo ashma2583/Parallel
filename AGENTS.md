@@ -1,6 +1,6 @@
 # PARALLEL repository guide
 
-PARALLEL is a campus resilience and energy-use teaching simulator built at MHacks 2026. Its main-track framing is Sustainability.
+PARALLEL is an AI-assisted campus resilience teaching simulator built at MHacks 2026. Its main-track framing is Actually Intelligent (AI): interpret requests, execute simulator tools and explain tested outcomes.
 
 ## Start here
 
