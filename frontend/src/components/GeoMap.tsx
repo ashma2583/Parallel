@@ -148,6 +148,9 @@ interface Props {
   onClassTime?: (minutes: number | null) => void
   /** The campus picker or a school marker moved the map to another campus. */
   onCampusChange?: () => void
+  /** Time of day on the one sim clock, and whether a scenario or heat wave is moving it. */
+  clockMinutes?: number | null
+  clockFollowing?: boolean
 }
 
 export function GeoMap({
@@ -178,6 +181,8 @@ export function GeoMap({
   onClassSlot,
   onClassTime,
   onCampusChange,
+  clockMinutes = null,
+  clockFollowing = false,
 }: Props) {
   const [map, setMap] = useState<MaplibreMap | null>(null)
   const [buses, setBuses] = useState<BusCollection>(EMPTY)
@@ -189,7 +194,7 @@ export function GeoMap({
   const [showCampusPower, setShowCampusPower] = useState(true)
   const [showCampusLandmarks, setShowCampusLandmarks] = useState(true)
   const [threeD, setThreeD] = useState(DEFAULT_3D)
-  // The map follows the app theme; the Night map toggle overrides it until the theme changes again.
+  // The map follows the app theme, or the sim clock's day and night while time is passing.
   const [mapTheme, setMapTheme] = useState<'day' | 'night'>(() => (appDark() ? 'night' : 'day'))
   const mapThemeRef = useRef(mapTheme)
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
@@ -592,6 +597,13 @@ export function GeoMap({
     mapThemeRef.current = mapTheme
   }, [mapTheme])
 
+  // While a scenario or heat wave moves the clock, the map goes from day to night with it (20:00-06:00).
+  const clockNight = clockFollowing && clockMinutes !== null ? clockMinutes % 1440 >= 20 * 60 || clockMinutes % 1440 < 6 * 60 : null
+  useEffect(() => {
+    if (clockNight === null) setMapTheme(appDark() ? 'night' : 'day')
+    else setMapTheme(clockNight ? 'night' : 'day')
+  }, [clockNight])
+
   useEffect(() => {
     const follow = () => setMapTheme(appDark() ? 'night' : 'day')
     const media = window.matchMedia('(prefers-color-scheme: dark)')
@@ -916,11 +928,6 @@ export function GeoMap({
             </>
           )}
           <Toggle label="3D buildings" checked={threeD} onChange={setThreeD} />
-          <Toggle
-            label="Night map"
-            checked={mapTheme === 'night'}
-            onChange={(enabled) => setMapTheme(enabled ? 'night' : 'day')}
-          />
           <label className="mt-1 flex items-center gap-2">
             Map
             <input

@@ -317,6 +317,8 @@ export default function App() {
               // Opacity as well: MapLibre's attribution sets its own visibility.
               <div className={`absolute inset-0 ${view === 'map' ? '' : 'invisible opacity-0'}`} inert={view !== 'map'}>
                 <GeoMap
+                  clockMinutes={clock.minutes}
+                  clockFollowing={clock.following}
                   ref={mapRef}
                   active={view === 'map'}
                   nodes={nodes}
