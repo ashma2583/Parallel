@@ -239,6 +239,52 @@ class SimDrivenTests(unittest.TestCase):
         self.assertEqual(now["buildings"][0]["node_id"], "angell")
         self.assertEqual(now["buildings"][0]["students"], 400)
 
+    def test_evacuees_in_a_lit_building_never_multiply(self) -> None:
+        # Evening: Angell is at its staff floor. 500 evacuees arrive, then classes start.
+        occupancy.apply_to_graph(self.graph, 20 * 60)
+        angell = self.graph.nodes["angell"]
+        floor = angell.baseline_occupancy
+        angell.occupancy = floor + 500
+        occupancy.apply_to_graph(self.graph, 14 * 60)
+        self.assertEqual(angell.occupancy, 400 + 500)
+        occupancy.apply_to_graph(self.graph, 20 * 60)
+        self.assertEqual(angell.occupancy, floor + 500)
+
+    def test_counts_never_go_negative(self) -> None:
+        occupancy.apply_to_graph(self.graph, 14 * 60)
+        angell = self.graph.nodes["angell"]
+        angell.occupancy = 3  # lit again after an evacuation, nearly empty
+        occupancy.apply_to_graph(self.graph, 20 * 60)
+        self.assertEqual(angell.occupancy, 0)
+
+    def test_bad_schedule_never_breaks_the_tick(self) -> None:
+        occupancy._schedule = {"meetings": None, "places": {}}
+        occupancy._sim_cache.clear()
+        occupancy._weekday_cache.clear()
+        self.assertFalse(occupancy.apply_to_graph(self.graph, 14 * 60))
+        self.assertIsNone(occupancy.people_now(self.graph)["slot"])
+        self.assertEqual(self.graph.nodes["angell"].occupancy, 400)
+
+    def test_cycle_sets_people_for_the_tick_it_runs(self) -> None:
+        from agents import runtime
+
+        self.graph.set_clock(14 * 60 - 4)  # 13:56 now; the next tick is 14:00
+        runtime.run_cycle(self.graph, force=True)
+        self.assertEqual(self.graph.sim_minutes(), 14 * 60)
+        self.assertEqual(self.graph.nodes["angell"].baseline_occupancy, 400)
+
+    def test_language_model_facts_are_capped(self) -> None:
+        import briefing
+
+        occupancy._schedule["meetings"] = [
+            Meeting(code, frozenset({1}), 14 * 60, 15 * 60, 50, str(i), "")
+            for i, code in enumerate(occupancy.NODE_BY_CODE)
+        ]
+        occupancy._sim_cache.clear()
+        self.graph.set_clock(14 * 60)
+        facts = briefing.people_facts(self.graph)
+        self.assertLessEqual(len(facts["buildings"]), briefing.PEOPLE_FACTS_MAX)
+
     def test_clock_runs_four_minutes_a_tick(self) -> None:
         self.assertEqual(self.graph.sim_minutes(), 14 * 60)
         self.graph.tick()

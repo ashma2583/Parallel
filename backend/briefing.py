@@ -36,6 +36,10 @@ ON_STRETCH_M = 40.0
 SAME_STRETCH_M = 500.0
 
 
+# The language model sees the busiest buildings only, so the prompt stays small.
+PEOPLE_FACTS_MAX = 8
+
+
 def people_facts(graph: CampusGraph) -> dict:
     """Students in class right now, for the language model: the slot and the busiest buildings."""
     now = occupancy.people_now(graph)
@@ -48,7 +52,7 @@ def people_facts(graph: CampusGraph) -> dict:
             {"node_id": row["node_id"], "name": row["name"], "students": row["students"]}
             for row in now["buildings"]
             if row["students"] > 0
-        ],
+        ][:PEOPLE_FACTS_MAX],
     }
 
 

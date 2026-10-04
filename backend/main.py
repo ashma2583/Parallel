@@ -336,11 +336,11 @@ def get_people_now() -> dict:
 @app.post("/people/selection")
 async def post_people_selection(req: PeopleSelection) -> dict:
     """The People tab's weekday and turnup. The engine uses them for who is in each building."""
-    try:
-        chosen = occupancy.select(req.weekday, req.turnup)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     with runtime.lock:
+        try:
+            chosen = occupancy.select(req.weekday, req.turnup)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         occupancy.apply_to_graph(graph)
         body = {**chosen, **occupancy.people_now(graph)}
     await publisher.publish(graph)

@@ -59,8 +59,8 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
     if not force and now - last_cycle < TICK_SECONDS * 0.85:
         return []
     notes: list[str] = []
-    # Who is in each building at this time of day, before the agents decide anything.
-    occupancy.apply_to_graph(sim)
+    # Who is in each building at the time of day of the tick about to run, before the agents decide anything.
+    occupancy.apply_to_graph(sim, sim.sim_minutes(ahead=1))
     notes.extend(sim.advance_heat_wave())
     notes.extend(apply_energy(sim, strategy))
     sim.tick()
