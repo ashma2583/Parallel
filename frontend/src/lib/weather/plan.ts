@@ -8,7 +8,9 @@ import { stormLabel } from './impacts'
 import {
   FAULT_SPECS,
   HAZARD_SPECS,
+  simClock,
   STORM_SPECS,
+  TICK_MINUTES,
   type EventPatch,
   type FaultKind,
   type HazardKind,
@@ -142,16 +144,24 @@ export function planNames(events: readonly ScenarioEvent[]): string {
   return names.join(' + ') + (more > 0 ? ` +${more} more` : '')
 }
 
-/** Minutes on the scenario clock after `elapsedMs` of run. One second of run is one minute at 1x. */
+/** Sim minutes after `elapsedMs` of run at a speed. A scenario second is TICK_MINUTES sim minutes. */
 export function simMinutes(elapsedMs: number, speed: number): number {
-  return Math.max(0, (elapsedMs / 1000) * speed)
+  return Math.max(0, (elapsedMs / 1000) * speed * TICK_MINUTES)
 }
 
-/** "14:00" plus some minutes, wrapping past midnight. */
+/** "14:00" plus some sim minutes, wrapping past midnight. Whole minutes only, so a running clock never reads ahead. */
 export function clockAt(startsAt: string, minutes: number): string {
-  const [h, m] = parseClock(startsAt) ?? [14, 0]
-  const total = (((h * 60 + m + Math.floor(minutes)) % 1440) + 1440) % 1440
-  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`
+  return simClock(normalizeClock(startsAt), Math.floor(minutes) / TICK_MINUTES)
+}
+
+/** The scenario clock `elapsedMs` into a run at a speed. */
+export function runClock(startsAt: string, elapsedMs: number, speed: number): string {
+  return clockAt(startsAt, simMinutes(elapsedMs, speed))
+}
+
+/** Clock time of a moment in the plan, `start` scenario seconds in. Same as the event chips. */
+export function startClock(startsAt: string, start: number): string {
+  return simClock(normalizeClock(startsAt), start)
 }
 
 export function parseClock(value: string): [number, number] | null {
@@ -208,7 +218,8 @@ function asEvent(raw: unknown): ScenarioEvent | null {
   if (e.type === 'fault') return typeof e.fault === 'string' && e.fault in FAULT_SPECS ? { ...base, type: 'fault', fault: e.fault as FaultKind } : null
   if (e.type !== 'storm' || typeof e.kind !== 'string' || !(e.kind in STORM_SPECS)) return null
   const kind = e.kind as StormKind
-  if (!Array.isArray(e.path) || e.path.length === 0 || e.path.length > 400) return null
+  // The engine takes at most 200 points per storm.
+  if (!Array.isArray(e.path) || e.path.length === 0 || e.path.length > 200) return null
   const path: LngLat[] = []
   for (const p of e.path) {
     if (!Array.isArray(p) || p.length < 2) return null

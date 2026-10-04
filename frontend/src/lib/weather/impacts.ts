@@ -8,7 +8,7 @@ import type { SimEdge, SimNode } from '../sim'
 import { distPointPath, distSegSeg, firstContact, STRIKE } from './geo'
 import { STORM_SPECS, type BusLine, type Impact, type ImpactCounts, type LngLat, type Storm } from './types'
 
-/** City buildings are off the map, and on the city grid. Weather drawn here leaves them alone. */
+/** City buildings are off the map, and on the city grid. Weather drawn here leaves them alone, though their roads close. */
 const CITY = new Set(['city_hall', 'blake', 'fire_1'])
 
 /** The power plant's emergency tie into the hospital. Cutting it fails no building. */
@@ -55,11 +55,18 @@ export function buildWorld(
   buses: readonly BusLine[],
 ): World {
   const where = new Map<string, LngLat>()
+  // City buildings are never hit, but the roads into downtown still close.
+  const roadEnd = new Map<string, LngLat>()
   for (const node of nodes) {
     const place = PLACES[node.id]
-    if (place && !CITY.has(node.id)) where.set(node.id, [place.lng, place.lat])
+    if (!place) continue
+    roadEnd.set(node.id, [place.lng, place.lat])
+    if (!CITY.has(node.id)) where.set(node.id, [place.lng, place.lat])
   }
-  for (const pin of proposals) where.set(pin.id, [pin.lng, pin.lat])
+  for (const pin of proposals) {
+    where.set(pin.id, [pin.lng, pin.lat])
+    roadEnd.set(pin.id, [pin.lng, pin.lat])
+  }
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const name = (id: string) => byId.get(id)?.name ?? id
 
@@ -70,8 +77,9 @@ export function buildWorld(
     world.nodes.push({ id: node.id, name: node.name, feed: node.type === 'substation' || node.id === 'uh', failed: node.failed, at })
   }
   for (const edge of edges) {
-    const a = where.get(edge.source)
-    const b = where.get(edge.target)
+    const ends = edge.type === 'road' ? roadEnd : where
+    const a = ends.get(edge.source)
+    const b = ends.get(edge.target)
     if (!a || !b) continue
     const label = `${PLACES[edge.source]?.short ?? name(edge.source)} → ${PLACES[edge.target]?.short ?? name(edge.target)}`
     if (edge.type === 'power') {
@@ -357,16 +365,26 @@ function crossing(path: readonly LngLat[], a: LngLat, b: LngLat): LngLat {
   return best
 }
 
+/**
+ * What a list of hits takes out, each thing counted once even when several
+ * storms hit it: nodes that go dark (cut-off buildings and failed feeds too),
+ * feeds still running at reduced output, lines down, bus lines and roads closed.
+ */
 export function countImpacts(impacts: readonly Impact[]): ImpactCounts {
-  const counts: ImpactCounts = { buildings: 0, feeds: 0, lines: 0, buses: 0, roads: 0 }
+  const dark = new Set<string>()
+  const derated = new Set<string>()
+  const lines = new Set<string>()
+  const buses = new Set<string>()
+  const roads = new Set<string>()
   for (const impact of impacts) {
-    if (impact.target === 'building') counts.buildings++
-    else if (impact.target === 'feed') counts.feeds++
-    else if (impact.target === 'line') counts.lines++
-    else if (impact.target === 'bus') counts.buses++
-    else counts.roads++
+    const into = impact.action === 'derate' ? derated : impact.action === 'fail' || impact.action === 'cut' ? dark : null
+    if (into) for (const id of impact.nodeIds) into.add(id)
+    if (impact.target === 'line') lines.add(impact.edgeId ?? impact.key)
+    else if (impact.target === 'bus') buses.add(impact.route?.id ?? impact.key)
+    else if (impact.target === 'road') roads.add(impact.edgeId ?? impact.key)
   }
-  return counts
+  for (const id of dark) derated.delete(id)
+  return { buildings: dark.size, feeds: derated.size, lines: lines.size, buses: buses.size, roads: roads.size }
 }
 
 const LABELS: Record<Storm['kind'], string[]> = {

@@ -46,7 +46,7 @@ from pydantic import BaseModel, Field
 
 from agents import runtime
 import briefing
-from agents.logic import DEFAULT_STRATEGY, STRATEGIES, apply_policy
+from agents.logic import STRATEGIES
 import location_agent
 import proposal
 from agents.serve import start_in_thread
@@ -125,6 +125,7 @@ class DisruptRequest(BaseModel):
     action: Literal["fail", "restore", "derate"] = Field("fail")
     factor: float = Field(0.5, ge=0.0, le=1.0, description="Output fraction for action=derate")
     reason: str | None = Field(None, examples=["Ice storm knocked out the south substation"])
+    reset_count: int | None = Field(None, validation_alias=storms.EPOCH, description="409 when the campus was reset since")
 
 
 class BranchRequest(BaseModel):
@@ -146,6 +147,7 @@ PRIORITY_STRATEGY = {"balanced": "tiered", "dorms": "residential", "academic": "
 
 class HazardApplyRequest(BaseModel):
     id: str = Field(..., min_length=1, examples=["ice_storm"])
+    reset_count: int | None = Field(None, validation_alias=storms.EPOCH, description="409 when the campus was reset since")
 
 
 class WeatherApplyRequest(BaseModel):
@@ -175,6 +177,7 @@ def _state() -> dict:
     body["activity"] = list(runtime.activity)
     body["activity_ticks"] = list(runtime.activity_ticks)
     body["strategy"] = runtime.strategy
+    body["reset_count"] = graph.reset_count
     return body
 
 
@@ -191,11 +194,10 @@ async def _settle_policy(policy: dict) -> list[str]:
                 runtime.policy_queue = deque(
                     item for item in runtime.policy_queue if item[1] is not box
                 )
-                notes = apply_policy(graph, policy)
-                runtime.push(notes)
-                runtime.run_cycle(graph, force=True)
-                box["notes"] = notes
+                box["notes"] = runtime.apply_order(graph, policy)
                 box["done"] = True
+    if policy.get("action") == "reset":
+        await publisher.clear()
     await publisher.publish(graph)
     return list(box.get("notes") or [])
 
@@ -258,7 +260,8 @@ async def post_proposal(req: ProposalRequest) -> dict:
             )
         except proposal.ProposalError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        runtime.push([f"Planner: added {req.name.strip()} on the {placed['feeder_label']} feed"])
+        feed = placed["feeder_label"]
+        runtime.push([f"Planner: added {req.name.strip()} on the {feed if feed.endswith(' feed') else feed + ' feed'}"])
         runtime.run_cycle(graph, force=True)
         body = proposal.describe(graph, placed)
     await publisher.publish(graph)
@@ -330,12 +333,16 @@ async def post_hazard_apply(req: HazardApplyRequest) -> dict:
     if not effect:
         raise HTTPException(status_code=400, detail=f"{picked['name']} has no assumed effect on the campus feeds.")
     with runtime.lock:
+        storms.check_epoch(graph, req.reset_count)
         for step in effect["steps"]:
             for nid in step["node_ids"]:
+                if nid not in graph.nodes:
+                    continue
                 if step["action"] == "fail":
                     graph.fail_node(nid)
                 else:
-                    graph.derate_node(nid, step["factor"])
+                    # Stacked events compound: a feed already cut back stays at the lower output.
+                    graph.derate_node(nid, min(graph.nodes[nid].derate, step["factor"]))
         runtime.push([
             f"Director: {picked['name']} scenario, {picked['how_often']}",
             f"Director: assumed effect, {effect['label'].lower()}. {effect['why']}",
@@ -367,10 +374,13 @@ async def post_weather_apply(req: WeatherApplyRequest) -> dict:
     with runtime.lock:
         for step in effect["steps"]:
             for nid in step["node_ids"]:
+                if nid not in graph.nodes:
+                    continue
                 if step["action"] == "fail":
                     graph.fail_node(nid)
                 else:
-                    graph.derate_node(nid, step["factor"])
+                    # Stacked events compound: a feed already cut back stays at the lower output.
+                    graph.derate_node(nid, min(graph.nodes[nid].derate, step["factor"]))
         runtime.push([
             f"Weather: {alert['event']} from {alert['office']}",
             f"Director: assumed effect, {effect['label'].lower()}. {effect['why']}",
@@ -396,6 +406,7 @@ async def post_disrupt(req: DisruptRequest) -> dict:
     if unknown:
         raise HTTPException(status_code=404, detail=f"Unknown node id(s): {unknown}")
     with runtime.lock:
+        storms.check_epoch(graph, req.reset_count)
         for nid in req.node_ids:
             if req.action == "fail":
                 graph.fail_node(nid)
@@ -418,9 +429,7 @@ async def post_disrupt(req: DisruptRequest) -> dict:
 async def post_reset() -> dict:
     with runtime.lock:
         graph.reset()
-        runtime.strategy = DEFAULT_STRATEGY
-        runtime.activity.clear()
-        runtime.activity_ticks.clear()
+        runtime.fresh_start()
         runtime.push(["Director: campus reset"])
         runtime.run_cycle(graph, force=True)
         body = _state()

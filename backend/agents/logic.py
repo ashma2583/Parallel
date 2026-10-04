@@ -4,7 +4,9 @@ uAgents in `serve.py` both call these, so behaviour does not depend on which
 process is driving the tick.
 
 Energy  - in a deficit, shed lowest priority first and never touch Critical.
-Transit - a Red node with people sends them to the nearest Green node by road.
+Transit - a Red node with people sends them to the nearest Green node by road,
+          never into a feed or a hospital. Hospitals, and buildings closed
+          roads cut off, shelter in place.
 Coordinator - applies a parsed policy (fail / restore / reset) from voice.
 """
 
@@ -12,7 +14,7 @@ from __future__ import annotations
 
 from collections import deque
 
-from graph import CampusGraph, EdgeType, NodeType, Priority, Status, supply_for
+from graph import MEDICAL_TIE, CampusGraph, EdgeType, NodeType, Priority, Status, supply_for
 
 # Spoken names the keyword parser and the language model both might use.
 ALIASES: dict[str, str] = {
@@ -77,6 +79,8 @@ STRATEGIES: dict[str, dict[str, str]] = {
     },
 }
 DEFAULT_STRATEGY = "tiered"
+# Feeds have no room for people, and hospitals keep their beds for patients.
+NO_EVACUEES = (NodeType.SUBSTATION, NodeType.HOSPITAL)
 
 
 def _shed_order(consumers: list, strategy: str) -> list:
@@ -109,7 +113,7 @@ def apply_energy(graph: CampusGraph, strategy: str = DEFAULT_STRATEGY) -> list[s
             n for n in graph.nodes.values()
             if n.feeder == feeder and not n.is_supplier and not n.failed
         ]
-        supply = supply_for(graph.nodes, feeder)
+        supply = supply_for(graph.nodes, feeder, graph.cut_edges)
         deficit = max(0.0, sum(n.demand for n in consumers) - supply)
         order = _shed_order(consumers, strategy)
         remaining = deficit
@@ -152,24 +156,45 @@ def apply_energy(graph: CampusGraph, strategy: str = DEFAULT_STRATEGY) -> list[s
 
 
 def apply_transit(graph: CampusGraph) -> list[str]:
-    """Move everyone out of Red nodes to the nearest Green node along roads."""
+    """
+    Move everyone out of Red nodes to the nearest Green node along open roads.
+    Hospitals keep their patients and take in nobody else; people the closed
+    roads cut off stay put.
+    Each building that shelters is logged once, not every tick.
+    """
     adj = _roads(graph)
     notes: list[str] = []
+    told = getattr(graph, "sheltering", set())
+    sheltering: set[str] = set()
     reds = sorted(
         (n for n in graph.nodes.values() if n.status == Status.RED and n.occupancy > 0),
         key=lambda n: n.id,
     )
     for src in reds:
+        if src.type == NodeType.HOSPITAL:
+            sheltering.add(src.id)
+            if src.id not in told:
+                notes.append(f"Transit agent: {src.name} shelters in place on backup power, {src.occupancy} people stay")
+            continue
         dest_id = _nearest_green(graph, src.id, adj)
         if dest_id is None:
-            notes.append(f"Transit agent: {src.occupancy} people stuck at {src.name}; no Green node")
+            sheltering.add(src.id)
+            if src.id not in told:
+                why = "roads closed" if cut_off_by_roads(graph, src.id) else "no Green node in reach"
+                notes.append(f"Transit agent: {src.occupancy} people sheltering in place at {src.name}; {why}")
             continue
         dest = graph.nodes[dest_id]
         moved = src.occupancy
         dest.occupancy += moved
         src.occupancy = 0
         notes.append(f"Transit agent: moved {moved} from {src.name} to {dest.name}")
+    graph.sheltering = sheltering
     return notes
+
+
+def cut_off_by_roads(graph: CampusGraph, node_id: str) -> bool:
+    """A lit building would be in reach if the closed roads were open."""
+    return _nearest_green(graph, node_id, _roads(graph, open_only=False)) is not None
 
 
 def apply_policy(graph: CampusGraph, policy: dict) -> list[str]:
@@ -194,7 +219,23 @@ def apply_policy(graph: CampusGraph, policy: dict) -> list[str]:
     names = ", ".join(graph.nodes[i].name for i in ids)
     verb = "restored" if action == "restore" else "failed"
     tail = f" ({reason})" if reason else ""
-    return [f"Coordinator: {verb} {names}{tail}"]
+    notes = [f"Coordinator: {verb} {names}{tail}"]
+    if action == "restore":
+        notes += _still_cut(graph, ids)
+    return notes
+
+
+def _still_cut(graph: CampusGraph, ids: list[str]) -> list[str]:
+    """Power lines out of a restored building stay cut until the building they feed is restored too."""
+    notes = []
+    for mark in getattr(graph, "cut_edges", []):
+        _, _, ends = mark["id"].partition(":")
+        src, _, dst = ends.partition("->")
+        if src in ids and dst in graph.nodes and src in graph.nodes:
+            far = graph.nodes[dst].name
+            line = "emergency tie" if mark["id"] == MEDICAL_TIE else "line"
+            notes.append(f"Coordinator: the {line} from {graph.nodes[src].name} to {far} is still cut. Restore {far} to repair it")
+    return notes[:3]
 
 
 def resolve_nodes(graph: CampusGraph, raw_ids: list) -> list[str]:
@@ -247,10 +288,10 @@ def keyword_policy(text: str) -> dict:
     return {"action": action, "node_ids": ids, "reason": text.strip(), "summary": text.strip(), "parser": "keyword"}
 
 
-def _roads(graph: CampusGraph) -> dict[str, list[str]]:
+def _roads(graph: CampusGraph, open_only: bool = True) -> dict[str, list[str]]:
     adj: dict[str, list[str]] = {n.id: [] for n in graph.nodes.values()}
     # Roads the weather or the director closed are not driven.
-    closed = {m["id"] for m in getattr(graph, "closed_roads", [])}
+    closed = {m["id"] for m in getattr(graph, "closed_roads", [])} if open_only else set()
     for edge in graph.edges:
         if edge.type != EdgeType.ROAD or edge.id in closed:
             continue
@@ -260,6 +301,10 @@ def _roads(graph: CampusGraph) -> dict[str, list[str]]:
 
 
 def _nearest_green(graph: CampusGraph, src: str, adj: dict[str, list[str]]) -> str | None:
+    """
+    Nearest lit building by road. Roads can pass a substation or a hospital, but
+    nobody is sent into one. Only a building with no road at all falls back to distance.
+    """
     seen = {src}
     queue: deque[str] = deque([src])
     while queue:
@@ -269,14 +314,16 @@ def _nearest_green(graph: CampusGraph, src: str, adj: dict[str, list[str]]) -> s
                 continue
             seen.add(nxt)
             node = graph.nodes[nxt]
-            if node.status == Status.GREEN and not node.failed:
+            if node.status == Status.GREEN and not node.failed and node.type not in NO_EVACUEES:
                 return nxt
             queue.append(nxt)
 
+    if any(e.type == EdgeType.ROAD and src in (e.source, e.target) for e in graph.edges):
+        return None
     origin = graph.nodes[src]
     greens = [
         n for n in graph.nodes.values()
-        if n.status == Status.GREEN and not n.failed and n.id != src and n.type != NodeType.SUBSTATION
+        if n.status == Status.GREEN and not n.failed and n.id != src and n.type not in NO_EVACUEES
     ]
     if not greens:
         return None

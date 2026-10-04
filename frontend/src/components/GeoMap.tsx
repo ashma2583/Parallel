@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { Map, Marker, NavigationControl } from '@vis.gl/react-maplibre'
 import { setWorkerUrl, type Map as MaplibreMap } from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
@@ -9,8 +9,8 @@ import { BACKEND_URL } from '../config'
 import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 import type { SimEdge, SimNode } from '../lib/sim'
 import { splitByClosures } from '../lib/weather/geo'
-import type { BusLine, ClosedRoute, WeatherState } from '../lib/weather/types'
-import { useWeather } from './weather/useWeather'
+import type { BusLine, ClosedRoute, LngLat, WeatherRequest, WeatherState } from '../lib/weather/types'
+import { useWeather, type StormNote } from './weather/useWeather'
 import { WeatherCanvas } from './weather/WeatherCanvas'
 import { WeatherDock } from './weather/WeatherDock'
 
@@ -67,7 +67,29 @@ function routeColor(id: string): string {
   return ROUTE_COLORS[id] ?? '#e2e8f0'
 }
 
+/** What App can ask of the map from outside. */
+export interface GeoMapHandle {
+  /** Stop a running scenario and forget weather kept in the browser. Call before a campus reset. */
+  clearWeather: () => void
+}
+
+/** Weather on the map, for the scenario strip. */
+export interface WeatherStatus {
+  /** Storms, closures or cut lines are on the map. */
+  active: boolean
+  /** A scenario is playing. */
+  running: boolean
+  /**
+   * What the run playing now, or the last one, is made of, in plan order: engine ids
+   * of its campus-wide conditions, and "storm:<kind>" for weather drawn on the map.
+   */
+  hazards: string[]
+}
+
 interface Props {
+  ref?: Ref<GeoMapHandle>
+  /** The map view is showing. It stays mounted behind the grid view so a run keeps going. */
+  active?: boolean
   nodes: readonly SimNode[]
   edges: readonly SimEdge[]
   selectedId?: string | null
@@ -84,15 +106,19 @@ interface Props {
   onNodeClick?: (node: SimNode) => void
   /** briefing.weather from the engine. */
   weather?: WeatherState | null
-  /** Open the weather dock whenever this changes. */
-  weatherSignal?: number
-  /** A drawn storm finished its run. */
-  onStorm?: (storm: { label: string; detail: string }) => void
+  /** Open the scenario dock, and arm a kind or add a condition or fault, once per seq. */
+  weatherRequest?: WeatherRequest | null
+  /** A scenario finished its run. */
+  onStorm?: (storm: StormNote) => void
+  /** Weather appeared or cleared, or a run started or stopped. */
+  onWeatherStatus?: (status: WeatherStatus) => void
   /** Pull engine state after a write. */
   onChanged?: () => void
 }
 
 export function GeoMap({
+  ref,
+  active = true,
   nodes,
   edges,
   selectedId,
@@ -107,8 +133,9 @@ export function GeoMap({
   onPlace,
   onNodeClick,
   weather = null,
-  weatherSignal = 0,
+  weatherRequest = null,
   onStorm,
+  onWeatherStatus,
   onChanged,
 }: Props) {
   const [map, setMap] = useState<MaplibreMap | null>(null)
@@ -119,6 +146,18 @@ export function GeoMap({
   const [showRecommended, setShowRecommended] = useState(true)
   const [threeD, setThreeD] = useState(false)
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
+  // While the basemap switches the map is blank, so weather drawn on it would float on nothing.
+  const [restyling, setRestyling] = useState(false)
+  const [styledFor, setStyledFor] = useState(threeD)
+  if (styledFor !== threeD) {
+    setStyledFor(threeD)
+    setRestyling(true)
+  }
+  useEffect(() => {
+    if (!restyling) return
+    const timer = window.setTimeout(() => setRestyling(false), 3000)
+    return () => window.clearTimeout(timer)
+  }, [restyling])
   const [focus, setFocus] = useState<string | null>(null)
 
   useEffect(() => {
@@ -148,19 +187,120 @@ export function GeoMap({
   )
   const storm = useWeather({
     map,
+    active,
     nodes,
     edges,
     proposals,
     buses: busLines,
     server: weather,
-    openSignal: weatherSignal,
+    request: weatherRequest,
     onChanged: () => onChanged?.(),
     onStorm,
   })
   const { closed_routes: closedRoutes, cut_edges: cutEdges, closed_roads: closedRoads } = storm.effective
 
-  // Storms are drawn at campus scale. Opening the dock from the city view moves in to campus.
+  const clearWeather = storm.clear
+  useImperativeHandle(ref, () => ({ clearWeather }), [clearWeather])
+
+  const weatherActive = storm.effective.storms.length + closedRoutes.length + cutEdges.length + closedRoads.length > 0
+  const running = storm.dock.phase === 'running'
+  const hazardKey = storm.hazards.join(',')
+  const statusRef = useRef(onWeatherStatus)
+  useEffect(() => {
+    statusRef.current = onWeatherStatus
+  })
+  useEffect(() => {
+    statusRef.current?.({ active: weatherActive, running, hazards: hazardKey ? hazardKey.split(',') : [] })
+  }, [weatherActive, running, hazardKey])
+
+  // Back from the grid view: the container may have changed size while hidden.
+  useEffect(() => {
+    if (!map || !active) return
+    const frame = requestAnimationFrame(() => map.resize())
+    return () => cancelAnimationFrame(frame)
+  }, [map, active])
+
+  // Placing a planned building owns map clicks. Fold the dock away until the pin is down.
   const dockOpen = storm.dock.open
+  const dockRef = useRef(storm.dock)
+  const reopenDock = useRef(false)
+  useEffect(() => {
+    dockRef.current = storm.dock
+  })
+  useEffect(() => {
+    const dock = dockRef.current
+    if (placing && dock.open) {
+      reopenDock.current = true
+      dock.onOpen(false)
+    } else if (!placing && reopenDock.current) {
+      reopenDock.current = false
+      dock.onOpen(true)
+    }
+  }, [placing])
+  useEffect(() => {
+    if (placing && storm.armed) dockRef.current.onKind(null)
+  }, [placing, storm.armed])
+  const armed = storm.armed && !placing
+
+  // Lasting marks follow their layer: no bolt over a hidden power line, no X over a hidden bus line.
+  const busesShown = showBuses || showRecommended
+  const marks = useMemo(
+    () => storm.canvas.marks.filter((mark) => (mark.kind === 'line' ? showPower : mark.kind === 'bus' ? busesShown : showRoads)),
+    [storm.canvas.marks, showPower, busesShown, showRoads],
+  )
+
+  // The bus legend shares the left edge with the open dock. Keep it between the layer toggles and the dock.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const togglesRef = useRef<HTMLDivElement>(null)
+  const dockBox = useRef<HTMLDivElement>(null)
+  const [legendRoom, setLegendRoom] = useState<{ top: number; height: number } | null>(null)
+  // With the dock folded the legend sits at the bottom, and may grow up to the layer toggles.
+  const [legendMax, setLegendMax] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    const toggles = togglesRef.current
+    const dock = dockOpen ? dockBox.current?.firstElementChild : null
+    if (!root || !toggles) return
+    const measure = () => {
+      const box = root.getBoundingClientRect()
+      const top = toggles.getBoundingClientRect().bottom - box.top + 8
+      setLegendMax(Math.max(72, Math.floor(box.height - 28 - top)))
+      if (!(dock instanceof HTMLElement)) {
+        setLegendRoom(null)
+        return
+      }
+      const shell = dock.getBoundingClientRect()
+      // 16px inset plus the 240px legend, and a little air.
+      const under = shell.left - box.left < 16 + 240 + 12
+      const bottom = under ? shell.top - box.top - 12 : box.height - 32
+      setLegendRoom({ top, height: Math.floor(bottom - top) })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(root)
+    observer.observe(toggles)
+    if (dock instanceof HTMLElement) observer.observe(dock)
+    return () => observer.disconnect()
+  }, [dockOpen])
+
+  // A legend taller than its room scrolls; fade its bottom edge so a cut row reads as more below, not a glitch.
+  const legendRef = useRef<HTMLDivElement>(null)
+  const [legendMore, setLegendMore] = useState(false)
+  useLayoutEffect(() => {
+    const el = legendRef.current
+    if (!el) return
+    const update = () => setLegendMore(el.scrollTop + el.clientHeight < el.scrollHeight - 2)
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => {
+      el.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
+  })
+
+  // Storms are drawn at campus scale. Opening the dock from the city view moves in to campus.
   useEffect(() => {
     if (!map || !dockOpen || survey || map.getZoom() >= 13) return
     map.easeTo({ center: [-83.728, 42.2845], zoom: 13.5, duration: 700 })
@@ -229,6 +369,7 @@ export function GeoMap({
     [catalog, darkPlaces, closedRoutes],
   )
 
+  const legendShort = legendRoom !== null && legendRoom.height < 72
   const legend = useMemo(
     () =>
       catalog
@@ -241,9 +382,43 @@ export function GeoMap({
     setMap(event.target)
   }
 
+  // MapLibre shows its attribution on load and folds it once the map moves. The open dock
+  // would sit on top of it, so fold it to its (i) button while the dock is up.
+  useEffect(() => {
+    if (!map || !dockOpen) return
+    const attrib = map.getContainer().querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')
+    if (attrib) {
+      attrib.classList.remove('maplibregl-compact-show')
+      attrib.setAttribute('open', '')
+    }
+  }, [map, dockOpen])
+
+  // Names of dark buildings in dense spots would land on each other. Move each to a free side of its dot,
+  // or, with no side free, fold it away until hovered.
+  useEffect(() => {
+    if (!map) return
+    let frame = 0
+    const run = () => {
+      frame = 0
+      declutter(map.getCanvasContainer())
+    }
+    const soon = () => {
+      if (!frame) frame = requestAnimationFrame(run)
+    }
+    soon()
+    map.on('move', soon)
+    map.on('resize', soon)
+    return () => {
+      map.off('move', soon)
+      map.off('resize', soon)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [map, nodes, selectedId, coolingIds, active])
+
   useEffect(() => {
     if (!map) return
     const apply = () => {
+      setRestyling(false)
       const vector = Boolean(map.getSource('openmaptiles'))
       setBasemap(vector ? 'vector' : 'raster')
       if (threeD && vector) {
@@ -266,8 +441,24 @@ export function GeoMap({
     }
   }, [map, threeD])
 
+  // The map stays mounted behind the grid view, so clearing a researched place has to bring the camera home.
+  const surveyed = useRef(false)
+  const shown = useRef(active)
   useEffect(() => {
-    if (!map || !survey || survey.buildings.length === 0) return
+    shown.current = active
+  }, [active])
+  useEffect(() => {
+    if (!map) return
+    if (!survey) {
+      if (!surveyed.current) return
+      surveyed.current = false
+      const home = { center: [-83.728, 42.286] as [number, number], zoom: 12.4, pitch: 0, bearing: 0 }
+      if (shown.current) map.easeTo({ ...home, duration: 800 })
+      else map.jumpTo(home)
+      return
+    }
+    surveyed.current = true
+    if (survey.buildings.length === 0) return
     const lngs = survey.buildings.map((building) => building.lng)
     const lats = survey.buildings.map((building) => building.lat)
     map.fitBounds(
@@ -336,8 +527,8 @@ export function GeoMap({
   }, [map, basemap, showRoads, showPower, roads, power, cutPower, shutRoads, drawnBuses, focus])
 
   return (
-    <div className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : ''}`}>
-      <div className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+    <div ref={rootRef} className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : storm.armed && !map ? 'cursor-progress' : ''}`}>
+      <div ref={togglesRef} className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
         <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
@@ -363,6 +554,7 @@ export function GeoMap({
           const color = statusColor(node.status)
           const cooling = coolingIds.includes(node.id)
           const selected = node.id === selectedId
+          const named = selected || cooling || node.status !== 'Green'
           return (
             <Marker key={node.id} longitude={place.lng} latitude={place.lat} anchor="center">
               <button
@@ -372,17 +564,20 @@ export function GeoMap({
                   onNodeClick?.(node)
                 }}
                 className="group flex flex-col items-center"
-                style={storm.armed ? { pointerEvents: 'none' } : undefined}
+                style={armed ? { pointerEvents: 'none' } : undefined}
                 title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
               >
                 <span
+                  data-place-dot
                   className={`h-3.5 w-3.5 rounded-full border-2 border-ink ${selected ? 'ring-1 ring-text' : ''}`}
                   style={{ background: color, boxShadow: `0 0 12px ${color}` }}
                 />
                 {/* Central campus is dense: label only what needs attention, the rest on hover. */}
                 <span
-                  className={`mt-1 max-w-32 truncate rounded-sm bg-ink/85 px-1.5 py-0.5 text-[10px] font-medium text-text ${
-                    selected || cooling || node.status !== 'Green' ? '' : 'invisible group-hover:visible'
+                  data-place-name
+                  data-place-label={named ? (selected ? 0 : node.status === 'Red' ? 1 : node.status === 'Amber' ? 2 : 3) : undefined}
+                  className={`mt-1 max-w-40 truncate rounded-sm bg-ink/90 px-1.5 py-0.5 text-[10px] font-medium text-text data-[off=true]:invisible group-hover:data-[off=true]:visible ${
+                    named ? '' : 'invisible group-hover:visible'
                   }`}
                 >
                   {place.short}
@@ -488,41 +683,58 @@ export function GeoMap({
       )}
       {legend.length > 0 && !survey && (
         <div
-          className={`absolute left-4 z-10 max-h-52 w-60 overflow-y-auto rounded-md border border-line bg-panel/95 p-2 text-xs text-muted ${
-            storm.dock.open ? 'top-[150px]' : 'bottom-8'
+          ref={legendRef}
+          className={`absolute left-4 z-10 w-60 overflow-y-auto rounded-md border border-line bg-panel/95 p-2 text-xs text-muted [scrollbar-width:thin] ${
+            legendRoom ? '' : 'bottom-8'
           }`}
+          style={{
+            ...(legendRoom ? { top: legendRoom.top, maxHeight: legendRoom.height } : { maxHeight: legendMax ?? 182 }),
+            ...(legendMore ? { maskImage: FADE_BOTTOM, WebkitMaskImage: FADE_BOTTOM } : {}),
+          }}
+          title={legendShort ? 'Fold the scenario dock away to see every line' : undefined}
         >
-          <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Bus lines</div>
-          {legend.map((route) => {
+          <div className={`flex items-baseline justify-between px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted ${legendShort ? '' : 'mb-1'}`}>
+            Bus lines
+            {legendShort && <span className="font-mono font-normal normal-case tracking-normal text-faint">{legend.length} lines</span>}
+          </div>
+          {!legendShort && legend.map((route) => {
             const out = closedLines[route.id]
             return (
               <div
                 key={route.id}
-                className={`group/row flex w-full items-center gap-1 rounded px-1 py-0.5 ${focus === route.id ? 'bg-raised text-text' : 'hover:text-text'}`}
+                className={`group/row relative flex w-full items-center gap-1 rounded px-1 py-0.5 ${focus === route.id ? 'bg-raised text-text' : 'hover:text-text'}`}
               >
                 <button
                   type="button"
                   onClick={() => setFocus((current) => (current === route.id ? null : route.id))}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                 >
                   <span
-                    className="h-1 w-4 shrink-0 rounded"
+                    className="h-1 w-3.5 shrink-0 rounded"
                     style={{
                       background: out === 'suspended' ? 'var(--color-line)' : route.color,
                       outline: route.dashed || out ? '1px dashed #f87171' : undefined,
                     }}
                   />
-                  <span className={`truncate ${out === 'suspended' ? 'line-through' : ''}`}>
+                  <span className={`min-w-0 truncate ${out === 'suspended' ? 'line-through' : ''}`}>
                     {route.agency} {route.name}
-                    {out === 'closed' ? <span className="text-down"> · closed</span> : out === 'suspended' ? '' : route.dashed ? ' · reroute' : ''}
                   </span>
+                  {/* The status is the news, so the name gives way, not it. */}
+                  {out === 'closed' ? (
+                    <span className="-ml-0.5 shrink-0 text-down">· closed</span>
+                  ) : out !== 'suspended' && route.dashed ? (
+                    <span className="-ml-0.5 shrink-0">· reroute</span>
+                  ) : null}
                 </button>
                 <button
                   type="button"
                   onClick={() => storm.toggleRoute(route.id, route.name)}
                   title={out === 'suspended' ? `Put ${route.name} back in service` : `Take ${route.name} out of service`}
-                  className={`shrink-0 rounded px-1 font-mono text-[10px] ${
-                    out === 'suspended' ? 'text-ok' : 'text-muted opacity-0 hover:text-down group-hover/row:opacity-100 focus-visible:opacity-100'
+                  className={`rounded px-1 font-mono text-[10px] ${
+                    out === 'suspended'
+                      ? 'shrink-0 text-ok'
+                      : // Shown on hover over the row's end, so it takes no room from the name and status.
+                        'absolute right-1 top-1/2 -translate-y-1/2 bg-raised text-muted opacity-0 hover:text-down group-hover/row:opacity-100 focus-visible:opacity-100'
                   }`}
                 >
                   {out === 'suspended' ? 'restore' : 'suspend'}
@@ -532,12 +744,11 @@ export function GeoMap({
           })}
         </div>
       )}
-      <WeatherCanvas
-        map={map}
-        {...storm.canvas}
-        marks={showRoads ? storm.canvas.marks : storm.canvas.marks.filter((mark) => mark.kind !== 'road')}
-      />
-      <WeatherDock {...storm.dock} />
+      <WeatherCanvas map={map} {...storm.canvas} marks={marks} lightMap={basemap === 'vector'} hidden={restyling} />
+      {/* Box-less wrapper so the dock can be measured without changing how it is placed. */}
+      <div ref={dockBox} className="contents">
+        <WeatherDock {...storm.dock} />
+      </div>
       {basemap !== 'vector' && (
         <>
           <LineOverlay map={map} features={showRoads ? roads.features : []} color="#94a3b8" width={2} dash="6 6" />
@@ -684,13 +895,24 @@ function cutAtStop(line: [number, number][], place: { lng: number; lat: number }
 
 type DrawnBus = BusFeature & { properties: BusFeature['properties'] & { color: string; dashed: boolean; skipped: boolean } }
 
+/** Lines already split by a set of closures. Every hit re-draws the map, but most lines' closures have not changed. */
+const splits = new globalThis.Map<string, { open: LngLat[][]; shut: LngLat[][] }>()
+
 /** Cut the stretches weather closed out of a line. A suspended line is closed end to end. */
 function closeForWeather(feature: DrawnBus, closures: readonly ClosedRoute[]): DrawnBus[] {
   const mine = closures.filter((closure) => closure.id === feature.properties.id)
   if (mine.length === 0) return [feature]
   if (mine.some((closure) => closure.segments === null)) return [lineFeature(feature, feature.geometry.coordinates, true)]
-  const { open, shut } = splitByClosures(feature.geometry.coordinates, mine.flatMap((closure) => closure.segments ?? []))
-  return [...open.map((part) => lineFeature(feature, part, false)), ...shut.map((part) => lineFeature(feature, part, true))]
+  const coords = feature.geometry.coordinates
+  const segments = mine.flatMap((closure) => closure.segments ?? [])
+  const key = `${feature.properties.id}|${coords.length}|${coords[0]}|${segments.map((sg) => `${sg.length}@${sg[0]}`).join(';')}`
+  let split = splits.get(key)
+  if (!split) {
+    split = splitByClosures(coords, segments)
+    if (splits.size > 400) splits.clear()
+    splits.set(key, split)
+  }
+  return [...split.open.map((part) => lineFeature(feature, part, false)), ...split.shut.map((part) => lineFeature(feature, part, true))]
 }
 
 function splitLinks(all: ReturnType<typeof links>, out: ReadonlySet<string>) {
@@ -816,5 +1038,62 @@ function links(edges: readonly SimEdge[], kind: string) {
         },
       ]
     }),
+  }
+}
+
+const FADE_BOTTOM = 'linear-gradient(to bottom, #000 calc(100% - 22px), transparent)'
+
+/**
+ * Move building names that would overlap to a free side of their dot: below, above,
+ * right, then left. Selected and dark buildings choose first. A name with no free
+ * side is folded away and shows on hover. Works on the DOM, after MapLibre placed the markers.
+ */
+function declutter(box: HTMLElement) {
+  // Names shown only on hover sit where they were made.
+  for (const el of box.querySelectorAll<HTMLElement>('[data-place-name]:not([data-place-label])')) {
+    if (!el.dataset.dx && !el.dataset.dy) continue
+    el.style.transform = ''
+    delete el.dataset.dx
+    delete el.dataset.dy
+    delete el.dataset.off
+  }
+  const labels = [...box.querySelectorAll<HTMLElement>('[data-place-label]')]
+  const dots = [...box.querySelectorAll<HTMLElement>('[data-place-dot]')]
+  const dotBoxes = new globalThis.Map(dots.map((dot) => [dot, dot.getBoundingClientRect()]))
+  // Where each name sits with no nudge: its box now, less the nudge it has.
+  const items = labels.map((el) => {
+    const dx = Number(el.dataset.dx ?? 0)
+    const dy = Number(el.dataset.dy ?? 0)
+    const r = el.getBoundingClientRect()
+    const dot = el.parentElement?.querySelector<HTMLElement>('[data-place-dot]') ?? null
+    return { el, rank: Number(el.dataset.placeLabel), x: r.left - dx, y: r.top - dy, w: r.width, h: r.height, dot }
+  })
+  items.sort((a, b) => a.rank - b.rank)
+  const placed: { x: number; y: number; w: number; h: number }[] = []
+  const pad = 2
+  const free = (x: number, y: number, w: number, h: number, own: HTMLElement | null) => {
+    for (const r of placed) if (x < r.x + r.w + pad && x + w + pad > r.x && y < r.y + r.h + pad && y + h + pad > r.y) return false
+    for (const [dot, r] of dotBoxes) {
+      if (dot === own) continue
+      if (x < r.right && x + w > r.left && y < r.bottom && y + h > r.top) return false
+    }
+    return true
+  }
+  for (const item of items) {
+    const d = item.dot ? dotBoxes.get(item.dot) : undefined
+    const spots: [number, number][] = [[item.x, item.y]]
+    if (d) {
+      const midY = d.top + d.height / 2 - item.h / 2
+      spots.push([item.x, d.top - 3 - item.h], [d.right + 4, midY], [d.left - 4 - item.w, midY])
+    }
+    const spot = spots.find(([x, y]) => free(x, y, item.w, item.h, item.dot))
+    const [x, y] = spot ?? [item.x, item.y]
+    const dx = Math.round(x - item.x)
+    const dy = Math.round(y - item.y)
+    item.el.style.transform = dx || dy ? `translate(${dx}px, ${dy}px)` : ''
+    item.el.dataset.dx = String(dx)
+    item.el.dataset.dy = String(dy)
+    item.el.dataset.off = spot ? 'false' : 'true'
+    if (spot) placed.push({ x, y, w: item.w, h: item.h })
   }
 }

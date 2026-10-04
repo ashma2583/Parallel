@@ -102,6 +102,19 @@ export function compass(rad: number): string {
   return COMPASS[i]
 }
 
+/** Paths shorter than this, or that end this close to where they began, have no heading. Meters. */
+const IN_PLACE_M = 100
+
+/** How far a drawn path runs and which way. Under 100 m counts as in place; a path that ends where it began has no heading. */
+export function travel(path: readonly LngLat[]): { km: number; heading: string | null } {
+  if (path.length < 2) return { km: 0, heading: null }
+  const meters = pathLength(path)
+  if (meters < IN_PLACE_M) return { km: 0, heading: null }
+  const start = path[0]
+  const end = path[path.length - 1]
+  return { km: meters / 1000, heading: dist(start, end) < IN_PLACE_M ? null : compass(bearing(start, end)) }
+}
+
 /** Douglas-Peucker in meters. Keeps the first and last points. */
 export function simplify(path: readonly LngLat[], tolerance: number): LngLat[] {
   if (path.length <= 2) return [...path]
@@ -198,7 +211,25 @@ export function splitByClosures(
   tolerance = 30,
 ): { open: LngLat[][]; shut: LngLat[][] } {
   if (closed.length === 0) return { open: [[...coords]], shut: [] }
-  const flags = coords.map((p) => closed.some((segment) => distPointPath(p, segment) <= tolerance))
+  // Each closed stretch's box, so most vertices skip the distance test.
+  const boxes = closed.map((segment) => {
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (const p of segment) {
+      const [x, y] = toXY(p)
+      if (x < x0) x0 = x
+      if (x > x1) x1 = x
+      if (y < y0) y0 = y
+      if (y > y1) y1 = y
+    }
+    return { segment, x0: x0 - tolerance, y0: y0 - tolerance, x1: x1 + tolerance, y1: y1 + tolerance }
+  })
+  const flags = coords.map((p) => {
+    const [x, y] = toXY(p)
+    return boxes.some((b) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1 && distPointPath(p, b.segment) <= tolerance)
+  })
   const open: LngLat[][] = []
   const shut: LngLat[][] = []
   let i = 0

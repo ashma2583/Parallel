@@ -87,6 +87,20 @@ button:disabled {
   filter: invert(1) hue-rotate(180deg) brightness(0.75) contrast(0.95) saturate(0.6);
 }
 
+/* Building markers sit above the bus and power line overlays, so a line never strikes through a name. */
+.maplibregl-marker {
+  z-index: 2;
+}
+.maplibregl-marker:hover,
+.maplibregl-marker:focus-within {
+  z-index: 3;
+}
+
+/* Opened from its (i) button, the map attribution comes up over the scenario dock, not under it. */
+.maplibregl-ctrl-bottom-right:has(.maplibregl-compact-show) {
+  z-index: 30;
+}
+
 /* Schematic: current moving along an energized line */
 @keyframes flow {
   to {

@@ -2,13 +2,16 @@
  * Draws weather on the map: campus-wide conditions, storms on record, the
  * planned storms waiting in the scenario, the ones running now and the hits
  * they land, the path being drawn, the ghost under the cursor, and lasting
- * marks. One canvas sits right above MapLibre's own, under its markers.
+ * marks. One canvas sits right above MapLibre's own, under its markers; the text
+ * labels go on a second one above the line overlays and markers, so nothing
+ * strikes through them.
  */
 import { useEffect, useRef } from 'react'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { cumulative, growRadius, headFraction, pathLength, pointAt, slicePath, TOUCHDOWN } from '../../lib/weather/geo'
 import { stormLabel } from '../../lib/weather/impacts'
 import {
+  simClock,
   STORM_SPECS,
   type CampusEffect,
   type DraftStorm,
@@ -35,6 +38,7 @@ const MAX_LABELS = 5
 const LINGER = 0.35
 const SETTLE = 900
 const SANS = '"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif'
+const DEFAULT_STARTS_AT = '14:00'
 const MONO = '"IBM Plex Mono", ui-monospace, monospace'
 
 export function WeatherCanvas(props: WeatherCanvasProps) {
@@ -149,6 +153,36 @@ function formatDistance(m: number): string {
   return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`
 }
 
+/**
+ * A flat drawing space laid on the ground under one storm when the map is tilted.
+ * Flat units are screen pixels where the storm sits, so a round footprint drawn
+ * there lands foreshortened like the map under it. Unused when the map is flat.
+ */
+interface Ground {
+  /** Flat to screen, as canvas transform(a, b, c, d, e, f). */
+  a: number
+  b: number
+  c: number
+  d: number
+  e: number
+  f: number
+  /** Screen to flat: the inverse of a, b, c, d, then minus the offset. */
+  ia: number
+  ib: number
+  ic: number
+  id: number
+  ox: number
+  oy: number
+  /** Flat pixels per meter. */
+  s: number
+  /** The flat box that covers the screen, from 0,0. */
+  w: number
+  h: number
+}
+
+type Flat = (p: Pt) => Pt
+const same: Flat = (p) => p
+
 function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painter {
   const host = map.getContainer()
   const el = document.createElement('canvas')
@@ -156,9 +190,22 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
   el.dataset.layer = 'weather'
   el.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none'
   map.getCanvasContainer().insertBefore(el, map.getCanvas().nextSibling)
+  const over = document.createElement('canvas')
+  over.setAttribute('aria-hidden', 'true')
+  over.dataset.layer = 'weather-labels'
+  // Above the bus and power line overlays (z 1), below MapLibre's controls (z 2, later in the page).
+  over.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2'
+  host.insertBefore(over, host.querySelector(':scope > .maplibregl-control-container'))
   const ctx = el.getContext('2d')
-  if (!ctx) {
-    return { wake() {}, destroy: () => el.remove() }
+  const lctx = over.getContext('2d')
+  if (!ctx || !lctx) {
+    return {
+      wake() {},
+      destroy: () => {
+        el.remove()
+        over.remove()
+      },
+    }
   }
 
   let width = 0
@@ -175,6 +222,8 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
   const sprites = new Map<string, HTMLCanvasElement>()
   const placed: { x: number; y: number; w: number; h: number }[] = []
   let layer: HTMLCanvasElement | null = null
+  /** The ground space of the storm being drawn, while one is. */
+  let ground: Ground | null = null
   const cums = new WeakMap<readonly LngLat[], number[]>()
   const cumOf = (path: readonly LngLat[]) => {
     let c = cums.get(path)
@@ -217,6 +266,8 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     dpr = window.devicePixelRatio || 1
     el.width = Math.max(1, Math.round(width * dpr))
     el.height = Math.max(1, Math.round(height * dpr))
+    over.width = el.width
+    over.height = el.height
     if (layer) {
       layer.width = el.width
       layer.height = el.height
@@ -228,6 +279,8 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
   const clear = () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, el.width, el.height)
+    lctx.setTransform(1, 0, 0, 1, 0, 0)
+    lctx.clearRect(0, 0, over.width, over.height)
     painted = false
   }
 
@@ -252,6 +305,11 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     raf = 0
     if (!alive) return
     const p = read()
+    if (p.hidden) {
+      if (painted) clear()
+      dirty = false
+      return
+    }
     const now = performance.now()
     const live = p.live ?? []
     const staged = p.staged ?? []
@@ -283,11 +341,14 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
   }
 
   function draw(p: WeatherCanvasProps, now: number) {
-    if (!ctx) return
+    if (!ctx || !lctx) return
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, width, height)
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    lctx.clearRect(0, 0, width, height)
     painted = true
-    const dark = isDark()
+    // The 3D basemap is light in either theme, so the weather on it uses the light palette.
+    const dark = isDark() && !p.lightMap
     const pal = dark ? DARK : LIGHT
     const c = map.getCenter()
     const a = map.project([c.lng, c.lat])
@@ -307,74 +368,180 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
         seen.set(t.id, now)
       }
       const path = projectAll(t.path)
-      const radiusPx = t.radius * pxPerMeter
-      if (!boundsNear(path, radiusPx * 1.6 + 40)) continue
-      ctx.save()
-      RENDERERS[t.kind].track(f, { kind: t.kind, level: t.level, path, swept: path, radiusPx, live: false, seed: hash(t.id), age: now - born })
-      ctx.restore()
+      if (!boundsNear(path, t.radius * pxPerMeter * 1.6 + 40)) continue
+      onGround(f, middle(t.path), (g, flat) => {
+        const pts = path.map(flat)
+        RENDERERS[t.kind].track(g, { kind: t.kind, level: t.level, path: pts, swept: pts, radiusPx: t.radius * g.pxPerMeter, live: false, seed: hash(t.id), age: now - born })
+      })
     }
 
-    drawGhosts(f, p.staged ?? [], p.selectedId, pal)
+    drawGhosts(f, p.staged ?? [], p.selectedId, pal, p.startsAt ?? DEFAULT_STARTS_AT)
 
-    const runs = lives.map((live) => ({ live, frame: liveFrame(f, live) }))
-    for (const { live, frame } of runs) {
-      if (!frame) continue
-      ctx.save()
-      RENDERERS[live.storm.kind].track(f, frame.track)
-      ctx.restore()
+    const runs = lives.flatMap((live) => {
+      const state = liveState(now, live)
+      return state ? [state] : []
+    })
+    for (const st of runs) {
+      onGround(f, middle(st.live.storm.path), (g, flat) => RENDERERS[st.live.storm.kind].track(g, liveTrack(st, g, flat)))
     }
     drawMarks(p.marks, pal)
-    for (const { live, frame } of runs) {
-      if (!frame?.cell) continue
-      ctx.save()
-      RENDERERS[live.storm.kind].cell(f, frame.cell)
-      ctx.restore()
+    for (const st of runs) {
+      if (st.progress >= 1) continue
+      onGround(f, st.head, (g, flat) => RENDERERS[st.live.storm.kind].cell(g, liveCell(st, g, flat)))
     }
     if (lives.length > 0) drawHits(lives, now, pal)
     if (p.draft) drawDraft(f, p.draft, pal)
     if (p.hover && !p.draft) drawHover(f, p.hover, pal)
   }
 
-  /** Where the running storm is this frame, projected once for both the track and the cell. */
-  function liveFrame(f: Frame, live: LiveStorm): { track: TrackArgs; cell: CellArgs | null } | null {
+  // -------------------------------------------------------------------------
+  // The ground under a storm, when the map is tilted.
+  // -------------------------------------------------------------------------
+
+  /** Halfway along a path, or its only point. */
+  function middle(path: readonly LngLat[]): LngLat {
+    if (path.length < 2) return path[0]
+    const cum = cumOf(path)
+    return pointAt(path, cum[cum.length - 1] / 2, cum)
+  }
+
+  /** The ground space at a point, or null when the map is flat and screen pixels already are ground. */
+  function groundAt(anchor: LngLat): Ground | null {
+    if (map.getPitch() < 1) return null
+    const at = map.project(anchor)
+    const mx = Math.cos((anchor[1] * Math.PI) / 180) * 111_320
+    const my = 110_540
+    // The ground direction that runs left to right on screen here, and the scale along it.
+    const right = map.unproject([at.x + 40, at.y])
+    const vx = (right.lng - anchor[0]) * mx
+    const vy = (right.lat - anchor[1]) * my
+    const len = Math.hypot(vx, vy)
+    if (!(len > 0.01)) return null
+    const s = 40 / len
+    const e1x = vx / len
+    const e1y = vy / len
+    // A flat step down the screen is this way on the ground.
+    const e2x = e1y
+    const e2y = -e1x
+    const step = 40 / s
+    const screenOf = (gx: number, gy: number) => {
+      const q = map.project([anchor[0] + gx / mx, anchor[1] + gy / my])
+      return [(q.x - at.x) / 40, (q.y - at.y) / 40]
+    }
+    const [a, c1] = screenOf(e1x * step, e1y * step)
+    const [b, d] = screenOf(e2x * step, e2y * step)
+    const det = a * d - b * c1
+    if (!(Math.abs(det) > 0.02)) return null
+    const ia = d / det
+    const ib = -b / det
+    const ic = -c1 / det
+    const id = a / det
+    // The screen's corners in flat space, so renderers that cull to the view still see all of it.
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (const [x, y] of [[0, 0], [width, 0], [0, height], [width, height]]) {
+      const fx = ia * x + ib * y
+      const fy = ic * x + id * y
+      x0 = Math.min(x0, fx)
+      x1 = Math.max(x1, fx)
+      y0 = Math.min(y0, fy)
+      y1 = Math.max(y1, fy)
+    }
+    return { a, b: c1, c: b, d, e: a * x0 + b * y0, f: c1 * x0 + d * y0, ia, ib, ic, id, ox: x0, oy: y0, s, w: x1 - x0, h: y1 - y0 }
+  }
+
+  /**
+   * Draw one storm on the ground at `anchor`. The callback gets the frame to paint
+   * with and a function that takes a projected point into its space.
+   */
+  function onGround(f: Frame, anchor: LngLat, paint: (g: Frame, flat: Flat, rise: (p: Pt) => Pt) => void) {
+    if (!ctx) return
+    const g = groundAt(anchor)
+    ctx.save()
+    if (!g) {
+      paint(f, same, same)
+      ctx.restore()
+      return
+    }
+    ctx.transform(g.a, g.b, g.c, g.d, g.e, g.f)
+    ground = g
+    try {
+      paint(
+        { ...f, pxPerMeter: g.s, width: g.w, height: g.h },
+        (p) => ({ x: g.ia * p.x + g.ib * p.y - g.ox, y: g.ic * p.x + g.id * p.y - g.oy }),
+        (q) => ({ x: g.a * q.x + g.c * q.y + g.e, y: g.b * q.x + g.d * q.y + g.f }),
+      )
+    } finally {
+      ground = null
+      ctx.restore()
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Storms running now.
+  // -------------------------------------------------------------------------
+
+  interface LiveState {
+    live: LiveStorm
+    progress: number
+    elapsed: number
+    seed: number
+    /** Where the storm centre is now. */
+    head: LngLat
+    along: number
+    /** Running length along a moving storm's path; null for one that stays put. */
+    cum: number[] | null
+    total: number
+  }
+
+  function liveState(now: number, live: LiveStorm): LiveState | null {
     const s = live.storm
     if (s.path.length === 0) return null
-    const elapsed = f.now - live.startedAt
+    const elapsed = now - live.startedAt
     const progress = clamp01(elapsed / Math.max(1, live.duration))
     const seed = hash(s.id)
-    const base = { kind: s.kind, level: s.level, seed }
-    if (s.path.length < 2 || s.kind === 'lightning') {
-      const head = project(s.path[0])
-      const radiusPx = growRadius(s.radius, progress) * f.pxPerMeter
-      const intensity = clamp01(Math.min(1, progress / 0.1, (1 - progress) / 0.15))
-      return {
-        track: { ...base, path: [head], swept: [head], radiusPx, live: true, age: elapsed },
-        cell: progress < 1 ? { ...base, head, heading: 0, stationary: true, radiusPx, progress, intensity, elapsed, path: [head] } : null,
-      }
-    }
+    if (s.path.length < 2 || s.kind === 'lightning') return { live, progress, elapsed, seed, head: s.path[0], along: 0, cum: null, total: 0 }
     const cum = cumOf(s.path)
     const total = cum[cum.length - 1]
     const along = headFraction(progress) * total
-    const path = projectAll(s.path)
-    const track: TrackArgs = { ...base, path, swept: projectAll(slicePath(s.path, along, cum)), radiusPx: s.radius * f.pxPerMeter, live: true, age: elapsed }
-    if (progress >= 1) return { track, cell: null }
-    const head = project(pointAt(s.path, along, cum))
-    const ahead = project(pointAt(s.path, Math.min(total, along + 8), cum))
-    const behind = project(pointAt(s.path, Math.max(0, along - 8), cum))
-    const intensity = clamp01(Math.min(1, progress / TOUCHDOWN, (1 - progress) / 0.08))
+    return { live, progress, elapsed, seed, head: pointAt(s.path, along, cum), along, cum, total }
+  }
+
+  /** What the storm has swept so far. */
+  function liveTrack(st: LiveState, f: Frame, flat: Flat): TrackArgs {
+    const s = st.live.storm
+    const base = { kind: s.kind, level: s.level, seed: st.seed, live: true, age: st.elapsed }
+    if (!st.cum) {
+      const head = flat(project(s.path[0]))
+      return { ...base, path: [head], swept: [head], radiusPx: growRadius(s.radius, st.progress) * f.pxPerMeter }
+    }
+    const path = projectAll(s.path).map(flat)
+    return { ...base, path, swept: projectAll(slicePath(s.path, st.along, st.cum)).map(flat), radiusPx: s.radius * f.pxPerMeter }
+  }
+
+  /** The storm itself, where it is now. */
+  function liveCell(st: LiveState, f: Frame, flat: Flat): CellArgs {
+    const s = st.live.storm
+    const base = { kind: s.kind, level: s.level, seed: st.seed, progress: st.progress, elapsed: st.elapsed }
+    if (!st.cum) {
+      const head = flat(project(s.path[0]))
+      const intensity = clamp01(Math.min(1, st.progress / 0.1, (1 - st.progress) / 0.15))
+      return { ...base, head, heading: 0, stationary: true, radiusPx: growRadius(s.radius, st.progress) * f.pxPerMeter, intensity, path: [head] }
+    }
+    const head = flat(project(st.head))
+    const ahead = flat(project(pointAt(s.path, Math.min(st.total, st.along + 8), st.cum)))
+    const behind = flat(project(pointAt(s.path, Math.max(0, st.along - 8), st.cum)))
+    const intensity = clamp01(Math.min(1, st.progress / TOUCHDOWN, (1 - st.progress) / 0.08))
     return {
-      track,
-      cell: {
-        ...base,
-        head,
-        heading: Math.atan2(ahead.y - behind.y, ahead.x - behind.x),
-        stationary: false,
-        radiusPx: s.radius * f.pxPerMeter * (0.7 + 0.3 * intensity),
-        progress,
-        intensity,
-        elapsed,
-        path,
-      },
+      ...base,
+      head,
+      heading: Math.atan2(ahead.y - behind.y, ahead.x - behind.x),
+      stationary: false,
+      radiusPx: s.radius * f.pxPerMeter * (0.7 + 0.3 * intensity),
+      intensity,
+      path: projectAll(s.path).map(flat),
     }
   }
 
@@ -567,14 +734,15 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     ctx.globalAlpha = 1
   }
 
-  function roundRect(x: number, y: number, w: number, h: number, r: number) {
-    ctx!.beginPath()
-    ctx!.roundRect(x, y, w, h, r)
+  function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+    g.beginPath()
+    g.roundRect(x, y, w, h, r)
   }
 
   /** "Mary Markley Hall · direct hit", beside the hit, with a short leader. */
   function hitLabel(ax: number, ay: number, label: string, detail: string, tone: RGB | null, age: number, pal: Palette) {
-    if (!ctx) return
+    const g = lctx
+    if (!g) return
     const fadeIn = clamp01(age / 180)
     const fadeOut = clamp01((LABEL - age) / 600)
     const alpha = Math.min(fadeIn, fadeOut)
@@ -598,41 +766,41 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     }
     placed.push({ x: left, y: cy - h / 2, w, h })
 
-    ctx.save()
-    ctx.globalAlpha = alpha
+    g.save()
+    g.globalAlpha = alpha
     const edgeX = left > ax ? left : left + w
-    ctx.beginPath()
-    ctx.moveTo(ax + Math.sign(edgeX - ax) * 6, ay - 4)
-    ctx.lineTo(edgeX, cy)
-    ctx.lineWidth = 1
-    ctx.strokeStyle = pal.leader
-    ctx.stroke()
+    g.beginPath()
+    g.moveTo(ax + Math.sign(edgeX - ax) * 6, ay - 4)
+    g.lineTo(edgeX, cy)
+    g.lineWidth = 1
+    g.strokeStyle = pal.leader
+    g.stroke()
 
-    ctx.shadowColor = pal.shadow
-    ctx.shadowBlur = 10
-    ctx.shadowOffsetY = 2
-    roundRect(left, cy - h / 2, w, h, 6)
-    ctx.fillStyle = pal.pill
-    ctx.fill()
-    ctx.shadowColor = 'transparent'
-    ctx.lineWidth = 1
-    ctx.strokeStyle = pal.pillEdge
-    ctx.stroke()
+    g.shadowColor = pal.shadow
+    g.shadowBlur = 10
+    g.shadowOffsetY = 2
+    roundRect(g, left, cy - h / 2, w, h, 6)
+    g.fillStyle = pal.pill
+    g.fill()
+    g.shadowColor = 'transparent'
+    g.lineWidth = 1
+    g.strokeStyle = pal.pillEdge
+    g.stroke()
 
-    ctx.beginPath()
-    ctx.arc(left + 11, cy, 3, 0, TAU)
-    ctx.fillStyle = tone ? rgba(tone, 1) : pal.muted
-    ctx.fill()
+    g.beginPath()
+    g.arc(left + 11, cy, 3, 0, TAU)
+    g.fillStyle = tone ? rgba(tone, 1) : pal.muted
+    g.fill()
 
-    ctx.textBaseline = 'middle'
-    ctx.font = strong
-    ctx.fillStyle = pal.text
-    ctx.fillText(label, left + 20, cy + 0.5)
-    ctx.font = soft
-    ctx.fillStyle = pal.muted
-    ctx.fillText(sep, left + 20 + wl, cy + 0.5)
-    ctx.fillText(detail, left + 20 + wl + ws, cy + 0.5)
-    ctx.restore()
+    g.textBaseline = 'middle'
+    g.font = strong
+    g.fillStyle = pal.text
+    g.fillText(label, left + 20, cy + 0.5)
+    g.font = soft
+    g.fillStyle = pal.muted
+    g.fillText(sep, left + 20 + wl, cy + 0.5)
+    g.fillText(detail, left + 20 + wl + ws, cy + 0.5)
+    g.restore()
   }
 
   // -------------------------------------------------------------------------
@@ -714,6 +882,7 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     g.setTransform(1, 0, 0, 1, 0, 0)
     g.clearRect(0, 0, layer.width, layer.height)
     g.setTransform(dpr, 0, 0, dpr, 0, 0)
+    if (ground) g.transform(ground.a, ground.b, ground.c, ground.d, ground.e, ground.f)
     g.lineCap = 'round'
     g.lineJoin = 'round'
     return g
@@ -844,7 +1013,8 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
   }
 
   function tag(x: number, y: number, text: string, sub: string, accent: RGB, pal: Palette) {
-    if (!ctx) return
+    const g = lctx
+    if (!g) return
     const strong = `500 11px ${SANS}`
     const mono = `500 11px ${MONO}`
     const wt = measure(strong, text)
@@ -854,74 +1024,84 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     let left = x - w / 2
     left = Math.max(8, Math.min(width - 8 - w, left))
     const top = Math.max(8, Math.min(height - 8 - h, y - h / 2))
-    ctx.save()
-    ctx.shadowColor = pal.shadow
-    ctx.shadowBlur = 10
-    ctx.shadowOffsetY = 2
-    roundRect(left, top, w, h, 6)
-    ctx.fillStyle = pal.pill
-    ctx.fill()
-    ctx.shadowColor = 'transparent'
-    ctx.lineWidth = 1
-    ctx.strokeStyle = rgba(accent, 0.55)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(left + 11, top + h / 2, 3, 0, TAU)
-    ctx.fillStyle = rgba(accent, 1)
-    ctx.fill()
-    ctx.textBaseline = 'middle'
-    ctx.font = strong
-    ctx.fillStyle = pal.text
-    ctx.fillText(text, left + 20, top + h / 2 + 0.5)
-    ctx.font = mono
-    ctx.fillStyle = pal.muted
-    ctx.fillText(sub, left + 20 + wt + 8, top + h / 2 + 0.5)
-    ctx.restore()
+    g.save()
+    g.shadowColor = pal.shadow
+    g.shadowBlur = 10
+    g.shadowOffsetY = 2
+    roundRect(g, left, top, w, h, 6)
+    g.fillStyle = pal.pill
+    g.fill()
+    g.shadowColor = 'transparent'
+    g.lineWidth = 1
+    g.strokeStyle = rgba(accent, 0.55)
+    g.stroke()
+    g.beginPath()
+    g.arc(left + 11, top + h / 2, 3, 0, TAU)
+    g.fillStyle = rgba(accent, 1)
+    g.fill()
+    g.textBaseline = 'middle'
+    g.font = strong
+    g.fillStyle = pal.text
+    g.fillText(text, left + 20, top + h / 2 + 0.5)
+    g.font = mono
+    g.fillStyle = pal.muted
+    g.fillText(sub, left + 20 + wt + 8, top + h / 2 + 0.5)
+    g.restore()
   }
 
   function drawDraft(f: Frame, d: DraftStorm, pal: Palette) {
     if (!ctx || d.path.length === 0) return
     const accent = accentOf(d.kind, pal.dark)
-    const pts = projectAll(d.path)
-    const r = d.radius * f.pxPerMeter
-    const end = pts[pts.length - 1]
+    const screen = projectAll(d.path)
     const label = stormLabel(d.kind, d.level)
+    let reach = d.radius * f.pxPerMeter
+    onGround(f, middle(d.path), (g, flat, rise) => {
+      if (!ctx) return
+      const pts = screen.map(flat)
+      const r = d.radius * g.pxPerMeter
+      const end = pts[pts.length - 1]
+      reach = Math.abs(rise({ x: end.x, y: end.y - r }).y - rise(end).y)
+      if (pts.length === 1) {
+        footprint(end.x, end.y, r, accent, f.now, pal, 0.14)
+        return
+      }
+      // Swath: soft fill, crisp edge.
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath()
+        tracePath(ctx, pts)
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.lineWidth = r * 2 * (1 - i * 0.1)
+        ctx.strokeStyle = rgba(accent, pal.dark ? 0.06 : 0.07)
+        ctx.stroke()
+      }
+      swathEdge(pts, r, rgba(accent, pal.dark ? 0.55 : 0.6))
+
+      // Centreline, marching forward.
+      ctx.beginPath()
+      tracePath(ctx, pts)
+      ctx.setLineDash([6, 6])
+      ctx.lineDashOffset = -f.now / 40
+      ctx.lineWidth = 1.5
+      ctx.strokeStyle = pal.centre
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // Chevrons drifting along the direction of travel.
+      chevrons(pts, pal.dark ? rgba(mixWhite(accent, 0.35), 1) : rgba(accent, 1), 0.95, f.now * 0.03)
+      footprint(end.x, end.y, r, accent, f.now, pal, 0.1)
+    })
+
+    // Upright on screen: the start and end dots, and the tag.
+    const end = screen[screen.length - 1]
     ctx.save()
-    if (pts.length === 1) {
-      footprint(end.x, end.y, r, accent, f.now, pal, 0.14)
+    if (screen.length === 1) {
       crosshair(end.x, end.y, pal)
-      tag(end.x, end.y - r - 18, label, `${formatDistance(d.radius * 2)} across`, accent, pal)
+      tag(end.x, end.y - reach - 18, label, `${formatDistance(d.radius * 2)} across`, accent, pal)
       ctx.restore()
       return
     }
-
-    // Swath: soft fill, crisp edge.
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath()
-      tracePath(ctx, pts)
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.lineWidth = r * 2 * (1 - i * 0.1)
-      ctx.strokeStyle = rgba(accent, pal.dark ? 0.06 : 0.07)
-      ctx.stroke()
-    }
-    swathEdge(pts, r, rgba(accent, pal.dark ? 0.55 : 0.6))
-
-    // Centreline, marching forward.
-    ctx.beginPath()
-    tracePath(ctx, pts)
-    ctx.setLineDash([6, 6])
-    ctx.lineDashOffset = -f.now / 40
-    ctx.lineWidth = 1.5
-    ctx.strokeStyle = pal.centre
-    ctx.stroke()
-    ctx.setLineDash([])
-
-    // Chevrons drifting along the direction of travel.
-    chevrons(pts, pal.dark ? rgba(mixWhite(accent, 0.35), 1) : rgba(accent, 1), 0.95, f.now * 0.03)
-
-    // Start dot, end footprint, distance.
-    const start = pts[0]
+    const start = screen[0]
     ctx.beginPath()
     ctx.arc(start.x, start.y, 4.5, 0, TAU)
     ctx.fillStyle = pal.pill
@@ -929,13 +1109,12 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     ctx.lineWidth = 2
     ctx.strokeStyle = rgba(accent, 1)
     ctx.stroke()
-    footprint(end.x, end.y, r, accent, f.now, pal, 0.1)
     ctx.beginPath()
     ctx.arc(end.x, end.y, 3.5, 0, TAU)
     ctx.fillStyle = rgba(accent, 1)
     ctx.fill()
-    const above = end.y - r - 18
-    tag(end.x, above < 16 ? end.y + r + 18 : above, label, formatDistance(pathLength(d.path)), accent, pal)
+    const above = end.y - reach - 18
+    tag(end.x, above < 16 ? end.y + reach + 18 : above, label, formatDistance(pathLength(d.path)), accent, pal)
     ctx.restore()
   }
 
@@ -961,97 +1140,106 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
   function drawHover(f: Frame, h: HoverStorm, pal: Palette) {
     if (!ctx) return
     const accent = accentOf(h.kind, pal.dark)
-    const at = project(h.at)
     const breathe = Math.sin(f.now / 520)
-    const r = Math.max(6, h.radius * f.pxPerMeter * (1 + 0.025 * breathe))
-    ctx.save()
-    ctx.globalAlpha = 0.82 + 0.18 * breathe
-    footprint(at.x, at.y, r, accent, f.now, pal, 0.1)
-    ctx.globalAlpha = 1
+    onGround(f, h.at, (g, flat) => {
+      if (!ctx) return
+      const at = flat(project(h.at))
+      ctx.globalAlpha = 0.82 + 0.18 * breathe
+      footprint(at.x, at.y, Math.max(6, h.radius * g.pxPerMeter * (1 + 0.025 * breathe)), accent, f.now, pal, 0.1)
+    })
+    const at = project(h.at)
     crosshair(at.x, at.y, pal)
-    ctx.restore()
   }
 
   // -------------------------------------------------------------------------
   // Planned storms: the footprint each will sweep when the scenario runs.
   // -------------------------------------------------------------------------
 
-  function drawGhosts(f: Frame, staged: readonly StagedStorm[], selectedId: string | null, pal: Palette) {
+  function drawGhosts(f: Frame, staged: readonly StagedStorm[], selectedId: string | null, pal: Palette, startsAt: string) {
     if (staged.length === 0) return
     let chosen: StagedStorm | null = null
     for (const g of staged) {
       if (g.id === selectedId) chosen = g
-      else drawGhost(f, g, false, pal)
+      else drawGhost(f, g, false, pal, startsAt)
     }
     // The selected one lands on top of any it overlaps.
-    if (chosen) drawGhost(f, chosen, true, pal)
+    if (chosen) drawGhost(f, chosen, true, pal, startsAt)
   }
 
-  function drawGhost(f: Frame, g: StagedStorm, selected: boolean, pal: Palette) {
+  function drawGhost(f: Frame, g: StagedStorm, selected: boolean, pal: Palette, startsAt: string) {
     if (!ctx || g.path.length === 0) return
     const accent = accentOf(g.kind, pal.dark)
-    const pts = dedupe(projectAll(g.path))
-    const r = Math.max(5, g.radius * f.pxPerMeter)
-    if (!boundsNear(pts, r + 40)) return
+    const screen = dedupe(projectAll(g.path))
+    if (!boundsNear(screen, Math.max(5, g.radius * f.pxPerMeter) + 40)) return
     const march = selected ? -f.now / 55 : 0
-    const start = pts[0]
-    const end = pts[pts.length - 1]
+    // Where the badge and tag go, worked out on the ground and brought back to the screen.
+    let rim: Pt = screen[0]
+    let reach = g.radius * f.pxPerMeter
+    onGround(f, middle(g.path), (frame, flat, rise) => {
+      if (!ctx) return
+      const pts = screen.map(flat)
+      const r = Math.max(5, g.radius * frame.pxPerMeter)
+      const end = pts[pts.length - 1]
+      reach = Math.abs(rise({ x: end.x, y: end.y - r }).y - rise(end).y)
+      if (pts.length === 1) {
+        ghostDisc(end.x, end.y, r, accent, selected, march, pal)
+        // On the rim, so the badge never hides what sits at the centre.
+        rim = rise({ x: end.x - r * 0.707, y: end.y - r * 0.707 })
+        return
+      }
+
+      // Swath: one even wash.
+      ctx.beginPath()
+      tracePath(ctx, pts)
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = r * 2
+      ctx.strokeStyle = rgba(accent, selected ? (pal.dark ? 0.15 : 0.16) : pal.dark ? 0.075 : 0.085)
+      ctx.stroke()
+
+      // Edge: dashed while it waits, solid with a glow when selected.
+      if (selected) glowEdge(pts, r, accent)
+      else dashedEdge(pts, r, rgba(accent, pal.dark ? 0.72 : 0.75), 0)
+
+      // Where it ends up: the footprint, a touch stronger toward its rim.
+      const disc = ctx.createRadialGradient(end.x, end.y, r * 0.15, end.x, end.y, r)
+      disc.addColorStop(0, rgba(accent, 0))
+      disc.addColorStop(1, rgba(accent, selected ? 0.16 : 0.1))
+      ctx.beginPath()
+      ctx.arc(end.x, end.y, r, 0, TAU)
+      ctx.fillStyle = disc
+      ctx.fill()
+
+      // Centreline and direction.
+      ctx.beginPath()
+      tracePath(ctx, pts)
+      ctx.setLineDash(selected ? [6, 6] : [3, 6])
+      ctx.lineDashOffset = selected ? -f.now / 40 : 0
+      ctx.lineWidth = selected ? 1.5 : 1.25
+      ctx.strokeStyle = selected ? pal.centre : rgba(pal.dark ? mixWhite(accent, 0.4) : accent, 0.55)
+      ctx.stroke()
+      ctx.setLineDash([])
+      chevrons(pts, pal.dark ? rgba(mixWhite(accent, 0.35), 1) : rgba(accent, 1), selected ? 0.95 : 0.5, selected ? f.now * 0.02 : 0)
+    })
+
+    // Upright on screen: the end dot, the grab handle, the plan number and the tag.
+    const end = screen[screen.length - 1]
     ctx.save()
-
-    if (pts.length === 1) {
-      ghostDisc(end.x, end.y, r, accent, selected, march, pal)
+    if (screen.length === 1) {
       if (selected) handle(end.x, end.y, accent, pal)
-      // On the rim, so the badge never hides what sits at the centre.
-      badge(end.x - r * 0.707, end.y - r * 0.707, g.index, accent, selected, pal)
-      if (selected) ghostTag(end.x, end.y, r, g, accent, pal)
-      ctx.restore()
-      return
+      badge(rim.x, rim.y, g.index, accent, selected, pal)
+    } else {
+      ctx.beginPath()
+      ctx.arc(end.x, end.y, selected ? 3.5 : 3, 0, TAU)
+      ctx.fillStyle = rgba(accent, selected ? 1 : 0.8)
+      ctx.fill()
+      if (selected) {
+        const mid = alongScreen(screen, 0.5)
+        handle(mid.x, mid.y, accent, pal)
+      }
+      badge(screen[0].x, screen[0].y, g.index, accent, selected, pal)
     }
-
-    // Swath: one even wash.
-    ctx.beginPath()
-    tracePath(ctx, pts)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    ctx.lineWidth = r * 2
-    ctx.strokeStyle = rgba(accent, selected ? (pal.dark ? 0.15 : 0.16) : pal.dark ? 0.075 : 0.085)
-    ctx.stroke()
-
-    // Edge: dashed while it waits, solid with a glow when selected.
-    if (selected) glowEdge(pts, r, accent)
-    else dashedEdge(pts, r, rgba(accent, pal.dark ? 0.72 : 0.75), 0)
-
-    // Where it ends up: the footprint, a touch stronger toward its rim.
-    const disc = ctx.createRadialGradient(end.x, end.y, r * 0.15, end.x, end.y, r)
-    disc.addColorStop(0, rgba(accent, 0))
-    disc.addColorStop(1, rgba(accent, selected ? 0.16 : 0.1))
-    ctx.beginPath()
-    ctx.arc(end.x, end.y, r, 0, TAU)
-    ctx.fillStyle = disc
-    ctx.fill()
-
-    // Centreline and direction.
-    ctx.beginPath()
-    tracePath(ctx, pts)
-    ctx.setLineDash(selected ? [6, 6] : [3, 6])
-    ctx.lineDashOffset = selected ? -f.now / 40 : 0
-    ctx.lineWidth = selected ? 1.5 : 1.25
-    ctx.strokeStyle = selected ? pal.centre : rgba(pal.dark ? mixWhite(accent, 0.4) : accent, 0.55)
-    ctx.stroke()
-    ctx.setLineDash([])
-    chevrons(pts, pal.dark ? rgba(mixWhite(accent, 0.35), 1) : rgba(accent, 1), selected ? 0.95 : 0.5, selected ? f.now * 0.02 : 0)
-
-    ctx.beginPath()
-    ctx.arc(end.x, end.y, selected ? 3.5 : 3, 0, TAU)
-    ctx.fillStyle = rgba(accent, selected ? 1 : 0.8)
-    ctx.fill()
-
-    if (selected) {
-      const mid = alongScreen(pts, 0.5)
-      handle(mid.x, mid.y, accent, pal)
-    }
-    badge(start.x, start.y, g.index, accent, selected, pal)
-    if (selected) ghostTag(end.x, end.y, r, g, accent, pal)
+    if (selected) ghostTag(end.x, end.y, reach, g, accent, pal, startsAt)
     ctx.restore()
   }
 
@@ -1152,9 +1340,10 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
     ctx.restore()
   }
 
-  function ghostTag(x: number, y: number, r: number, g: StagedStorm, accent: RGB, pal: Palette) {
+  /** The selected plan's name and when it starts, on the same clock as its chip in the dock. */
+  function ghostTag(x: number, y: number, r: number, g: StagedStorm, accent: RGB, pal: Palette, startsAt: string) {
     const above = y - r - 20
-    tag(x, above < 16 ? y + r + 20 : above, stormLabel(g.kind, g.level), startText(g.start), accent, pal)
+    tag(x, above < 16 ? y + r + 20 : above, stormLabel(g.kind, g.level), simClock(startsAt, g.start), accent, pal)
   }
 
   /** The point a fraction of the way along a projected path. */
@@ -1202,6 +1391,7 @@ function createPainter(map: MaplibreMap, read: () => WeatherCanvasProps): Painte
       map.off('move', onMove)
       map.off('resize', resize)
       el.remove()
+      over.remove()
     },
   }
 }
@@ -1251,13 +1441,6 @@ function outlinePath(g: CanvasRenderingContext2D, pts: readonly Pt[], r: number)
     else g.lineTo(b.x + mx, b.y + my)
   }
   g.closePath()
-}
-
-/** "+0:04", one decimal when it starts on a half second. */
-function startText(seconds: number): string {
-  const whole = Math.floor(seconds + 1e-6)
-  const tenth = Math.round((seconds - whole) * 10)
-  return `+${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}${tenth ? `.${tenth}` : ''}`
 }
 
 function mixWhite(c: RGB, k: number): RGB {

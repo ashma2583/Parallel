@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Iterable
 
 
 class NodeType(str, Enum):
@@ -57,6 +57,7 @@ GREEN_THRESHOLD = 0.90
 AMBER_THRESHOLD = 0.50
 # Emergency feeder from the Central Power Plant into Michigan Medicine.
 MEDICAL_TIE_KW = 140.0
+MEDICAL_TIE = "power:cpp->uh"
 
 
 @dataclass
@@ -116,14 +117,14 @@ class TickResult:
     status_counts: dict[str, int]
 
 
-def supply_for(nodes: dict[str, Node], feeder: str) -> float:
-    """Kilowatts available on one electrical island."""
+def supply_for(nodes: dict[str, Node], feeder: str, cut_edges: Iterable[dict[str, Any]] = ()) -> float:
+    """Kilowatts available on one electrical island. A cut emergency tie carries nothing."""
     total = 0.0
     for node in nodes.values():
         if node.feeder != feeder or node.failed:
             continue
         total += (node.capacity if node.is_supplier else node.local_supply) * node.derate
-    if feeder == "medical":
+    if feeder == "medical" and not any(m["id"] == MEDICAL_TIE for m in cut_edges):
         cpp = nodes.get("cpp")
         if cpp and not cpp.failed:
             total += MEDICAL_TIE_KW
@@ -237,6 +238,8 @@ class CampusGraph:
         self.reset()
 
     def reset(self) -> None:
+        # Bumped on every reset, so storms.py can tell a hit from before it.
+        self.reset_count: int = getattr(self, "reset_count", 0) + 1
         self.nodes: dict[str, Node] = {n.id: n for n in _build_nodes()}
         self.edges: list[Edge] = _build_edges()
         self.tick_count: int = 0
@@ -247,6 +250,8 @@ class CampusGraph:
         self.closed_routes: list[dict[str, Any]] = []
         self.cut_edges: list[dict[str, Any]] = []
         self.closed_roads: list[dict[str, Any]] = []
+        # Red buildings whose people stay put. The transit agent logs each one once.
+        self.sheltering: set[str] = set()
         self.scenario_baseline: dict[str, Any] | None = None  # campus before a scenario first ran
         assert len(self.nodes) == 20, "expected the 20 approved Ann Arbor places"
         for node in self.nodes.values():
@@ -277,17 +282,25 @@ class CampusGraph:
         self.proposals.pop(node_id, None)
         self.nodes.pop(node_id, None)
         self.edges = [edge for edge in self.edges if edge.source != node_id and edge.target != node_id]
+        self.cut_edges = [m for m in self.cut_edges if node_id not in _ends(m["id"])]
+        self.closed_roads = [m for m in self.closed_roads if node_id not in _ends(m["id"])]
 
     def restore_node(self, node_id: str) -> Node:
+        """Bring a building back. A cut line into it is repaired with it; restoring University Hospital repairs the emergency tie."""
         node = self.get(node_id)
         node.failed = False
         node.derate = 1.0
+        self.cut_edges = [m for m in self.cut_edges if _ends(m["id"])[1] != node_id]
         return node
+
+    def tie_cut(self) -> bool:
+        return any(m["id"] == MEDICAL_TIE for m in self.cut_edges)
 
     def send_home(self) -> None:
         """Put everyone back where they started, so transit can route them afresh."""
         for node in self.nodes.values():
             node.occupancy = node.baseline_occupancy
+        self.sheltering = set()
 
     def derate_node(self, node_id: str, factor: float) -> Node:
         """Limit a feed or on-site generator to a fraction of its output."""
@@ -308,7 +321,7 @@ class CampusGraph:
 
         for feeder in feeders:
             group = [n for n in self.nodes.values() if n.feeder == feeder]
-            supply = supply_for(self.nodes, feeder)
+            supply = supply_for(self.nodes, feeder, self.cut_edges)
             consumers = [n for n in group if not n.is_supplier]
             demand = sum(n.effective_demand for n in consumers)
             ratio = 1.0 if demand <= 0 else min(1.0, supply / demand)
@@ -353,6 +366,13 @@ class CampusGraph:
             "nodes": [_node_to_dict(n) for n in self.nodes.values()],
             "edges": [asdict(e) for e in self.edges],
         }
+
+
+def _ends(edge_id: str) -> tuple[str, str]:
+    """power:cpp->south_quad gives (cpp, south_quad)."""
+    _, _, ends = edge_id.partition(":")
+    src, _, dst = ends.partition("->")
+    return src, dst
 
 
 def _status_for_ratio(ratio: float) -> Status:
