@@ -643,7 +643,7 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
         if (total <= 0) return []
         const visible = points.some((point) => point.x >= -20 && point.x <= width + 20 && point.y >= -20 && point.y <= height + 20)
         if (!visible) return []
-        return [{ route, points, distances, total, duration: 84_000 + (index % 4) * 12_000 }]
+        return [{ route, points, distances, total, duration: 150_000 + (index % 4) * 18_000 }]
       })
     }
 
@@ -663,7 +663,15 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
         const x = from.x + (to.x - from.x) * progress
         const y = from.y + (to.y - from.y) * progress
         const heading = Math.atan2((phase <= 1 ? to.y : from.y) - y, (phase <= 1 ? to.x : from.x) - x) * (180 / Math.PI)
-        vehicleRefs.current.get(path.route.id)?.setAttribute('transform', `translate(${x} ${y}) rotate(${heading})`)
+        const vehicle = vehicleRefs.current.get(path.route.id)
+        if (vehicle) {
+          vehicle.style.visibility = 'visible'
+          vehicle.setAttribute('transform', `translate(${x} ${y}) rotate(${heading})`)
+        }
+      }
+      const visibleIds = new Set(projected.map((path) => path.route.id))
+      for (const [id, vehicle] of vehicleRefs.current) {
+        if (!visibleIds.has(id)) vehicle.style.visibility = 'hidden'
       }
     }
 
@@ -673,12 +681,7 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
       for (const vehicle of vehicleRefs.current.values()) vehicle.style.visibility = 'hidden'
     }
     const start = () => {
-      stop()
       projectRoutes()
-      for (const path of projected) {
-        const vehicle = vehicleRefs.current.get(path.route.id)
-        if (vehicle) vehicle.style.visibility = 'visible'
-      }
       draw(reducedMotion ? 12_000 : performance.now())
       if (!reducedMotion) {
         const animate = (time: number) => {
@@ -688,16 +691,16 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
         frame = requestAnimationFrame(animate)
       }
     }
+    const redrawAfterMapRender = () => {
+      projectRoutes()
+      draw(reducedMotion ? 12_000 : performance.now())
+    }
 
     start()
-    map.on('movestart', stop)
-    map.on('moveend', start)
-    map.on('resize', start)
+    map.on('render', redrawAfterMapRender)
     return () => {
       stop()
-      map.off('movestart', stop)
-      map.off('moveend', start)
-      map.off('resize', start)
+      map.off('render', redrawAfterMapRender)
     }
   }, [map, routes, reducedMotion])
 
@@ -744,64 +747,48 @@ function LineOverlay({
   dash?: string
   focus?: string | null
 }) {
-  const svgRef = useRef<SVGSVGElement>(null)
-  const [paths, setPaths] = useState<{ d: string; color: string; dash?: string; opacity: number; width: number }[]>([])
+  const pathRefs = useRef<(SVGPathElement | null)[]>([])
 
   useEffect(() => {
     if (!map) return
-    const hide = () => {
-      if (svgRef.current) svgRef.current.style.visibility = 'hidden'
-    }
     const redraw = () => {
-      setPaths(
-        features.flatMap((feature) => {
-          const points = feature.geometry.coordinates.map((pair) => {
-            const point = map.project([pair[0], pair[1]])
-            return `${point.x.toFixed(1)},${point.y.toFixed(1)}`
-          })
-          if (points.length < 2) return []
-          const id = feature.properties?.id
-          const selected = !focus || focus === id
-          return [
-            {
-              d: `M ${points.join(' L ')}`,
-              color: feature.properties?.color ?? color ?? '#e2e8f0',
-              dash: feature.properties?.dashed ? '5 5' : dash,
-              opacity: selected ? 1 : 0.15,
-              width: selected && focus === id ? width + 2 : width,
-            },
-          ]
-        }),
-      )
-      if (svgRef.current) svgRef.current.style.visibility = 'visible'
+      features.forEach((feature, index) => {
+        const path = pathRefs.current[index]
+        if (!path) return
+        const points = feature.geometry.coordinates.map((pair) => {
+          const point = map.project([pair[0], pair[1]])
+          return `${point.x.toFixed(1)},${point.y.toFixed(1)}`
+        })
+        path.setAttribute('d', points.length >= 2 ? `M ${points.join(' L ')}` : '')
+      })
     }
     redraw()
-    map.on('movestart', hide)
-    map.on('moveend', redraw)
-    map.on('resize', redraw)
+    map.on('render', redraw)
     return () => {
-      map.off('movestart', hide)
-      map.off('moveend', redraw)
-      map.off('resize', redraw)
+      map.off('render', redraw)
     }
   }, [map, features, color, width, dash, focus])
 
-  if (!map || paths.length === 0) return null
+  if (!map || features.length === 0) return null
   return (
-    <svg ref={svgRef} className="pointer-events-none absolute inset-0 z-[1] h-full w-full">
-      {paths.map((path, index) => (
-        <path
-          key={index}
-          d={path.d}
-          fill="none"
-          stroke={path.color}
-          strokeWidth={path.width}
-          strokeDasharray={path.dash}
-          strokeOpacity={path.opacity}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-      ))}
+    <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] h-full w-full">
+      {features.map((feature, index) => {
+        const id = feature.properties?.id
+        const selected = !focus || focus === id
+        return (
+          <path
+            key={`${id ?? 'route'}-${index}`}
+            ref={(element) => { pathRefs.current[index] = element }}
+            fill="none"
+            stroke={feature.properties?.color ?? color ?? '#e2e8f0'}
+            strokeWidth={selected && focus === id ? width + 2 : width}
+            strokeDasharray={feature.properties?.dashed ? '5 5' : dash}
+            strokeOpacity={selected ? 1 : 0.15}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        )
+      })}
     </svg>
   )
 }
