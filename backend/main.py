@@ -27,6 +27,7 @@ import asyncio
 import logging
 import os
 import threading
+import time
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -53,6 +54,7 @@ from agents.serve import start_in_thread
 from branch import run_branches
 from graph import CampusGraph
 from stdb import SpacetimePublisher
+from stdb_actions import ActionConsumer, asgi_dispatcher
 import storms
 import hazards
 import voice
@@ -66,6 +68,22 @@ TICK_SECONDS = float(os.getenv("TICK_SECONDS", "1.0"))
 
 graph = CampusGraph()
 publisher = SpacetimePublisher()
+
+# Multiplayer actions (browsers -> SpacetimeDB `action` table -> this engine) run
+# only when STDB_ENABLED is explicitly on. Unset or "0" leaves the app as it was.
+STDB_ACTIONS = os.getenv("STDB_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+consumer: ActionConsumer | None = None
+
+
+def actions_live() -> bool:
+    """True while this engine holds the SpacetimeDB lock and is polling for actions.
+    The browser sends through the reducer only when this is true."""
+    return (
+        consumer is not None
+        and consumer.has_lock
+        and consumer.last_poll_ok is not None
+        and time.time() - consumer.last_poll_ok < 5.0
+    )
 
 
 async def _sim_loop() -> None:
@@ -87,14 +105,23 @@ async def _sim_loop() -> None:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app_: FastAPI):
+    global consumer
     runtime.bind(graph, asyncio.get_running_loop(), TICK_SECONDS)
     await publisher.start()
     start_in_thread()
     task = asyncio.create_task(_sim_loop(), name="sim-loop")
+    if STDB_ACTIONS and publisher.enabled:
+        # Claims the engine lock on its first poll, then applies queued actions.
+        consumer = ActionConsumer(publisher.identity_client(), asgi_dispatcher(app_))
+        consumer.start()
+        log.info("SpacetimeDB action consumer started")
     try:
         yield
     finally:
+        if consumer is not None:
+            await consumer.stop()
+            consumer = None
         task.cancel()
         try:
             await task
@@ -222,9 +249,18 @@ def get_state() -> dict:
         return _state()
 
 
+@app.post("/actions/poke")
+async def poke_actions() -> dict:
+    """Browsers call this right after a reducer action lands, so it is applied now
+    instead of at the next poll. Harmless when the consumer is off."""
+    if consumer is not None:
+        consumer.poke()
+    return {"ok": consumer is not None}
+
+
 @app.get("/activity")
 def get_activity() -> dict:
-    return runtime.snapshot()
+    return {**runtime.snapshot(), "actions_live": actions_live()}
 
 
 @app.get("/bus-routes")

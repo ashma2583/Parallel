@@ -1,3 +1,5 @@
+import { useSpacetimeDB, useTable } from 'spacetimedb/react'
+import { tables } from '../module_bindings'
 import { essentialServed, type Sim, type SimNode } from '../lib/sim'
 import { STATUS_COLOR } from '../lib/status'
 
@@ -20,6 +22,24 @@ interface Props {
   onStep: (index: number) => void
   view: View
   onView: (view: View) => void
+}
+
+/** "Live · N directors": shown only while this window is connected to SpacetimeDB. */
+function PresenceBadge() {
+  const { isActive } = useSpacetimeDB()
+  const [rows] = useTable(tables.presence)
+  if (!isActive) return null
+  const n = Math.max(1, rows.length)
+  return (
+    <div
+      className="flex items-center gap-2 rounded-md border border-line bg-ink px-2.5 py-1 text-xs font-medium"
+      title="Directors connected to this campus right now"
+      data-testid="presence-badge"
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_COLOR.Green }} />
+      <span>{`Live · ${n} ${n === 1 ? 'director' : 'directors'}`}</span>
+    </div>
+  )
 }
 
 export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
@@ -67,6 +87,7 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
       </ol>
 
       <div className="flex shrink-0 items-center gap-6 whitespace-nowrap">
+        <PresenceBadge />
         <div className="flex items-baseline gap-2.5" title={SOURCE_HINT[sim.source]}>
           <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Essential served</span>
           <span className="font-mono text-[22px] font-medium tabular-nums" style={{ color: ready ? essentialColor : undefined }}>

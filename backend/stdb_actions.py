@@ -69,12 +69,15 @@ class StdbHttp:
         self.token: str | None = None
         self.identity: str | None = None
         self._client: httpx.AsyncClient | None = None
+        self._token_lock = asyncio.Lock()  # publisher and consumer share one client
 
     async def start(self) -> None:
         if self._client is None:
             self._client = httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout)
         if self.token is None:
-            await self._load_or_create_token()
+            async with self._token_lock:  # mint the identity once, not once per caller
+                if self.token is None:
+                    await self._load_or_create_token()
 
     async def close(self) -> None:
         if self._client is not None:
