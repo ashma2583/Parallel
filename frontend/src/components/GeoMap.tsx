@@ -104,6 +104,8 @@ export function GeoMap({
   const [showBuses, setShowBuses] = useState(true)
   const [showRecommended, setShowRecommended] = useState(true)
   const [showMotion, setShowMotion] = useState(true)
+  const [showCampusPower, setShowCampusPower] = useState(true)
+  const [showCampusLandmarks, setShowCampusLandmarks] = useState(true)
   const [threeD, setThreeD] = useState(true)
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
   const [campusId, setCampusId] = useState<(typeof CAMPUSES)[number]['id']>('umich')
@@ -187,17 +189,17 @@ export function GeoMap({
   )
   const motionRoutes = useMemo(
     () =>
-      drawnBuses.flatMap((feature, index) => {
+      catalog.flatMap((feature) => {
         const coordinates = feature.geometry.coordinates
-        if (feature.properties.skipped || coordinates.length < 2) return []
+        if (coordinates.length < 2) return []
         return [{
-          id: `${feature.properties.id}-${index}`,
+          id: feature.properties.id,
           name: feature.properties.name,
           color: feature.properties.color,
           coordinates,
         }]
       }),
-    [drawnBuses],
+    [catalog],
   )
 
   const legend = isUmich
@@ -215,6 +217,14 @@ export function GeoMap({
     type: 'Feature' as const,
     properties: { id: route.id, name: route.name, color: '#38bdf8', dashed: false },
     geometry: { type: 'LineString' as const, coordinates: route.coordinates },
+  }))
+  const campusPowerFeatures = campus.landmarks.map((landmark, index) => ({
+    type: 'Feature' as const,
+    properties: { id: `${campus.id}-power-${index}`, color: '#f59e0b', dashed: true },
+    geometry: {
+      type: 'LineString' as const,
+      coordinates: [campus.center, landmark.point],
+    },
   }))
   const activeMotionRoutes: MotionRoute[] = isUmich
     ? motionRoutes
@@ -376,7 +386,9 @@ export function GeoMap({
             </>
           ) : (
             <>
-              <Toggle label="Illustrative campus route" checked={showBuses} onChange={setShowBuses} />
+              <Toggle label="Campus landmarks" checked={showCampusLandmarks} onChange={setShowCampusLandmarks} />
+              <Toggle label="Illustrative energy links" checked={showCampusPower} onChange={setShowCampusPower} />
+              <Toggle label="Illustrative shuttle routes" checked={showBuses} onChange={setShowBuses} />
               <Toggle label="Illustrative route movement" checked={showMotion} onChange={setShowMotion} />
             </>
           )}
@@ -420,11 +432,21 @@ export function GeoMap({
               <img src={school.logo} alt="" className="h-full w-full object-contain" />
             </button>
           </Marker>
-        )) : campus.landmarks.map((landmark) => (
+        )) : showCampusLandmarks && campus.landmarks.map((landmark) => (
           <Marker key={`${campus.id}-${landmark.name}`} longitude={landmark.point[0]} latitude={landmark.point[1]} anchor="center">
             <CampusDot label={landmark.name} title={`${landmark.name} · ${campus.name}`} />
           </Marker>
         ))}
+        {!campusOverview && !isUmich && showCampusPower && (
+          <Marker longitude={campus.center[0]} latitude={campus.center[1]} anchor="center">
+            <CampusDot
+              label={`Illustrative central energy hub · ${campus.name}`}
+              title="Illustrative energy hub; not verified campus infrastructure"
+              ring="#f59e0b"
+              bolt
+            />
+          </Marker>
+        )}
         {!campusOverview && isUmich && nodes.map((node) => {
           const place = PLACES[node.id]
           if (!place || CITY.has(node.id)) return null
@@ -585,12 +607,15 @@ export function GeoMap({
       {!campusOverview && !isUmich && showBuses && (
         <LineOverlay map={map} features={campusRouteFeatures} width={3} focus={focus} />
       )}
+      {!campusOverview && !isUmich && showCampusPower && (
+        <LineOverlay map={map} features={campusPowerFeatures} width={2} dash="5 6" />
+      )}
       {!campusOverview && showMotion && activeMotionRoutes.length > 0 && (
         <TransitMotion map={map} routes={activeMotionRoutes} />
       )}
-      {!campusOverview && !isUmich && showMotion && activeMotionRoutes.length > 0 && (
+      {!campusOverview && !isUmich && (showCampusPower || (showMotion && activeMotionRoutes.length > 0)) && (
         <div className="pointer-events-none absolute bottom-3 right-4 z-[2] rounded bg-ink/85 px-2 py-1 font-mono text-[10px] text-text">
-          ILLUSTRATIVE ROUTE AND MOVEMENT · NOT LIVE TRANSIT
+          ILLUSTRATIVE CAMPUS LAYERS · NOT VERIFIED INFRASTRUCTURE OR LIVE TRANSIT
         </div>
       )}
     </div>
@@ -610,10 +635,12 @@ interface ProjectedRoute {
   distances: number[]
   total: number
   duration: number
+  phaseOffset: number
 }
 
 function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: readonly MotionRoute[] }) {
   const vehicleRefs = useRef(new globalThis.Map<string, SVGGElement>())
+  const elapsedRef = useRef(0)
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   )
@@ -630,10 +657,16 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
 
     let frame = 0
     let projected: ProjectedRoute[] = []
+    let startedAt: number | null = null
+    let playing = false
+    const vehicles = vehicleRefs.current
+    const animationTime = () =>
+      elapsedRef.current + (startedAt === null ? 0 : performance.now() - startedAt)
     const projectRoutes = () => {
       const width = map.getCanvas().clientWidth
       const height = map.getCanvas().clientHeight
-      projected = routes.flatMap((route, index) => {
+      projected = routes.flatMap((route) => {
+        const phaseOffset = route.id.split('').reduce((hash, character) => hash + character.charCodeAt(0), 0) % 60_000
         const points = route.coordinates.map((coordinate) => map.project(coordinate))
         const distances = [0]
         for (let i = 1; i < points.length; i++) {
@@ -643,14 +676,14 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
         if (total <= 0) return []
         const visible = points.some((point) => point.x >= -20 && point.x <= width + 20 && point.y >= -20 && point.y <= height + 20)
         if (!visible) return []
-        return [{ route, points, distances, total, duration: 150_000 + (index % 4) * 18_000 }]
+        return [{ route, points, distances, total, duration: 150_000 + (phaseOffset % 4) * 18_000, phaseOffset }]
       })
     }
 
     const draw = (time: number) => {
       for (let index = 0; index < projected.length; index++) {
         const path = projected[index]
-        const phase = ((time + index * 5_000) % (path.duration * 2)) / path.duration
+        const phase = ((time + path.phaseOffset) % (path.duration * 2)) / path.duration
         const fraction = phase <= 1 ? phase : 2 - phase
         const target = fraction * path.total
         let segment = path.distances.findIndex((value) => value >= target)
@@ -663,44 +696,56 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
         const x = from.x + (to.x - from.x) * progress
         const y = from.y + (to.y - from.y) * progress
         const heading = Math.atan2((phase <= 1 ? to.y : from.y) - y, (phase <= 1 ? to.x : from.x) - x) * (180 / Math.PI)
-        const vehicle = vehicleRefs.current.get(path.route.id)
+        const vehicle = vehicles.get(path.route.id)
         if (vehicle) {
           vehicle.style.visibility = 'visible'
           vehicle.setAttribute('transform', `translate(${x} ${y}) rotate(${heading})`)
         }
       }
       const visibleIds = new Set(projected.map((path) => path.route.id))
-      for (const [id, vehicle] of vehicleRefs.current) {
+      for (const [id, vehicle] of vehicles) {
         if (!visibleIds.has(id)) vehicle.style.visibility = 'hidden'
       }
     }
 
-    const stop = () => {
+    const pause = () => {
+      if (startedAt !== null) {
+        elapsedRef.current += performance.now() - startedAt
+        startedAt = null
+      }
+      playing = false
       if (frame) cancelAnimationFrame(frame)
       frame = 0
-      for (const vehicle of vehicleRefs.current.values()) vehicle.style.visibility = 'hidden'
     }
-    const start = () => {
+    const tick = () => {
+      draw(reducedMotion ? 12_000 : animationTime())
+      if (playing && !reducedMotion) frame = requestAnimationFrame(tick)
+    }
+    const resume = () => {
+      if (playing) return
       projectRoutes()
-      draw(reducedMotion ? 12_000 : performance.now())
-      if (!reducedMotion) {
-        const animate = (time: number) => {
-          draw(time)
-          frame = requestAnimationFrame(animate)
-        }
-        frame = requestAnimationFrame(animate)
-      }
+      if (startedAt === null) startedAt = performance.now()
+      playing = true
+      draw(reducedMotion ? 12_000 : animationTime())
+      if (!reducedMotion) frame = requestAnimationFrame(tick)
     }
     const redrawAfterMapRender = () => {
       projectRoutes()
-      draw(reducedMotion ? 12_000 : performance.now())
+      draw(reducedMotion ? 12_000 : animationTime())
     }
 
-    start()
+    resume()
+    map.on('movestart', pause)
+    map.on('moveend', resume)
     map.on('render', redrawAfterMapRender)
     return () => {
-      stop()
+      pause()
+      for (const vehicle of vehicles.values()) vehicle.style.visibility = 'hidden'
+      elapsedRef.current = animationTime()
+      startedAt = null
       map.off('render', redrawAfterMapRender)
+      map.off('movestart', pause)
+      map.off('moveend', resume)
     }
   }, [map, routes, reducedMotion])
 
