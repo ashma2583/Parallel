@@ -21,6 +21,10 @@ async function post(path: string, body?: unknown): Promise<unknown> {
   return res.json()
 }
 
+export function startHeatWave() {
+  return post('/heat-wave')
+}
+
 export function disrupt(nodeIds: string[], action: DisruptAction = 'fail', reason?: string, factor?: number) {
   return post('/disrupt', { node_ids: nodeIds, action, reason, factor })
 }
@@ -42,6 +46,8 @@ export interface BranchMetrics {
   people_reduced_power: number
   people_dark: number
   people_relocated: number
+  people_in_shelter: number
+  shelter_kw: number
   buildings_dark: number
 }
 
@@ -58,6 +64,9 @@ export interface BranchResult {
   baseTick: number
   ticks: number
   active: string
+  season: Season
+  shelter?: 'cooling' | 'warming'
+  throughPeak?: boolean
   branches: Branch[]
 }
 
@@ -67,18 +76,43 @@ export async function runBranches(ticks = 6): Promise<BranchResult> {
     base_tick: number
     ticks: number
     active: string
+    season?: Season
+    shelter?: 'cooling' | 'warming'
+    through_peak?: boolean
     branches: (Omit<Branch, 'nodes'> & { nodes: ApiNode[] })[]
   }
   return {
     baseTick: data.base_tick,
     ticks: data.ticks,
     active: data.active,
+    season: data.season ?? 'fall',
+    shelter: data.shelter ?? (data.season === 'summer' ? 'cooling' : 'warming'),
+    throughPeak: data.through_peak ?? false,
     branches: data.branches.map((b) => ({ ...b, nodes: b.nodes.map(fromApiNode) })),
   }
 }
 
+export async function fetchVerdict(body: {
+  season: Season
+  shelter?: 'cooling' | 'warming'
+  winner: string
+  policies: { id: string; label: string; people_dark: number; people_in_shelter: number; people_relocated: number; shelter_kw: number }[]
+}): Promise<{ paragraph: string; source: string }> {
+  return post('/verdict', body) as Promise<{ paragraph: string; source: string }>
+}
+
+export type Season = 'summer' | 'fall' | 'winter' | 'spring'
+
+export interface Shelter {
+  kind?: 'cooling' | 'warming'
+  answer: string
+  open: boolean
+  places: { id: string; name: string; occupancy: number }[]
+}
+
 export interface Briefing {
   preference: string
+  season?: Season
   disrupted: boolean
   displaced: number
   priority: {
@@ -92,11 +126,9 @@ export interface Briefing {
     answer: string
     reroute: { id: string; name: string; agency: string; skip: string[]; keep: string[] }[]
   }
-  cooling: {
-    answer: string
-    open: boolean
-    places: { id: string; name: string; occupancy: number }[]
-  }
+  cooling: Shelter
+  shelter?: Shelter
+  heat_wave?: { step: number; span: number; minutes: number; total_minutes: number; plant: number; north: number } | null
   systems: { system: string; status: 'up' | 'down'; detail: string }[]
 }
 
@@ -220,6 +252,47 @@ export async function fetchWeather(): Promise<Weather | null> {
 
 export function applyWeather(id: string) {
   return post('/weather/apply', { id })
+}
+
+export async function fetchClock(): Promise<{ tick: number; paused: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/clock`)
+  if (!res.ok) return { tick: 0, paused: false }
+  return res.json()
+}
+
+export async function setClock(body: { paused?: boolean; until?: number }): Promise<{ tick: number; paused: boolean }> {
+  return post('/clock', body) as Promise<{ tick: number; paused: boolean }>
+}
+
+export async function setSeason(season: Season): Promise<Briefing> {
+  return post('/season', { season }) as Promise<Briefing>
+}
+
+export interface PlanScores {
+  optimal: number
+  energy: number
+  feasibility: number
+  cost: number
+  risk: number
+  people: number
+}
+
+export interface ResponsePlan {
+  rank: number
+  title: string
+  summary: string
+  energy: string
+  transit: string
+  infrastructure: string
+  intervention: string
+  analysis: string
+  apply: string | null
+  scores: PlanScores
+  total: number
+}
+
+export async function fetchPlans(): Promise<{ season: Season; plans: ResponsePlan[] }> {
+  return post('/plans') as Promise<{ season: Season; plans: ResponsePlan[] }>
 }
 
 export interface Debrief {

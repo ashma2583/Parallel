@@ -18,6 +18,19 @@ export function statusColor(status: string): string {
   return STATUS_COLOR[status as Status] ?? 'var(--color-muted)'
 }
 
+/** Buildings this allocation tries to keep. A dead feed can still leave them dark. */
+export function isProtected(type: string, priority: string, preference: string): boolean {
+  if (preference === 'dorms') return type === 'dorm'
+  if (preference === 'academic') return type === 'academic' || type === 'library'
+  return type === 'hospital' && priority === 'critical'
+}
+
+export function planLabel(preference: string): string {
+  if (preference === 'dorms') return 'Plan: keep dorms'
+  if (preference === 'academic') return 'Plan: keep classes'
+  return 'Plan: hospital only'
+}
+
 export const TYPE_LABEL: Record<string, string> = {
   substation: 'Feed',
   hospital: 'Hospital',

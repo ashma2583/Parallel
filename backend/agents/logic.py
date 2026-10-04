@@ -204,6 +204,14 @@ def apply_policy(graph: CampusGraph, policy: dict) -> list[str]:
     if action == "reset":
         graph.reset()
         return [f"Coordinator: campus reset. {reason}".strip()]
+    if action == "heat_wave":
+        from agents import runtime as agent_runtime
+
+        agent_runtime.paused = False
+        agent_runtime.forget_after(graph.tick_count)
+        agent_runtime.begin_scenario("Heat wave, 95°F")
+        graph.start_heat_wave()
+        return ["Coordinator: heat wave, 95°F. Plant output falls over the next 4 hours."]
     if action == "none":
         summary = str(policy.get("summary") or "no grid action")
         return [f"Coordinator: {summary}"]
@@ -267,6 +275,15 @@ def keyword_policy(text: str) -> dict:
         "all clear", "back to normal",
     )):
         return {"action": "reset", "node_ids": [], "reason": text.strip(), "summary": "Reset the campus", "parser": "keyword"}
+
+    if any(phrase in t for phrase in ("heat wave", "heatwave", "heat-wave", "simulate the heat", "start a heat")):
+        return {
+            "action": "heat_wave",
+            "node_ids": [],
+            "reason": text.strip(),
+            "summary": "Start a four-hour heat wave",
+            "parser": "keyword",
+        }
 
     action = "restore" if any(word in t for word in ("restore", "bring back", "fix ", "repair")) else "fail"
     if any(phrase in t for phrase in ("grid collapse", "total blackout", "whole grid", "entire grid", "all three feeds")):

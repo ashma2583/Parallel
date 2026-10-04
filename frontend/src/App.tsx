@@ -5,11 +5,11 @@ import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
 import { LocationPanel } from './components/LocationPanel'
 import { PlanBuilding, type PlanDraft } from './components/PlanBuilding'
-import { ScenarioStrip, type Scenario } from './components/ScenarioStrip'
+import { HEAT_WAVE, ScenarioStrip, runScenario, type Scenario } from './components/ScenarioStrip'
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
-import { fetchHazards, proposeBuilding, removeProposal, type Branch, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
+import { fetchHazards, proposeBuilding, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
 import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
@@ -22,6 +22,33 @@ import { STORM_HAZARD, type StormKind, type WeatherRequest, type WeatherState } 
 type Label = Scenario & { run?: Required<Pick<StormNote, 'counts' | 'conditions'>> }
 
 const RUNNING: Scenario = { label: 'Scenario running', detail: 'Reset stops it' }
+
+// Survives React's strict-mode remount so the heat wave is not applied twice.
+let heatWaveStarted = false
+
+function formatMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${rest} min`
+  if (rest === 0) return `${hours} hr`
+  return `${hours} hr ${rest} min`
+}
+
+function HeatWaveBanner({ wave }: { wave: Briefing['heat_wave'] }) {
+  const building = wave && wave.step > 0 && wave.step < wave.span
+  const plant = wave ? Math.round(wave.plant * 100) : 100
+  const line = !wave || wave.step === 0
+    ? 'The heat wave is just starting. Plant output falls over the next 4 hours. You can keep the dorms or the classrooms. The hospital stays on.'
+    : building
+      ? `Heat has been building for ${formatMinutes(wave.minutes)} of ${formatMinutes(wave.total_minutes)}. Central plant at ${plant}%, still falling toward 35%. You can keep the dorms or the classrooms. The hospital stays on.`
+      : 'Central plant at 35%. You can keep the dorms or the classrooms. The hospital stays on.'
+  return (
+    <div className="border-b border-line bg-ink px-4 py-2.5">
+      <p className="text-base font-medium">{line}</p>
+      <p className="mt-1 text-sm text-muted">The three intakes, these buildings, and the U-M bus lines are real. The kilowatts are a scaled model. One tick is 4 minutes of the afternoon.</p>
+    </div>
+  )
+}
 
 export default function App() {
   const sim = useSim()
@@ -40,6 +67,7 @@ export default function App() {
   // The map stays mounted once shown, so a scenario keeps running behind the grid view.
   const [mapSeen, setMapSeen] = useState(view === 'map')
   if (view === 'map' && !mapSeen) setMapSeen(true)
+  const [demo] = useState(() => new URLSearchParams(window.location.search).get('demo') === 'heat-wave')
 
   // A researched place, shown in place of the campus until it is cleared.
   const [survey, setSurvey] = useState<LocationSurvey | null>(null)
@@ -101,8 +129,13 @@ export default function App() {
   const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
   const zones = useMemo(() => zoneLoads(nodes), [nodes])
   const totals = useMemo(() => loadTotals(nodes), [nodes])
-  const cooling = sim.briefing?.cooling
-  const coolingIds = useMemo(() => (cooling?.open ? cooling.places.map((place) => place.id) : []), [cooling])
+  const shelter = sim.briefing?.shelter ?? sim.briefing?.cooling
+  const shelterKind = shelter?.kind ?? (sim.briefing?.season === 'summer' ? 'cooling' : 'warming')
+  const coolingIds = useMemo(() => (shelter?.open ? shelter.places.map((place) => place.id) : []), [shelter])
+  const useRouteIds = useMemo(
+    () => (sim.briefing?.buses.reroute ?? []).filter((route) => route.keep.length > 0).map((route) => route.id),
+    [sim.briefing],
+  )
 
   const closeBranch = () => {
     setBranching(false)
@@ -168,6 +201,22 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const demo = new URLSearchParams(window.location.search).get('demo') === 'heat-wave'
+    if (!demo || heatWaveStarted || sim.nodes.length === 0) return
+    heatWaveStarted = true
+    void (async () => {
+      try {
+        if (isDisrupted(sim.nodes) || hasWeather(weather)) await resetSim()
+        await runScenario(HEAT_WAVE)
+        setScenario(HEAT_WAVE)
+        sim.refresh()
+      } catch {
+        heatWaveStarted = false
+      }
+    })()
+  }, [sim.nodes.length, sim.refresh])
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeBranch()
     }
@@ -198,6 +247,10 @@ export default function App() {
             onReset={afterReset}
           />
 
+          {sim.briefing?.heat_wave && (
+            <HeatWaveBanner wave={sim.briefing.heat_wave} />
+          )}
+
           <div className="relative min-h-0 flex-1 overflow-hidden">
             {mapSeen && (
               // Opacity as well: MapLibre's attribution sets its own visibility.
@@ -209,6 +262,8 @@ export default function App() {
                   edges={sim.edges}
                   selectedId={selectedId}
                   coolingIds={coolingIds}
+                  shelterKind={shelterKind}
+                  useRouteIds={useRouteIds}
                   reroutes={sim.briefing?.buses.reroute ?? []}
                   survey={survey}
                   surveyGraph={surveyModel}
@@ -250,7 +305,7 @@ export default function App() {
                   edges={sim.edges}
                   selectedId={selectedId}
                   coolingIds={coolingIds}
-                  refugeLabel={hazard && hazard.id !== 'extreme_heat' ? 'SHELTER' : 'COOLING CENTER'}
+                  shelterKind={shelterKind}
                   onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
                 />
               ))}
@@ -304,9 +359,10 @@ export default function App() {
           </div>
         </main>
 
-        <aside className="flex min-h-0 flex-col border-l border-line bg-panel">
+        <aside className={`flex min-h-0 flex-col border-l border-line bg-panel ${demo ? 'demo-rail' : ''}`}>
           {branching ? (
             <BranchPanel
+              demo={demo}
               onPreview={setPreview}
               onClose={closeBranch}
               onAdopted={() => {
@@ -320,6 +376,7 @@ export default function App() {
               disrupted={disrupted}
               running={mapWeather.running}
               hazard={hazard}
+              demo={demo}
               onBranch={() => {
                 if (!mapWeather.running) setBranching(true)
               }}
@@ -330,6 +387,7 @@ export default function App() {
                   setScenario(null)
                   setHazard(null)
                 }
+                else if (result.policy.action === 'heat_wave') setScenario(HEAT_WAVE)
                 else if (result.policy.action === 'fail') offerLabel({ label: 'Director’s order', detail: result.transcript })
                 sim.refresh()
               }}

@@ -54,6 +54,10 @@ class EdgeType(str, Enum):
 
 
 GREEN_THRESHOLD = 0.90
+# One tick is four minutes of a hot afternoon. Sixty ticks is four hours.
+HEAT_WAVE_SPAN = 60
+HEAT_WAVE_MINUTES = 4
+HEAT_WAVE_TARGETS = {"cpp": 0.35, "north_switch": 0.5}
 AMBER_THRESHOLD = 0.50
 # Emergency feeder from the Central Power Plant into Michigan Medicine.
 MEDICAL_TIE_KW = 140.0
@@ -253,6 +257,8 @@ class CampusGraph:
         # Red buildings whose people stay put. The transit agent logs each one once.
         self.sheltering: set[str] = set()
         self.scenario_baseline: dict[str, Any] | None = None  # campus before a scenario first ran
+        # step 0 is full output. Each tick walks toward HEAT_WAVE_TARGETS.
+        self.heat_wave: dict[str, Any] | None = None
         assert len(self.nodes) == 20, "expected the 20 approved Ann Arbor places"
         for node in self.nodes.values():
             node.baseline_occupancy = node.occupancy
@@ -301,6 +307,45 @@ class CampusGraph:
         for node in self.nodes.values():
             node.occupancy = node.baseline_occupancy
         self.sheltering = set()
+
+    def start_heat_wave(self) -> None:
+        """Arm a four-hour heat build. Output falls on later ticks, not all at once."""
+        self.heat_wave = {
+            "step": 0,
+            "span": HEAT_WAVE_SPAN,
+            "minutes_per_tick": HEAT_WAVE_MINUTES,
+            "targets": dict(HEAT_WAVE_TARGETS),
+        }
+        for node_id in HEAT_WAVE_TARGETS:
+            self.derate_node(node_id, 1.0)
+
+    def advance_heat_wave(self) -> list[str]:
+        """Lower plant output one step. Returns a note on the hour marks."""
+        wave = self.heat_wave
+        if not wave or wave["step"] >= wave["span"]:
+            return []
+        wave["step"] += 1
+        progress = wave["step"] / wave["span"]
+        for node_id, target in wave["targets"].items():
+            self.derate_node(node_id, 1.0 + (target - 1.0) * progress)
+        minute = wave["step"] * wave["minutes_per_tick"]
+        plant = self.nodes["cpp"].derate
+        if wave["step"] == 1 or wave["step"] % 15 == 0 or wave["step"] == wave["span"]:
+            return [f"Energy agent: {minute} min into the heat wave. Central plant at {plant:.0%} output."]
+        return []
+
+    def heat_wave_view(self) -> dict[str, Any] | None:
+        wave = self.heat_wave
+        if not wave:
+            return None
+        return {
+            "step": wave["step"],
+            "span": wave["span"],
+            "minutes": wave["step"] * wave["minutes_per_tick"],
+            "total_minutes": wave["span"] * wave["minutes_per_tick"],
+            "plant": round(self.nodes["cpp"].derate, 4),
+            "north": round(self.nodes["north_switch"].derate, 4),
+        }
 
     def derate_node(self, node_id: str, factor: float) -> Node:
         """Limit a feed or on-site generator to a fraction of its output."""

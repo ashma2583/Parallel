@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { sendCommand, sendVoice, type CommandResult, type Hazard } from '../lib/api'
-import type { FeedLine, Sim } from '../lib/sim'
+import type { FeedLine, ScenarioFeed, Sim } from '../lib/sim'
 import { strategyFor } from '../lib/strategies'
 import { BriefingPanel } from './BriefingPanel'
 
@@ -13,31 +13,60 @@ const AGENT_COLOR: Record<string, string> = {
   Planner: 'var(--color-branch)',
 }
 
-function Feed({ lines }: { lines: readonly FeedLine[] }) {
-  if (lines.length === 0) return <p className="text-xs text-muted">Agents idle. The grid is balanced.</p>
+function Feed({ scenarios }: { scenarios: readonly ScenarioFeed[] }) {
+  const latest = scenarios[scenarios.length - 1]
+  const [picked, setPicked] = useState<number | null>(null)
+  const viewing = scenarios.find((scenario) => scenario.id === picked) ?? latest
+  const lines: readonly FeedLine[] = viewing?.lines ?? []
+
+  if (!latest) return <p className="text-sm text-muted">Agents idle. The grid is balanced.</p>
   return (
+    <div className="flex flex-col gap-3">
+      {scenarios.length > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          {scenarios.map((scenario) => {
+            const on = scenario.id === viewing?.id
+            return (
+              <button
+                key={scenario.id}
+                type="button"
+                onClick={() => setPicked(scenario.id === latest.id ? null : scenario.id)}
+                className={`rounded-full border px-2.5 py-1 text-[13px] font-medium ${on ? 'border-branch text-branch' : 'border-line text-muted'}`}
+              >
+                {scenario.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {lines.length === 0 ? (
+        <p className="text-sm text-muted">Agents idle. The grid is balanced.</p>
+      ) : (
     <ol className="flex flex-col gap-2.5">
       {lines.slice().reverse().map(({ tick, line }, index) => {
         const split = line.indexOf(':')
         const who = split > 0 ? line.slice(0, split) : 'System'
         return (
           <li key={`${lines.length - index}-${line}`} className="grid grid-cols-[44px_1fr] items-baseline gap-2.5">
-            <span className="font-mono text-[11px] text-muted">t{tick}</span>
+            <span className="font-mono text-sm text-muted">t{tick}</span>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: AGENT_COLOR[who.split(' ')[0]] ?? 'var(--color-muted)' }}>
+              <div className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: AGENT_COLOR[who.split(' ')[0]] ?? 'var(--color-muted)' }}>
                 {who}
               </div>
-              <div className="mt-0.5 text-xs leading-[1.55]">{split > 0 ? line.slice(split + 1).trim() : line}</div>
+              <div className="mt-0.5 text-[16px] leading-[1.5]">{split > 0 ? line.slice(split + 1).trim() : line}</div>
             </div>
           </li>
         )
       })}
     </ol>
+      )}
+    </div>
   )
 }
 
 function describe({ policy }: CommandResult) {
   if (policy.action === 'reset') return 'reset campus'
+  if (policy.action === 'heat_wave') return 'heat wave'
   if (policy.action === 'none' || policy.node_ids.length === 0) return 'no action'
   return `${policy.action} ${policy.node_ids.join(', ')}`
 }
@@ -124,23 +153,23 @@ function CommandBox({ onDone }: { onDone: (result: CommandResult) => void }) {
           }}
           disabled={busy}
           placeholder={recording ? 'Listening… release to send' : busy ? 'Working…' : 'Director’s order: the power plant just failed'}
-          className="min-w-0 flex-1 bg-transparent px-1.5 text-[13px] outline-none placeholder:text-muted/70"
+          className="min-w-0 flex-1 bg-transparent px-1.5 text-base outline-none placeholder:text-muted/70"
         />
         <button
           type="button"
           disabled={busy || !utterance}
           onClick={() => void submit(() => sendCommand(utterance))}
-          className="rounded px-2.5 py-1.5 text-xs font-semibold text-branch disabled:opacity-30"
+          className="rounded px-2.5 py-1.5 text-sm font-semibold text-branch disabled:opacity-30"
         >
           Send
         </button>
       </div>
       {heard && (
-        <p className="mt-2 text-xs text-muted">
+        <p className="mt-2 text-[15px] text-muted">
           Understood as <span className="font-mono text-text">{describe(heard)}</span>
         </p>
       )}
-      {error && <p className="mt-2 text-xs text-down">{error}</p>}
+      {error && <p className="mt-2 text-sm text-down">{error}</p>}
     </div>
   )
 }
@@ -156,6 +185,8 @@ interface Props {
   disrupted: boolean
   /** A scenario is playing on the map. Comparing waits until it ends. */
   running?: boolean
+  /** Heat-wave demo: point at the briefing, the feed, and the policy comparison. */
+  demo?: boolean
   onBranch: () => void
   onCommand: (result: CommandResult) => void
   /** Planning tools: add a building to the campus, or research another place. */
@@ -165,28 +196,41 @@ interface Props {
 }
 
 /** Right panel while watching the live campus: current policy, feed and briefing, director's order. */
-export function LivePanel({ sim, disrupted, running = false, onBranch, onCommand, plan, hazard }: Props) {
-  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('feed')
+export function LivePanel({ sim, disrupted, running = false, demo = false, onBranch, onCommand, plan, hazard }: Props) {
+  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('briefing')
+  const [cue, setCue] = useState(demo)
   const policy = strategyFor(sim.strategy)
 
   return (
     <>
+      {cue && (
+        <div className="border-b border-branch bg-branch/15 px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[16px] font-medium leading-snug">
+              This panel is the desk. <span className="text-branch">Briefing</span> says where to cool off and which buses still run. <span className="text-branch">Agent feed</span> is the energy and transit agents as the heat builds. Then compare the five policies.
+            </p>
+            <button type="button" onClick={() => setCue(false)} className="text-[18px] leading-none text-muted" aria-label="Dismiss">
+              ×
+            </button>
+          </div>
+        </div>
+      )}
       <div className="border-b border-line px-4 pb-3.5 pt-4">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Response policy</div>
-        <div className="mt-1.5 text-[15px] font-semibold">{policy.label}</div>
-        <div className="mt-0.5 text-xs text-muted">{policy.description}</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Response policy</div>
+        <div className="mt-1.5 text-[22px] font-semibold">{policy.label}</div>
+        <div className="mt-0.5 text-[16px] text-muted">{policy.description}</div>
         <button
           type="button"
           onClick={onBranch}
           disabled={running}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-branch px-3.5 py-2.5 text-[13px] font-semibold text-onbranch transition enabled:hover:brightness-110 disabled:bg-raised disabled:text-faint"
+          className={`mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-branch px-3.5 py-2.5 text-[16px] font-semibold text-onbranch transition enabled:hover:brightness-110 disabled:bg-raised disabled:text-faint ${demo ? 'demo-button' : ''}`}
         >
           <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden>
             <path d="M2 1 V13 M10 1 V5 C10 8 5 7 5 10 V13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           Compare all five policies
         </button>
-        <p className="mt-2 text-[11px] text-muted">
+        <p className="mt-2 text-[15px] text-muted">
           {running
             ? 'Finish or stop the scenario run first. A comparison forked mid-run is out of date before it shows.'
             : disrupted
@@ -202,15 +246,17 @@ export function LivePanel({ sim, disrupted, running = false, onBranch, onCommand
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`-mb-px border-b pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] ${tab === t.id ? 'border-text text-text' : 'border-transparent text-muted'}`}
+              className={`-mb-px border-b pb-2 text-[13px] font-semibold uppercase tracking-[0.14em] ${
+                tab === t.id ? 'border-text text-text' : demo ? 'border-transparent text-branch' : 'border-transparent text-muted'
+              }`}
             >
               {t.label}
             </button>
           ))}
         </div>
         <div className="-mr-1.5 min-h-0 flex-1 overflow-y-auto pb-3 pr-1.5">
-          {tab === 'feed' && <Feed lines={sim.activity} />}
-          {tab === 'briefing' && <BriefingPanel briefing={sim.briefing} hazard={hazard} />}
+          {tab === 'feed' && <Feed scenarios={sim.scenarios} />}
+          {tab === 'briefing' && <BriefingPanel briefing={sim.briefing} hazard={hazard} onChanged={sim.refresh} />}
           {/* Kept mounted so a half-filled form or a research result survives a tab switch. */}
           <div hidden={tab !== 'plan'} className="flex flex-col gap-6">{plan}</div>
         </div>

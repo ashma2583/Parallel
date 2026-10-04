@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { setClock } from '../lib/api'
 import { essentialServed, type Sim, type SimNode } from '../lib/sim'
 import { STATUS_COLOR } from '../lib/status'
 
@@ -73,6 +75,7 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
             {ready ? `${Math.round(essential * 100)}%` : '—'}
           </span>
         </div>
+        <Clock tick={sim.summary?.tick} />
         <div className="flex whitespace-nowrap rounded-md border border-line bg-ink p-0.5 text-xs font-medium">
           {(['grid', 'map'] as const).map((v) => (
             <button
@@ -87,5 +90,57 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
         </div>
       </div>
     </header>
+  )
+}
+
+function Clock({ tick }: { tick: number | undefined }) {
+  const [paused, setPaused] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  async function pause(next: boolean) {
+    const clock = await setClock({ paused: next })
+    setPaused(clock.paused)
+    setError(null)
+  }
+
+  async function go() {
+    const target = Number(draft)
+    if (!Number.isFinite(target) || target < 1) return
+    try {
+      const clock = await setClock({ until: Math.round(target) })
+      setPaused(clock.paused)
+      setDraft('')
+      setError(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 font-mono text-xs" title={error ?? 'Pause, or jump to a saved tick'}>
+      <button
+        type="button"
+        onClick={() => void pause(!paused)}
+        className="rounded border border-line px-2 py-1 text-[11px] text-text"
+      >
+        {paused ? 'Play' : 'Pause'}
+      </button>
+      <span className="text-muted">t{tick ?? '—'}</span>
+      <input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') void go()
+        }}
+        placeholder="tick"
+        aria-label="Jump to tick"
+        className="w-12 rounded border border-line bg-ink px-1.5 py-1 text-text outline-none"
+      />
+      <button type="button" onClick={() => void go()} className="rounded px-1.5 py-1 text-[11px] font-semibold text-branch">
+        Go
+      </button>
+    </div>
   )
 }

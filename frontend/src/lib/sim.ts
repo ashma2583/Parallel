@@ -86,13 +86,21 @@ export interface FeedLine {
   line: string
 }
 
+export interface ScenarioFeed {
+  id: number
+  label: string
+  lines: FeedLine[]
+}
+
 export interface Sim {
   source: Source
   nodes: SimNode[]
   edges: SimEdge[]
   summary: SimSummary | undefined
-  /** Agent feed, oldest first. */
+  /** Agent feed for the scenario on screen, oldest first. */
   activity: FeedLine[]
+  /** Every scenario's log, oldest scenario first. The last one is live. */
+  scenarios: ScenarioFeed[]
   strategy: string
   /** Plain-language answers for the current outage. Null until the engine replies. */
   briefing: Briefing | null
@@ -118,6 +126,7 @@ export function useSim(): Sim {
   const [engine, setEngine] = useState<EngineState | null>(null)
   const [engineUp, setEngineUp] = useState(false)
   const [activity, setActivity] = useState<FeedLine[]>([])
+  const [scenarios, setScenarios] = useState<ScenarioFeed[]>([])
   const [strategy, setStrategy] = useState('tiered')
   const [briefing, setBriefing] = useState<Briefing | null>(null)
   const [proposals, setProposals] = useState<ProposalPin[]>([])
@@ -141,11 +150,10 @@ export function useSim(): Sim {
       if (plans.ok) setProposals((await plans.json()).proposals ?? [])
       setEngineUp(true)
       setStrategy(data.strategy ?? 'tiered')
-      if (stdbLiveRef.current) {
-        setActivity(feedLines(data.lines, data.ticks))
-        return
-      }
-      setActivity(feedLines(data.activity, data.activity_ticks))
+      const logs = readScenarios(data)
+      setScenarios(logs)
+      setActivity(logs[logs.length - 1]?.lines ?? [])
+      if (stdbLiveRef.current) return
       setEngine({
         nodes: (data.nodes as ApiNode[]).map(fromApiNode),
         edges: data.edges,
@@ -180,6 +188,7 @@ export function useSim(): Sim {
         edges: [...edgeRows],
         summary: s && { tick: Number(s.tick), supply: s.supply, demand: s.demand, deficit: s.deficit },
         activity,
+        scenarios,
         strategy,
         briefing,
         proposals,
@@ -187,14 +196,26 @@ export function useSim(): Sim {
       }
     }
     if (engineUp && engine) {
-      return { source: 'engine', ...engine, nodes: [...engine.nodes].sort(byId), activity, strategy, briefing, proposals, refresh: pull }
+      return { source: 'engine', ...engine, nodes: [...engine.nodes].sort(byId), activity, scenarios, strategy, briefing, proposals, refresh: pull }
     }
-    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, strategy, briefing, proposals, refresh: pull }
-  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, strategy, briefing, proposals, pull])
+    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, scenarios, strategy, briefing, proposals, refresh: pull }
+  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, scenarios, strategy, briefing, proposals, pull])
 }
 
 function feedLines(lines: string[] = [], ticks: number[] = []): FeedLine[] {
   return lines.map((line, i) => ({ line, tick: ticks[i] ?? 0 }))
+}
+
+function readScenarios(data: { scenarios?: { id: number; label: string; lines?: string[]; ticks?: number[] }[]; lines?: string[]; ticks?: number[]; activity?: string[]; activity_ticks?: number[] }): ScenarioFeed[] {
+  if (Array.isArray(data.scenarios) && data.scenarios.length > 0) {
+    return data.scenarios.map((scenario) => ({
+      id: scenario.id,
+      label: scenario.label,
+      lines: feedLines(scenario.lines, scenario.ticks),
+    }))
+  }
+  const lines = feedLines(data.lines ?? data.activity, data.ticks ?? data.activity_ticks)
+  return [{ id: 0, label: 'Campus', lines }]
 }
 
 export const isSupplier = (n: SimNode) => n.type === 'substation'

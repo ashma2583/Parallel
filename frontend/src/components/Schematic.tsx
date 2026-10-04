@@ -7,10 +7,9 @@ interface Props {
   nodes: readonly SimNode[]
   edges: readonly SimEdge[]
   selectedId?: string | null
-  /** Buildings the briefing says to open as cooling centers. */
+  /** Buildings the briefing says to open as shelters. */
   coolingIds?: readonly string[]
-  /** What to call those buildings on the diagram. */
-  refugeLabel?: string
+  shelterKind?: 'cooling' | 'warming'
   onNodeClick?: (node: SimNode) => void
 }
 
@@ -21,9 +20,13 @@ type LabelMode = 'all' | 'names' | 'none'
  * The campus as a one-line diagram. Engine layout coordinates are stretched to
  * fill the container, so text and node sizes stay in real pixels at any size.
  */
-export function Schematic({ nodes, edges, selectedId, coolingIds = [], refugeLabel = 'COOLING CENTER', onNodeClick }: Props) {
+export function Schematic({ nodes, edges, selectedId, coolingIds = [], shelterKind = 'warming', onNodeClick }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null)
+  const moved = useRef(false)
 
   useLayoutEffect(() => {
     const el = box.current
@@ -40,18 +43,70 @@ export function Schematic({ nodes, edges, selectedId, coolingIds = [], refugeLab
     const xs = nodes.map((n) => n.x)
     const ys = nodes.map((n) => n.y)
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
-    const pad = { l: 70, r: 70, t: 44, b: 64 }
+    const pad = { l: 88, r: 88, t: 56, b: 84 }
     const sx = (size.w - pad.l - pad.r) / Math.max(1, x1 - x0)
     const sy = (size.h - pad.t - pad.b) / Math.max(1, y1 - y0)
     return new Map(nodes.map((n) => [n.id, { x: pad.l + (n.x - x0) * sx, y: pad.t + (n.y - y0) * sy }]))
   }, [nodes, size])
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
-  const labels: LabelMode = size.w < 560 ? 'none' : size.w < 760 ? 'names' : 'all'
+  const labels: LabelMode = size.w < 420 ? 'none' : size.w < 640 ? 'names' : 'all'
+
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const mx = event.clientX - rect.left
+      const my = event.clientY - rect.top
+      setZoom((current) => {
+        const next = Math.min(4, Math.max(0.45, current * (event.deltaY < 0 ? 1.12 : 0.89)))
+        setPan((origin) => {
+          const wx = (mx - origin.x) / current
+          const wy = (my - origin.y) / current
+          return { x: mx - wx * next, y: my - wy * next }
+        })
+        return next
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   return (
-    <div ref={box} className="h-full w-full overflow-hidden">
+    <div
+      ref={box}
+      className="relative h-full w-full overflow-hidden"
+      style={{ cursor: drag.current ? 'grabbing' : 'grab', touchAction: 'none' }}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        drag.current = { x: event.clientX, y: event.clientY, px: pan.x, py: pan.y, moved: false }
+        moved.current = false
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }}
+      onPointerMove={(event) => {
+        const current = drag.current
+        if (!current) return
+        const dx = event.clientX - current.x
+        const dy = event.clientY - current.y
+        if (Math.hypot(dx, dy) > 4) {
+          current.moved = true
+          moved.current = true
+        }
+        if (current.moved) setPan({ x: current.px + dx, y: current.py + dy })
+      }}
+      onPointerUp={() => {
+        drag.current = null
+      }}
+      onDoubleClick={() => {
+        setZoom(1)
+        setPan({ x: 0, y: 0 })
+      }}
+    >
+      <p className="pointer-events-none absolute bottom-3 left-4 text-xs text-muted">Drag to move · scroll to zoom · double-click to reset</p>
       <svg width={size.w} height={size.h} className="block">
+        <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
         {edges.map((e) => {
           const a = placed.get(e.source)
           const b = placed.get(e.target)
@@ -85,9 +140,14 @@ export function Schematic({ nodes, edges, selectedId, coolingIds = [], refugeLab
           if (!p) return null
           return (
             <NodeMark key={n.id} node={n} x={p.x} y={p.y} labels={labels}
-              selected={n.id === selectedId} refuge={coolingIds.includes(n.id) ? refugeLabel : null} onClick={onNodeClick} />
+              selected={n.id === selectedId} cooling={coolingIds.includes(n.id)} shelterKind={shelterKind}
+              onClick={(node) => {
+                if (moved.current) return
+                onNodeClick?.(node)
+              }} />
           )
         })}
+        </g>
       </svg>
     </div>
   )
@@ -99,11 +159,12 @@ interface MarkProps {
   y: number
   labels: LabelMode
   selected: boolean
-  refuge: string | null
+  cooling: boolean
+  shelterKind: 'cooling' | 'warming'
   onClick?: (node: SimNode) => void
 }
 
-function NodeMark({ node, x, y, labels, selected, refuge, onClick }: MarkProps) {
+function NodeMark({ node, x, y, labels, selected, cooling, shelterKind, onClick }: MarkProps) {
   const supplier = isSupplier(node)
   const color = statusColor(node.status)
   // Bigger loads draw bigger, so the eye lands on what matters to the grid.
@@ -111,6 +172,7 @@ function NodeMark({ node, x, y, labels, selected, refuge, onClick }: MarkProps) 
   const ratio = supplier ? (node.failed ? 0 : 1) : Math.max(0, Math.min(1, node.powerRatio))
   const circumference = 2 * Math.PI * r
   const dark = node.status === 'Red'
+  const flow = cooling && !dark ? 'go' : dark && node.type !== 'substation' ? 'leave' : null
   const tag = node.failed ? 'OFFLINE' : node.loadShed >= 0.99 ? 'SHED' : node.loadShed > 0.05 ? `SHED ${Math.round(node.loadShed * 100)}%` : null
   const text = { textAnchor: 'middle' as const, stroke: 'var(--color-ink)', strokeWidth: 3, paintOrder: 'stroke' as const }
 
@@ -118,8 +180,10 @@ function NodeMark({ node, x, y, labels, selected, refuge, onClick }: MarkProps) 
     <g transform={`translate(${x},${y})`} onClick={onClick ? () => onClick(node) : undefined}
       style={{ cursor: onClick ? 'pointer' : undefined }}>
       <title>{`${node.name} · ${node.status}`}</title>
-      {dark && <circle r={r} fill="none" stroke="var(--color-down)" strokeWidth={2} className="node-halo" />}
-      {selected && <circle r={r + 6} fill="none" stroke="var(--color-text)" strokeWidth={1} strokeDasharray="2 3" />}
+      {dark && flow !== 'leave' && <circle r={r} fill="none" stroke="var(--color-down)" strokeWidth={2} className="node-halo" />}
+      {flow === 'go' && <circle r={r + 7} fill="none" stroke="#e879f9" strokeWidth={3} />}
+      {flow === 'leave' && <circle r={r + 6} fill="none" stroke="#fb923c" strokeWidth={2.5} />}
+      {selected && <circle r={r + 10} fill="none" stroke="var(--color-text)" strokeWidth={1} strokeDasharray="2 3" />}
 
       {supplier ? (
         <rect x={-r} y={-r} width={r * 2} height={r * 2} rx={6}
@@ -136,20 +200,20 @@ function NodeMark({ node, x, y, labels, selected, refuge, onClick }: MarkProps) 
         transform={`scale(${Math.min(1, r / 19)})`} />
 
       {labels !== 'none' && (
-        <text {...text} y={r + 15} fontSize={11} fontWeight={500} fill="var(--color-text)">
+        <text {...text} y={r + 20} fontSize={15} fontWeight={650} fill="var(--color-text)">
           {PLACES[node.id]?.short ?? node.name}
         </text>
       )}
       {labels === 'all' && (
-        <text {...text} y={r + 28} fontSize={10} fontFamily="var(--font-mono)" fill={tag ? color : 'var(--color-muted)'}>
+        <text {...text} y={r + 38} fontSize={13} fontFamily="var(--font-mono)" fill={tag ? color : 'var(--color-text)'}>
           {tag ?? (supplier
             ? `${Math.round(node.currentPower)} kW out`
             : `${Math.round(node.currentPower)}/${Math.round(node.demand)} kW · ${fmtPeople(node.occupancy)}`)}
         </text>
       )}
-      {refuge && labels !== 'none' && (
-        <text {...text} y={-r - 8} fontSize={9} fontWeight={600} letterSpacing="0.1em" fill="var(--color-transit)">
-          {refuge}
+      {flow && (
+        <text {...text} y={-r - 14} fontSize={14} fontWeight={800} letterSpacing="0.06em" fill={flow === 'go' ? '#e879f9' : '#fb923c'}>
+          {flow === 'go' ? (shelterKind === 'cooling' ? 'GO · COOL' : 'GO · WARM') : 'LEAVE'}
         </text>
       )}
     </g>

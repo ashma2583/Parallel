@@ -10,14 +10,23 @@ import copy
 from typing import Any
 
 from agents.logic import STRATEGIES, apply_energy, apply_transit
+from briefing import _is_shelter
 from graph import CampusGraph, Priority, Status, _node_to_dict
 
 
-def run_branches(graph: CampusGraph, strategy_ids: list[str], ticks: int) -> list[dict[str, Any]]:
-    return [_run(graph, sid, ticks) for sid in strategy_ids]
+def run_branches(
+    graph: CampusGraph,
+    strategy_ids: list[str],
+    ticks: int,
+    season: str = "fall",
+    *,
+    cooling: bool | None = None,
+) -> list[dict[str, Any]]:
+    use_cooling = season == "summer" if cooling is None else cooling
+    return [_run(graph, sid, ticks, use_cooling) for sid in strategy_ids]
 
 
-def _run(graph: CampusGraph, strategy: str, ticks: int) -> dict[str, Any]:
+def _run(graph: CampusGraph, strategy: str, ticks: int, cooling: bool = False) -> dict[str, Any]:
     sim = copy.deepcopy(graph)
     # Every branch starts with people at home, so the policies are compared on
     # the same footing whatever the live transit agent has already done.
@@ -25,6 +34,7 @@ def _run(graph: CampusGraph, strategy: str, ticks: int) -> dict[str, Any]:
     start = {n.id: n.occupancy for n in sim.nodes.values()}
     log: list[str] = []
     for _ in range(ticks):
+        log.extend(sim.advance_heat_wave())
         log.extend(apply_energy(sim, strategy))
         sim.tick()
         log.extend(apply_transit(sim))
@@ -33,6 +43,7 @@ def _run(graph: CampusGraph, strategy: str, ticks: int) -> dict[str, Any]:
     essential = [n for n in consumers if n.priority in (Priority.CRITICAL, Priority.HIGH)]
     critical = [n for n in consumers if n.priority == Priority.CRITICAL]
     people = sum(n.occupancy for n in sim.nodes.values())
+    shelters = [n for n in sim.nodes.values() if _is_shelter(n, cooling) and n.status != Status.RED and not n.failed]
 
     return {
         "id": strategy,
@@ -46,6 +57,8 @@ def _run(graph: CampusGraph, strategy: str, ticks: int) -> dict[str, Any]:
             "people_reduced_power": sum(n.occupancy for n in sim.nodes.values() if n.status == Status.AMBER),
             "people_dark": sum(n.occupancy for n in sim.nodes.values() if n.status == Status.RED),
             "people_relocated": sum(max(0, start[n.id] - n.occupancy) for n in sim.nodes.values()),
+            "people_in_shelter": sum(n.occupancy for n in shelters),
+            "shelter_kw": round(sum(n.current_power for n in shelters)),
             "buildings_dark": sum(1 for n in consumers if n.status == Status.RED),
             "status_counts": sim.last_tick.status_counts if sim.last_tick else {},
         },

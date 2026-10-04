@@ -28,7 +28,7 @@ STT_URL = "https://api.x.ai/v1/stt"
 STT_MODEL = "grok-voice-transcribe-2.0"
 CHAT_URL = "https://api.x.ai/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-_ACTIONS = {"fail", "restore", "reset", "none"}
+_ACTIONS = {"fail", "restore", "reset", "heat_wave", "none"}
 
 
 def gemini_configured() -> bool:
@@ -74,8 +74,22 @@ async def transcribe(audio: bytes, filename: str, content_type: str) -> str:
     return text
 
 
+def is_heat_wave_order(text: str) -> bool:
+    """Spoken or typed ask to run the four-hour heat build, not to fail a building."""
+    t = text.lower()
+    return any(phrase in t for phrase in ("heat wave", "heatwave", "heat-wave", "simulate the heat", "start a heat"))
+
+
 async def parse_policy(graph: CampusGraph, text: str) -> dict[str, Any]:
     """Model when a key is set, otherwise the keyword parser. Model errors fall back too."""
+    if is_heat_wave_order(text):
+        return {
+            "action": "heat_wave",
+            "node_ids": [],
+            "reason": text.strip(),
+            "summary": "Start a four-hour heat wave",
+            "parser": "keyword",
+        }
     which = policy_parser()
     if which == "keyword":
         policy = keyword_policy(text)
@@ -106,9 +120,10 @@ def _prompt(graph: CampusGraph, text: str) -> str:
         "Reply with JSON only, no markdown.\n"
         "Use only node ids from this list:\n"
         f"{catalog}\n\n"
-        "action is one of: fail, restore, reset, none.\n"
+        "action is one of: fail, restore, reset, heat_wave, none.\n"
         "fail takes nodes offline. restore brings specific nodes back. "
-        "reset clears every failure. none when the utterance is not a grid order.\n"
+        "reset clears every failure. heat_wave starts the four-hour heat build and leaves node_ids empty. "
+        "none when the utterance is not a grid order.\n"
         "A campus-wide grid collapse means node_ids [cpp, uh, north_switch]. "
         "City Hall, Blake Transit Center, and Fire Station 1 stay up unless named.\n"
         'Shape: {"summary": str, "action": str, "node_ids": [str], "reason": str}\n\n'
@@ -141,7 +156,7 @@ async def _gemini(graph: CampusGraph, text: str, key: str) -> dict[str, Any]:
         "type": "OBJECT",
         "properties": {
             "summary": {"type": "STRING"},
-            "action": {"type": "STRING", "enum": ["fail", "restore", "reset", "none"]},
+            "action": {"type": "STRING", "enum": ["fail", "restore", "reset", "heat_wave", "none"]},
             "node_ids": {"type": "ARRAY", "items": {"type": "STRING"}},
             "reason": {"type": "STRING"},
         },
@@ -226,6 +241,151 @@ async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
         "solutions": [str(item) for item in (parsed.get("solutions") or [])][:4],
         "watch": str(parsed.get("watch") or ""),
     }
+
+
+def verdict_from_numbers(facts: dict[str, Any]) -> str:
+    """One paragraph from the sim's own counts, used when the model is unavailable."""
+    policies = [p for p in facts.get("policies") or [] if isinstance(p, dict)]
+    winner = next((p for p in policies if p.get("id") == facts.get("winner")), policies[0] if policies else None)
+    if not winner:
+        return "Run the heat wave, then compare the five policies."
+    kind = "cooling center" if facts.get("shelter") == "cooling" or facts.get("season") == "summer" else "warming center"
+    shelter = int(winner.get("people_in_shelter") or 0)
+    dark = int(winner.get("people_dark") or 0)
+    kw = int(winner.get("shelter_kw") or 0)
+    moved = int(winner.get("people_relocated") or 0)
+    dark_line = (
+        f"{dark:,} people are still in a dark building."
+        if dark
+        else "Nobody is left in a dark building; the transit agent has moved them."
+    )
+    return (
+        f"{winner.get('label')} keeps {shelter:,} people in a lit {kind}, with {kw:,} kW serving those buildings. "
+        f"{moved:,} people had to leave where they started. {dark_line} "
+        "The hospital stays on either way. These kilowatts are a scaled model of the three real campus intakes."
+    )
+
+
+async def write_verdict(facts: dict[str, Any]) -> dict[str, Any]:
+    """One paragraph on the winning policy. Numbers stay the ones the sim computed."""
+    fallback = verdict_from_numbers(facts)
+    key = _xai_key()
+    if not key:
+        return {"paragraph": fallback, "source": "sim"}
+    model = os.getenv("GROK_MODEL", "grok-4")
+    prompt = (
+        "You are the coordinator for PARALLEL, a University of Michigan emergency desk.\n"
+        "A heat wave has already derated the campus. Five policies were run on copies of the same campus.\n"
+        "Write one paragraph, four sentences at most, about the winning policy.\n"
+        "Use only the numbers and policy names in the facts. Do not invent buildings, causes, or costs.\n"
+        "If shelter is cooling, call them cooling centers. If it is warming, call them warming centers.\n"
+        "Say how many people the winner keeps in a lit shelter, how many kilowatts serve those shelters, "
+        "and how many people are still in a dark building.\n"
+        "If people_dark is 0, say the transit agent has already moved everyone out of dark buildings.\n"
+        "Reply with JSON only: {\"paragraph\": str}\n\n"
+        f"Facts:\n{json.dumps(facts)}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=25) as client:
+            resp = await client.post(
+                CHAT_URL,
+                headers={"Authorization": f"Bearer {key}"},
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                },
+            )
+        if resp.status_code >= 400:
+            return {"paragraph": fallback, "source": "sim"}
+        raw = resp.json()["choices"][0]["message"]["content"]
+        parsed = json.loads(_strip_fence(raw))
+        paragraph = str(parsed.get("paragraph") or "").strip()
+        if not paragraph:
+            return {"paragraph": fallback, "source": "sim"}
+        return {"paragraph": paragraph, "source": "model"}
+    except (httpx.HTTPError, KeyError, json.JSONDecodeError, TypeError, ValueError):
+        return {"paragraph": fallback, "source": "sim"}
+
+
+async def write_plans(facts: dict[str, Any]) -> dict[str, Any]:
+    """Five ranked response plans. Scores are relative. The facts stay the sim's."""
+    key = _xai_key()
+    if not key:
+        raise RuntimeError("XAI_API_KEY is not set")
+    model = os.getenv("GROK_MODEL", "grok-4")
+    prompt = (
+        "You are the coordinator for PARALLEL, the University of Michigan emergency desk.\n"
+        "A building or feed has already failed. Energy, transit, and infrastructure have reported in the facts.\n"
+        "Write exactly 5 different response plans for emergency staff and campus admins.\n"
+        "Each plan must say what the energy agent should do with scarce kilowatts, which buses to skip or keep, "
+        "what infrastructure bottleneck or cascade matters, and the one intervention to try.\n"
+        "Use only buildings, kilowatts, people, and bus lines that appear in the facts. Do not invent dollar costs.\n"
+        "University Hospital and Mott are never shed. If a feed has no supply left, changing who is protected cannot keep that feed's buildings on.\n"
+        "The season in the facts chooses the shelter: summer means cooling centers, every other season means warming centers.\n"
+        "Scores are integers from 1 to 10, and higher is better on every score. "
+        "cost 10 means cheapest to carry out. risk 10 means safest. energy 10 means the scarce kilowatts are used best. "
+        "people 10 means the fewest people are left in a dark or exposed building.\n"
+        "apply is tiered, residential, academic, people, even, or none. "
+        "tiered protects the hospital only. residential keeps dorms. academic keeps classes. "
+        "people keeps the most people per kilowatt. even rations every building the same share. "
+        "Use none when the plan is not one of those policies.\n"
+        "Reply with JSON only:\n"
+        '{"plans":[{"title":str,"summary":str,"energy":str,"transit":str,"infrastructure":str,'
+        '"intervention":str,"analysis":str,"apply":str,'
+        '"scores":{"optimal":int,"energy":int,"feasibility":int,"cost":int,"risk":int,"people":int}}]}\n\n'
+        f"Facts:\n{json.dumps(facts)}"
+    )
+    async with httpx.AsyncClient(timeout=50) as client:
+        resp = await client.post(
+            CHAT_URL,
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+            },
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"grok {resp.status_code}: {resp.text[:300]}")
+    raw = resp.json()["choices"][0]["message"]["content"]
+    parsed = json.loads(_strip_fence(raw))
+    return {"season": str(facts.get("season") or "fall"), "plans": _rank_plans(parsed.get("plans") or [])}
+
+
+def _rank_plans(raw: list[Any]) -> list[dict[str, Any]]:
+    keys = ("optimal", "energy", "feasibility", "cost", "risk", "people")
+    plans = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        source = item.get("scores") if isinstance(item.get("scores"), dict) else {}
+        scores = {}
+        for key in keys:
+            try:
+                scores[key] = max(1, min(10, int(source.get(key))))
+            except (TypeError, ValueError):
+                scores[key] = 5
+        apply = str(item.get("apply") or "none")
+        apply = {"balanced": "tiered", "dorms": "residential"}.get(apply, apply)
+        if apply not in {"tiered", "residential", "academic", "people", "even"}:
+            apply = None
+        plans.append({
+            "title": str(item.get("title") or "Plan"),
+            "summary": str(item.get("summary") or ""),
+            "energy": str(item.get("energy") or ""),
+            "transit": str(item.get("transit") or ""),
+            "infrastructure": str(item.get("infrastructure") or ""),
+            "intervention": str(item.get("intervention") or ""),
+            "analysis": str(item.get("analysis") or ""),
+            "apply": apply,
+            "scores": scores,
+            "total": round(sum(scores.values()) / len(keys), 1),
+        })
+    plans.sort(key=lambda plan: plan["total"], reverse=True)
+    for index, plan in enumerate(plans[:5], start=1):
+        plan["rank"] = index
+    return plans[:5]
 
 
 def _xai_key() -> str:

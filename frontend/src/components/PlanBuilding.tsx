@@ -58,24 +58,24 @@ export function PlanBuilding({
 
   return (
     <section>
-      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Plan a U-M building</h2>
-      <p className="mb-2 text-[11px] leading-relaxed text-muted">
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.14em] text-muted">Plan a U-M building</h2>
+      <p className="mb-2 text-sm leading-relaxed text-muted">
         People and kilowatts are your assumption, in the same demo scale as this campus. The feed and the buses come from where you click.
       </p>
-      <label className="mb-1 block text-[10px] text-muted">
+      <label className="mb-1 block text-xs text-muted">
         Name
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
-          className="mt-0.5 w-full rounded border border-line bg-ink px-2 py-1.5 text-xs text-text"
+          className="mt-0.5 w-full rounded border border-line bg-ink px-2 py-1.5 text-sm text-text"
         />
       </label>
-      <label className="mb-1 block text-[10px] text-muted">
+      <label className="mb-1 block text-xs text-muted">
         Kind
         <select
           value={kind}
           onChange={(event) => choose(event.target.value)}
-          className="mt-0.5 w-full rounded border border-line bg-ink px-2 py-1.5 text-xs text-text"
+          className="mt-0.5 w-full rounded border border-line bg-ink px-2 py-1.5 text-sm text-text"
         >
           {KINDS.map((item) => (
             <option key={item.id} value={item.id}>
@@ -85,7 +85,7 @@ export function PlanBuilding({
         </select>
       </label>
       <div className="mb-2 flex gap-2">
-        <label className="flex-1 text-[10px] text-muted">
+        <label className="flex-1 text-xs text-muted">
           People
           <input
             type="number"
@@ -93,10 +93,10 @@ export function PlanBuilding({
             max={5000}
             value={people}
             onChange={(event) => setPeople(Number(event.target.value))}
-            className="mt-0.5 w-full rounded border border-line bg-ink px-2 py-1.5 text-xs text-text"
+            className="mt-0.5 w-full rounded border border-line bg-ink px-2 py-1.5 text-sm text-text"
           />
         </label>
-        <label className="flex-1 text-[10px] text-muted">
+        <label className="flex-1 text-xs text-muted">
           Demand kW
           <input
             type="number"
@@ -104,13 +104,13 @@ export function PlanBuilding({
             max={400}
             value={kw}
             onChange={(event) => setKw(Number(event.target.value))}
-            className="mt-0.5 w-full rounded border border-line bg-ink px-2 py-1.5 text-xs text-text"
+            className="mt-0.5 w-full rounded border border-line bg-ink px-2 py-1.5 text-sm text-text"
           />
         </label>
       </div>
       {placing ? (
         <div className="flex flex-col gap-1">
-          <p className="text-[11px] leading-relaxed text-warn">
+          <p className="text-sm leading-relaxed text-warn">
             {pinReady ? 'Click the map again to move the pin.' : 'Click the map to drop a pin.'}
           </p>
           <div className="flex gap-1">
@@ -118,7 +118,7 @@ export function PlanBuilding({
               type="button"
               disabled={!pinReady || confirming}
               onClick={onUndo}
-              className="flex-1 rounded border border-line px-2 py-1.5 text-xs font-semibold text-text disabled:text-muted"
+              className="flex-1 rounded border border-line px-2 py-1.5 text-sm font-semibold text-text disabled:text-muted"
             >
               Undo pin
             </button>
@@ -126,12 +126,12 @@ export function PlanBuilding({
               type="button"
               disabled={!pinReady || confirming}
               onClick={onConfirm}
-              className="flex-1 rounded bg-branch px-2 py-1.5 text-xs font-semibold text-onbranch disabled:bg-raised disabled:text-muted"
+              className="flex-1 rounded bg-branch px-2 py-1.5 text-sm font-semibold text-onbranch disabled:bg-raised disabled:text-muted"
             >
               {confirming ? 'Adding…' : 'Confirm'}
             </button>
           </div>
-          <button type="button" onClick={onCancel} className="text-[10px] font-semibold text-muted hover:text-text">
+          <button type="button" onClick={onCancel} className="text-sm font-semibold text-muted hover:text-text">
             Cancel
           </button>
         </div>
@@ -140,14 +140,14 @@ export function PlanBuilding({
           type="button"
           disabled={name.trim().length < 2}
           onClick={() => onStart({ name: name.trim(), kind, people, demand_kw: kw })}
-          className="w-full rounded bg-branch px-2 py-1.5 text-xs font-semibold text-onbranch disabled:bg-raised disabled:text-muted"
+          className="w-full rounded bg-branch px-2 py-1.5 text-sm font-semibold text-onbranch disabled:bg-raised disabled:text-muted"
         >
           Place on the Ann Arbor map
         </button>
       )}
-      {error && <p className="mt-2 text-[11px] leading-relaxed text-down">{error}</p>}
+      {error && <p className="mt-2 text-sm leading-relaxed text-down">{error}</p>}
       {impact && (
-        <div className="mt-2 rounded-md border border-line bg-ink p-2 text-[11px] leading-relaxed text-text/80">
+        <div className="mt-2 rounded-md border border-line bg-ink p-2 text-sm leading-relaxed text-text/80">
           <p className="font-semibold text-text">
             {impact.name}
             {live ? ` · ${live.status}` : ` · ${impact.status}`}
@@ -173,14 +173,14 @@ export function PlanBuilding({
         <ul className="mt-2 flex flex-col gap-1">
           {pins.map((pin) => (
             <li key={pin.id} className="flex items-center justify-between gap-2 rounded bg-ink px-2 py-1">
-              <span className="truncate text-[11px] text-text">
+              <span className="truncate text-sm text-text">
                 {pin.name}
                 <span className="text-muted"> · {pin.status}</span>
               </span>
               <button
                 type="button"
                 onClick={() => onRemove(pin.id)}
-                className="shrink-0 text-[10px] font-semibold text-muted hover:text-down"
+                className="shrink-0 text-sm font-semibold text-muted hover:text-down"
               >
                 Remove
               </button>

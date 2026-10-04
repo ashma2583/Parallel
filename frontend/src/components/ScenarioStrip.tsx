@@ -1,11 +1,19 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { fetchHazards, resetSim, type Hazard, type HazardList } from '../lib/api'
+import { disrupt, fetchHazards, resetSim, startHeatWave, type DisruptAction, type Hazard, type HazardList } from '../lib/api'
 import { FAULT_SPECS, type FaultSpec, type WeatherRequest } from '../lib/weather/types'
 import { FaultIcon, HazardIcon, StormIcon } from './weather/icons'
+
+interface Step {
+  nodeIds: string[]
+  action: DisruptAction
+  factor?: number
+}
 
 export interface Scenario {
   label: string
   detail: string
+  reason?: string
+  steps?: Step[]
 }
 
 /** What to ask the scenario dock for. */
@@ -33,6 +41,24 @@ interface Shortcut {
   hazard: Hazard
   ask: Ask
   short: string
+}
+
+export const HEAT_WAVE: Required<Scenario> = {
+  label: 'Heat wave, 95°F',
+  detail: 'Output falls for 4 hours, to 35% at the plant and 50% on the north feed',
+  reason: 'Heat wave derates campus generation',
+  steps: [],
+}
+
+
+export async function runScenario(scenario: Required<Scenario>) {
+  if (scenario.label === HEAT_WAVE.label) {
+    await startHeatWave()
+    return
+  }
+  for (const step of scenario.steps) {
+    await disrupt(step.nodeIds, step.action, scenario.reason, step.factor)
+  }
 }
 
 interface Props {
@@ -74,6 +100,7 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onR
     onResetting?.()
     try {
       await resetSim()
+      sessionStorage.removeItem('parallel-scenario')
       onReset()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

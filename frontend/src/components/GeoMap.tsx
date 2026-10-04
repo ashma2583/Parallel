@@ -94,6 +94,8 @@ interface Props {
   edges: readonly SimEdge[]
   selectedId?: string | null
   coolingIds?: readonly string[]
+  shelterKind?: 'cooling' | 'warming'
+  useRouteIds?: readonly string[]
   reroutes?: Briefing['buses']['reroute']
   survey?: LocationSurvey | null
   surveyGraph?: SurveyGraphModel | null
@@ -123,6 +125,8 @@ export function GeoMap({
   edges,
   selectedId,
   coolingIds = [],
+  shelterKind = 'warming',
+  useRouteIds = [],
   survey = null,
   surveyGraph = null,
   surveyDark,
@@ -159,6 +163,7 @@ export function GeoMap({
     return () => window.clearTimeout(timer)
   }, [restyling])
   const [focus, setFocus] = useState<string | null>(null)
+  const [mapOpacity, setMapOpacity] = useState(1)
 
   useEffect(() => {
     let stop = false
@@ -356,10 +361,11 @@ export function GeoMap({
           color: routeColor(feature.properties.id),
           dashed: closed,
           skipped: false,
+          ...(useRouteIds.length > 0 ? { useful: useRouteIds.includes(feature.properties.id) } : {}),
         },
       }
     })
-  }, [buses, recommended, showBuses, showRecommended, darkPlaces])
+  }, [buses, recommended, showBuses, showRecommended, darkPlaces, useRouteIds])
 
   const drawnBuses = useMemo(
     () =>
@@ -477,7 +483,7 @@ export function GeoMap({
         ...feature,
         properties: {
           ...feature.properties,
-          dim: focus && feature.properties?.id !== focus,
+          dim: (focus && feature.properties?.id !== focus) || feature.properties?.useful === false,
         },
       }))
     setGroundLines(map, 'sim-roads', ground(showRoads ? roads.features : []), {
@@ -509,7 +515,7 @@ export function GeoMap({
       ground(drawnBuses.filter((feature) => !feature.properties.skipped)),
       {
         'line-color': ['case', ['==', ['get', 'dim'], true], '#94a3b8', ['coalesce', ['get', 'color'], '#334155']],
-        'line-width': ['case', ['==', ['get', 'dim'], true], 1.5, 3],
+        'line-width': ['case', ['==', ['get', 'dim'], true], 1.5, ['==', ['get', 'useful'], true], 5, 3],
         'line-opacity': ['case', ['==', ['get', 'dim'], true], 0.35, 0.95],
       },
     )
@@ -527,13 +533,30 @@ export function GeoMap({
   }, [map, basemap, showRoads, showPower, roads, power, cutPower, shutRoads, drawnBuses, focus])
 
   return (
-    <div ref={rootRef} className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : storm.armed && !map ? 'cursor-progress' : ''}`}>
+    <div
+      ref={rootRef}
+      className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : storm.armed && !map ? 'cursor-progress' : ''}`}
+      style={{ ['--map-opacity' as string]: String(mapOpacity) }}
+    >
       <div ref={togglesRef} className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
         <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
         <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
         <Toggle label="3D view" checked={threeD} onChange={setThreeD} />
+        <label className="mt-1 flex items-center gap-2">
+          Map
+          <input
+            type="range"
+            min={0.15}
+            max={1}
+            step={0.05}
+            value={mapOpacity}
+            onChange={(event) => setMapOpacity(Number(event.target.value))}
+            className="w-16"
+          />
+        </label>
+        <p className="text-[10px] text-muted">pink = go here · orange = leave</p>
       </div>
       <Map
         mapStyle={threeD ? VECTOR_STYLE : MAP_STYLE}
@@ -553,6 +576,7 @@ export function GeoMap({
           if (!place || CITY.has(node.id)) return null
           const color = statusColor(node.status)
           const cooling = coolingIds.includes(node.id)
+          const flow = cooling && node.status !== 'Red' ? 'go' : node.status === 'Red' && node.type !== 'substation' ? 'leave' : undefined
           const selected = node.id === selectedId
           const named = selected || cooling || node.status !== 'Green'
           return (
@@ -565,23 +589,37 @@ export function GeoMap({
                 }}
                 className="group flex flex-col items-center"
                 style={armed ? { pointerEvents: 'none' } : undefined}
-                title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
+                title={`${node.name} · ${node.status}${flow === 'go' ? ' · go here' : flow === 'leave' ? ' · leave' : ''}`}
               >
+                {flow === 'go' && <span className="mb-0.5 text-xs font-bold tracking-wide text-[#e879f9]">GO · {shelterKind === 'cooling' ? 'COOL' : 'WARM'}</span>}
+                {flow === 'leave' && <span className="mb-0.5 text-xs font-bold tracking-wide text-[#fb923c]">LEAVE</span>}
                 <span
                   data-place-dot
-                  className={`h-3.5 w-3.5 rounded-full border-2 border-ink ${selected ? 'ring-1 ring-text' : ''}`}
-                  style={{ background: color, boxShadow: `0 0 12px ${color}` }}
+                  className={`rounded-full border-2 border-ink ${selected ? 'ring-1 ring-text' : ''}`}
+                  style={{
+                    height: flow === 'go' ? 16 : 14,
+                    width: flow === 'go' ? 16 : 14,
+                    background: color,
+                    boxShadow:
+                      flow === 'go'
+                        ? '0 0 0 4px #e879f9, 0 0 14px #e879f9'
+                        : flow === 'leave'
+                          ? '0 0 0 3px #fb923c'
+                          : `0 0 12px ${color}`,
+                  }}
                 />
                 {/* Central campus is dense: label only what needs attention, the rest on hover. */}
                 <span
                   data-place-name
                   data-place-label={named ? (selected ? 0 : node.status === 'Red' ? 1 : node.status === 'Amber' ? 2 : 3) : undefined}
-                  className={`mt-1 max-w-40 truncate rounded-sm bg-ink/90 px-1.5 py-0.5 text-[10px] font-medium text-text data-[off=true]:invisible group-hover:data-[off=true]:visible ${
-                    named ? '' : 'invisible group-hover:visible'
+                  className={`mt-1 max-w-40 truncate rounded-sm bg-ink/90 px-2 py-1 text-xs font-semibold text-text data-[off=true]:invisible group-hover:data-[off=true]:visible ${
+                    named || flow ? '' : 'invisible group-hover:visible'
                   }`}
                 >
                   {place.short}
-                  {cooling && <span className="ml-1 text-transit">cooling</span>}
+                  {flow === 'go' && (
+                    <span className="ml-1 text-[#e879f9]">{shelterKind === 'cooling' ? 'COOL' : 'WARM'}</span>
+                  )}
                 </span>
               </button>
             </Marker>
@@ -722,6 +760,8 @@ export function GeoMap({
                   {/* The status is the news, so the name gives way, not it. */}
                   {out === 'closed' ? (
                     <span className="-ml-0.5 shrink-0 text-down">· closed</span>
+                  ) : out !== 'suspended' && useRouteIds.length > 0 && route.useful ? (
+                    <span className="-ml-0.5 shrink-0">· use</span>
                   ) : out !== 'suspended' && route.dashed ? (
                     <span className="-ml-0.5 shrink-0">· reroute</span>
                   ) : null}
@@ -773,7 +813,7 @@ function LineOverlay({
   map: MaplibreMap | null
   features: {
     geometry: { coordinates: number[][] }
-    properties?: { id?: string; color?: string; dashed?: boolean }
+    properties?: { id?: string; color?: string; dashed?: boolean; useful?: boolean }
   }[]
   color?: string
   width: number
@@ -793,14 +833,16 @@ function LineOverlay({
           })
           if (points.length < 2) return []
           const id = feature.properties?.id
-          const selected = !focus || focus === id
+          const useful = feature.properties?.useful !== false
+          const guiding = features.some((item) => item.properties?.useful === false)
+          const selected = (!focus || focus === id) && (useful || focus === id)
           return [
             {
               d: `M ${points.join(' L ')}`,
               color: feature.properties?.color ?? color ?? '#e2e8f0',
               dash: feature.properties?.dashed ? '5 5' : dash,
               opacity: selected ? 1 : 0.15,
-              width: selected && focus === id ? width + 2 : width,
+              width: focus === id || (guiding && useful && selected) ? width + 2 : width,
             },
           ]
         }),

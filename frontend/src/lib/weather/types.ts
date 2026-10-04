@@ -390,7 +390,7 @@ export interface HazardSpec {
 }
 
 export const HAZARD_SPECS: Record<HazardKind, HazardSpec> = {
-  heat: { kind: 'heat', label: 'Extreme heat', hazardId: 'extreme_heat', blurb: 'The utility calls for cuts while cooling demand peaks. Both feeds run at 70%.', accent: '#fdba74' },
+  heat: { kind: 'heat', label: 'Extreme heat', hazardId: 'extreme_heat', blurb: 'Cooling demand peaks as the plant derates. Output falls over 4 hours, to 35% at the plant and 50% on North.', accent: '#fdba74' },
   cold: { kind: 'cold', label: 'Extreme cold', hazardId: 'extreme_cold', blurb: 'Gas is curtailed. The power plant runs at 60%.', accent: '#93c5fd' },
   wind: { kind: 'wind', label: 'High wind', hazardId: 'high_wind', blurb: 'Trees fall on the overhead feed into North Campus. It runs at 50%.', accent: '#cbd5e1' },
 }

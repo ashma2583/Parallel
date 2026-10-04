@@ -80,7 +80,8 @@ async def _sim_loop() -> None:
     while True:
         started = asyncio.get_running_loop().time()
         with runtime.lock:
-            runtime.run_cycle(graph, force=False)
+            if not runtime.paused:
+                runtime.run_cycle(graph, force=False)
         await publisher.publish(graph)
         elapsed = asyncio.get_running_loop().time() - started
         await asyncio.sleep(max(0.05, TICK_SECONDS - elapsed))
@@ -89,6 +90,7 @@ async def _sim_loop() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     runtime.bind(graph, asyncio.get_running_loop(), TICK_SECONDS)
+    runtime.remember(graph)
     await publisher.start()
     start_in_thread()
     task = asyncio.create_task(_sim_loop(), name="sim-loop")
@@ -141,6 +143,15 @@ class PriorityRequest(BaseModel):
     mode: Literal["balanced", "dorms", "academic"]
 
 
+class SeasonRequest(BaseModel):
+    season: Literal["summer", "fall", "winter", "spring"]
+
+
+class ClockRequest(BaseModel):
+    paused: bool | None = None
+    until: int | None = Field(None, ge=1, le=100_000)
+
+
 # The first briefing build named these modes. Each is one of the strategies.
 PRIORITY_STRATEGY = {"balanced": "tiered", "dorms": "residential", "academic": "academic"}
 
@@ -152,6 +163,20 @@ class HazardApplyRequest(BaseModel):
 
 class WeatherApplyRequest(BaseModel):
     id: str = Field(..., min_length=1, examples=["ice-storm-2023"])
+class VerdictPolicy(BaseModel):
+    id: str
+    label: str
+    people_dark: int = 0
+    people_in_shelter: int = 0
+    people_relocated: int = 0
+    shelter_kw: float = 0
+
+
+class VerdictRequest(BaseModel):
+    season: str = "fall"
+    shelter: Literal["cooling", "warming"] | None = None
+    winner: str
+    policies: list[VerdictPolicy]
 
 
 class CommandRequest(BaseModel):
@@ -176,6 +201,7 @@ def _state() -> dict:
     body = graph.to_dict()
     body["activity"] = list(runtime.activity)
     body["activity_ticks"] = list(runtime.activity_ticks)
+    body["scenarios"] = runtime.scenario_logs()
     body["strategy"] = runtime.strategy
     body["reset_count"] = graph.reset_count
     return body
@@ -235,7 +261,7 @@ def get_bus_routes() -> dict:
 @app.get("/briefing")
 def get_briefing() -> dict:
     with runtime.lock:
-        return briefing.build_briefing(graph, runtime.strategy)
+        return briefing.build_briefing(graph, runtime.strategy, runtime.season)
 
 
 @app.get("/proposals")
@@ -260,6 +286,7 @@ async def post_proposal(req: ProposalRequest) -> dict:
             )
         except proposal.ProposalError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        runtime.forget_after(graph.tick_count)
         feed = placed["feeder_label"]
         runtime.push([f"Planner: added {req.name.strip()} on the {feed if feed.endswith(' feed') else feed + ' feed'}"])
         runtime.run_cycle(graph, force=True)
@@ -273,6 +300,7 @@ async def delete_proposal(node_id: str) -> dict:
     with runtime.lock:
         if node_id not in graph.proposals:
             raise HTTPException(status_code=404, detail="No planned building with that id.")
+        runtime.forget_after(graph.tick_count)
         name = graph.nodes[node_id].name
         graph.remove_proposal(node_id)
         runtime.push([f"Planner: removed {name}"])
@@ -297,14 +325,35 @@ async def post_location(req: LocationRequest) -> dict:
 async def post_debrief() -> dict:
     """Ask Grok for an after-action read of the scenario the director just ran."""
     with runtime.lock:
-        report = briefing.build_briefing(graph, runtime.strategy)
+        report = briefing.build_briefing(graph, runtime.strategy, runtime.season)
         if not report["disrupted"]:
             raise HTTPException(status_code=400, detail="Run a scenario before asking for a summary.")
-        facts = briefing.debrief_facts(graph, runtime.strategy, runtime.snapshot()["lines"])
+        facts = briefing.debrief_facts(graph, runtime.strategy, runtime.snapshot()["lines"], runtime.season)
     try:
         return await voice.write_debrief(facts)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/plans")
+async def post_plans() -> dict:
+    """Five ranked response plans for the outage that is already on the grid."""
+    with runtime.lock:
+        report = briefing.build_briefing(graph, runtime.strategy, runtime.season)
+        if not report["disrupted"]:
+            raise HTTPException(status_code=400, detail="Run a scenario before asking for plans.")
+        facts = briefing.debrief_facts(graph, runtime.strategy, runtime.snapshot()["lines"], runtime.season)
+    try:
+        return await voice.write_plans(facts)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/season")
+async def post_season(req: SeasonRequest) -> dict:
+    with runtime.lock:
+        runtime.season = req.season
+        return briefing.build_briefing(graph, runtime.strategy, runtime.season)
 
 
 @app.post("/priority")
@@ -312,7 +361,35 @@ async def post_priority(req: PriorityRequest) -> dict:
     """Older name for /strategy. Returns the briefing for the new policy."""
     await post_strategy(StrategyRequest(strategy=PRIORITY_STRATEGY[req.mode]))
     with runtime.lock:
-        return briefing.build_briefing(graph, runtime.strategy)
+        return briefing.build_briefing(graph, runtime.strategy, runtime.season)
+
+
+@app.get("/clock")
+def get_clock() -> dict:
+    with runtime.lock:
+        return {"tick": graph.tick_count, "paused": runtime.paused}
+
+
+@app.post("/clock")
+async def post_clock(req: ClockRequest) -> dict:
+    """Pause the clock, or jump it to a saved tick. A jump pauses there."""
+    with runtime.lock:
+        if req.paused is not None:
+            runtime.paused = req.paused
+        if req.until is not None:
+            if req.until < 1:
+                raise HTTPException(status_code=400, detail="Tick starts at 1.")
+            if not runtime.recall(graph, req.until):
+                if req.until < graph.tick_count:
+                    raise HTTPException(status_code=400, detail="That tick is no longer saved.")
+                steps = 0
+                while graph.tick_count < req.until and steps < 240:
+                    runtime.run_cycle(graph, force=True)
+                    steps += 1
+            runtime.paused = True
+        body = {"tick": graph.tick_count, "paused": runtime.paused}
+    await publisher.publish(graph)
+    return body
 
 
 @app.get("/hazards")
@@ -334,7 +411,13 @@ async def post_hazard_apply(req: HazardApplyRequest) -> dict:
         raise HTTPException(status_code=400, detail=f"{picked['name']} has no assumed effect on the campus feeds.")
     with runtime.lock:
         storms.check_epoch(graph, req.reset_count)
-        for step in effect["steps"]:
+        runtime.forget_after(graph.tick_count)
+        runtime.begin_scenario(picked["name"])
+        # Extreme heat runs the four-hour ramp: plant output falls over later ticks.
+        steps = [] if req.id == "extreme_heat" else effect["steps"]
+        if req.id == "extreme_heat":
+            graph.start_heat_wave()
+        for step in steps:
             for nid in step["node_ids"]:
                 if nid not in graph.nodes:
                     continue
@@ -372,6 +455,8 @@ async def post_weather_apply(req: WeatherApplyRequest) -> dict:
     if not effect:
         raise HTTPException(status_code=400, detail=f"{alert['event']} has no assumed effect on the campus feeds.")
     with runtime.lock:
+        runtime.forget_after(graph.tick_count)
+        runtime.begin_scenario(alert["event"])
         for step in effect["steps"]:
             for nid in step["node_ids"]:
                 if nid not in graph.nodes:
@@ -407,6 +492,8 @@ async def post_disrupt(req: DisruptRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"Unknown node id(s): {unknown}")
     with runtime.lock:
         storms.check_epoch(graph, req.reset_count)
+        runtime.forget_after(graph.tick_count)
+        runtime.begin_scenario(req.reason or f"{req.action} {', '.join(req.node_ids)}")
         for nid in req.node_ids:
             if req.action == "fail":
                 graph.fail_node(nid)
@@ -425,11 +512,29 @@ async def post_disrupt(req: DisruptRequest) -> dict:
     return {"disruption": {"action": req.action, "node_ids": req.node_ids, "reason": req.reason}, **body}
 
 
+@app.post("/heat-wave")
+async def post_heat_wave() -> dict:
+    """Start a four-hour heat build. Each later tick lowers output one step."""
+    with runtime.lock:
+        runtime.paused = False
+        runtime.forget_after(graph.tick_count)
+        runtime.begin_scenario("Heat wave, 95°F")
+        graph.start_heat_wave()
+        runtime.push(["Director: heat wave, 95°F. Plant output falls over the next 4 hours."])
+        body = _state()
+        body["heat_wave"] = graph.heat_wave_view()
+    await publisher.publish(graph)
+    return body
+
+
 @app.post("/reset")
 async def post_reset() -> dict:
     with runtime.lock:
+        runtime.forget()
         graph.reset()
+        runtime.remember(graph)
         runtime.fresh_start()
+        runtime.begin_scenario("Campus reset")
         runtime.push(["Director: campus reset"])
         runtime.run_cycle(graph, force=True)
         body = _state()
@@ -446,13 +551,34 @@ def post_branch(req: BranchRequest) -> dict:
     if unknown:
         raise HTTPException(status_code=404, detail=f"Unknown strategy id(s): {unknown}")
     with runtime.lock:
-        branches = run_branches(graph, ids, req.ticks)
+        wave = graph.heat_wave
+        ticks = req.ticks
+        # A heat wave still in progress is compared at its peak, not six seconds in.
+        if wave and wave["step"] < wave["span"]:
+            ticks = max(req.ticks, wave["span"] - wave["step"])
+        cooling = runtime.season == "summer" or graph.heat_wave is not None
+        branches = run_branches(graph, ids, ticks, runtime.season, cooling=cooling)
         return {
             "base_tick": graph.tick_count,
-            "ticks": req.ticks,
+            "ticks": ticks,
             "active": runtime.strategy,
+            "season": runtime.season,
+            "shelter": "cooling" if cooling else "warming",
+            "through_peak": ticks > req.ticks,
             "branches": branches,
         }
+
+
+@app.post("/verdict")
+async def post_verdict(req: VerdictRequest) -> dict:
+    """One paragraph on the winning policy, using only the counts the branch run produced."""
+    facts = {
+        "season": req.season,
+        "shelter": req.shelter,
+        "winner": req.winner,
+        "policies": [p.model_dump() for p in req.policies],
+    }
+    return await voice.write_verdict(facts)
 
 
 @app.post("/strategy")
@@ -461,6 +587,7 @@ async def post_strategy(req: StrategyRequest) -> dict:
     if req.strategy not in STRATEGIES:
         raise HTTPException(status_code=404, detail=f"Unknown strategy id: {req.strategy}")
     with runtime.lock:
+        runtime.forget_after(graph.tick_count)
         runtime.strategy = req.strategy
         graph.send_home()
         runtime.push([f"Coordinator: adopted policy '{STRATEGIES[req.strategy]['label']}'"])
