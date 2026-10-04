@@ -63,6 +63,7 @@ import {
   faultEvent,
   HAZARD_MS,
   hazardEvent,
+  EMPTY_PLAN,
   loadPlan,
   nextStart,
   parseClock,
@@ -542,6 +543,19 @@ export function useWeather(o: WeatherOptions): WeatherController {
   const clear = useCallback(() => {
     confirmed.current.clear()
     setCuts(saveCuts(null))
+    unmarkLive(null)
+    // The drawn plan lives in localStorage. Leave it and a refresh redraws the storm.
+    planRef.current = EMPTY_PLAN
+    setPlan(EMPTY_PLAN)
+    setVersion((v) => v + 1)
+    selectedRef.current = null
+    setSelectedId(null)
+    setKind(null)
+    setCampus([])
+    setLanded([])
+    setLast(null)
+    setRunState('none')
+    setRanVersion(null)
     if (forget(null)) hint('Campus reset. The run stopped.')
   }, [forget, hint])
 

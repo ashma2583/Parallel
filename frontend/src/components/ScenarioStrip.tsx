@@ -103,6 +103,7 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onR
     try {
       await resetSim()
       sessionStorage.removeItem('parallel-scenario')
+      localStorage.removeItem('parallel-scenario')
       onReset()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -138,14 +139,6 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onR
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-down" />
             <span className="shrink-0 font-medium">{scenario?.label ?? 'Disrupted'}</span>
             {scenario?.detail && scenario.detail !== scenario.label && <span className="min-w-0 truncate text-muted" title={scenario.detail}>{scenario.detail}</span>}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void reset()}
-              className="shrink-0 rounded-full bg-ink px-2.5 py-[3px] text-[11px] text-muted transition hover:text-text disabled:opacity-50"
-            >
-              Reset
-            </button>
           </span>
           {previewName && (
             <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-branch bg-panel px-3 py-1.5 text-xs font-medium text-branch">
@@ -156,7 +149,15 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onR
         </>
       )}
       {error && <span className="shrink-0 text-xs text-down">{error}</span>}
-      {saver && <div className="ml-auto shrink-0">{saver}</div>}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void reset()}
+        className="ml-auto shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-text transition hover:border-down hover:text-down disabled:opacity-50"
+      >
+        Full reset
+      </button>
+      {saver && <div className="shrink-0">{saver}</div>}
     </div>
   )
 }
