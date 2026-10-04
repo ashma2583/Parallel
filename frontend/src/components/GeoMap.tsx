@@ -1327,18 +1327,74 @@ function lineMeters(coords: readonly [number, number][]) {
   return total
 }
 
-interface ProjectedRoute {
+/** Demo pace: buses run faster than real ones so movement reads on screen. */
+const BUS_SPEED_MPS = 55
+/** Most buses on screen at once; long lines get a second or third. */
+const MAX_BUSES = 36
+/** Heading is taken over this stretch, so corners turn smoothly instead of snapping. */
+const HEADING_SPAN_M = 18
+const DEG = Math.PI / 180
+
+interface MotionPath {
   route: MotionRoute
-  points: { x: number; y: number }[]
-  distances: number[]
+  coords: [number, number][]
+  /** Meters from the start to each vertex. */
+  along: number[]
   total: number
-  duration: number
-  phaseOffset: number
+  /** A closed line loops; an open one runs out and back. */
+  loop: boolean
+}
+
+interface MotionVehicle {
+  key: string
+  path: MotionPath
+  /** Meters into the run where this bus starts. */
+  offset: number
+}
+
+function motionPath(route: MotionRoute): MotionPath | null {
+  const coords = route.coordinates
+  const along = [0]
+  for (let i = 1; i < coords.length; i++) along.push(along[i - 1] + metersApart(coords[i], { lng: coords[i - 1][0], lat: coords[i - 1][1] }))
+  const total = along[along.length - 1]
+  if (!(total > 30)) return null
+  const loop = metersApart(coords[0], { lng: coords[coords.length - 1][0], lat: coords[coords.length - 1][1] }) < 60
+  return { route, coords, along, total, loop }
+}
+
+/** Point at `meters` along the line, clamped to its ends. */
+function pointAlong(path: MotionPath, meters: number): [number, number] {
+  const { along, coords } = path
+  const s = Math.min(path.total, Math.max(0, meters))
+  let lo = 1
+  let hi = along.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (along[mid] < s) lo = mid + 1
+    else hi = mid
+  }
+  const from = coords[lo - 1]
+  const to = coords[lo]
+  const span = along[lo] - along[lo - 1]
+  const t = span > 0 ? (s - along[lo - 1]) / span : 0
+  return [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t]
+}
+
+/** Compass heading (radians, clockwise from north) from one point to another. */
+function compassHeading(a: [number, number], b: [number, number]) {
+  return Math.atan2((b[0] - a[0]) * Math.cos(a[1] * DEG), b[1] - a[1])
+}
+
+function routeHash(id: string) {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  return hash
 }
 
 function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: readonly MotionRoute[] }) {
   const vehicleRefs = useRef(new globalThis.Map<string, SVGGElement>())
-  const elapsedRef = useRef(0)
+  // Survives route changes (a storm closing a stretch) so buses do not restart from zero.
+  const clockRef = useRef(0)
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   )
@@ -1350,126 +1406,152 @@ function TransitMotion({ map, routes }: { map: MaplibreMap | null; routes: reado
     return () => media.removeEventListener('change', update)
   }, [])
 
-  useEffect(() => {
-    if (!map || routes.length === 0) return
-
-    let frame = 0
-    let projected: ProjectedRoute[] = []
-    let startedAt: number | null = null
-    let playing = false
-    const vehicles = vehicleRefs.current
-    const animationTime = () =>
-      elapsedRef.current + (startedAt === null ? 0 : performance.now() - startedAt)
-    const projectRoutes = () => {
-      const width = map.getCanvas().clientWidth
-      const height = map.getCanvas().clientHeight
-      projected = routes.flatMap((route) => {
-        const phaseOffset = route.id.split('').reduce((hash, character) => hash + character.charCodeAt(0), 0) % 60_000
-        const points = route.coordinates.map((coordinate) => map.project(coordinate))
-        const distances = [0]
-        for (let i = 1; i < points.length; i++) {
-          distances.push(distances[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y))
-        }
-        const total = distances[distances.length - 1]
-        if (total <= 0) return []
-        const visible = points.some((point) => point.x >= -20 && point.x <= width + 20 && point.y >= -20 && point.y <= height + 20)
-        if (!visible) return []
-        const duration = (150_000 + (phaseOffset % 4) * 18_000) * Math.min(1, Math.max(0.12, route.share ?? 1))
-        return [{ route, points, distances, total, duration, phaseOffset }]
+  // Routes are already cut to their open stretches, so buses never cross a closure.
+  const vehicles = useMemo(() => {
+    const paths = routes.map(motionPath).filter((path): path is MotionPath => path !== null)
+    const wanted = paths.map((path) => Math.min(3, Math.max(1, Math.round(path.total / 3500))))
+    const counts = paths.map(() => 0)
+    const out: MotionVehicle[] = []
+    // Every line gets its first bus before any line gets a second.
+    for (let round = 0; round < 3 && out.length < MAX_BUSES; round++) {
+      paths.forEach((path, index) => {
+        if (counts[index] > round || wanted[index] <= round || out.length >= MAX_BUSES) return
+        counts[index] += 1
+        out.push({ key: `${path.route.id}~${round}`, path, offset: 0 })
       })
     }
+    for (const vehicle of out) {
+      const index = paths.indexOf(vehicle.path)
+      const cycle = vehicle.path.loop ? vehicle.path.total : vehicle.path.total * 2
+      const slot = Number(vehicle.key.split('~')[1])
+      vehicle.offset = ((routeHash(vehicle.path.route.id) % 1000) / 1000 + slot / wanted[index]) * cycle
+    }
+    return out
+  }, [routes])
 
-    const draw = (time: number) => {
-      for (let index = 0; index < projected.length; index++) {
-        const path = projected[index]
-        const phase = ((time + path.phaseOffset) % (path.duration * 2)) / path.duration
-        const fraction = phase <= 1 ? phase : 2 - phase
-        const target = fraction * path.total
-        let segment = path.distances.findIndex((value) => value >= target)
-        if (segment <= 0) segment = 1
-        const segmentStart = path.distances[segment - 1]
-        const segmentLength = path.distances[segment] - segmentStart
-        const progress = segmentLength > 0 ? (target - segmentStart) / segmentLength : 0
-        const from = path.points[segment - 1]
-        const to = path.points[segment]
-        const x = from.x + (to.x - from.x) * progress
-        const y = from.y + (to.y - from.y) * progress
-        const heading = Math.atan2((phase <= 1 ? to.y : from.y) - y, (phase <= 1 ? to.x : from.x) - x) * (180 / Math.PI)
-        const vehicle = vehicles.get(path.route.id)
-        if (vehicle) {
-          vehicle.style.visibility = 'visible'
-          vehicle.setAttribute('transform', `translate(${x} ${y}) rotate(${heading})`)
+  useEffect(() => {
+    if (!map || vehicles.length === 0) return
+    const elements = vehicleRefs.current
+    // Smoothed compass heading per bus, so the turn at the end of a line is a quick U-turn, not a flip.
+    const headings = new globalThis.Map<string, number>()
+    let last = performance.now()
+    let frame = 0
+
+    const advance = () => {
+      const now = performance.now()
+      // Capped step: a hidden tab or a slow frame resumes where it left off instead of jumping.
+      const step = Math.min(250, Math.max(0, now - last))
+      last = now
+      if (!reducedMotion) clockRef.current += step
+      return step
+    }
+
+    const draw = (step: number) => {
+      const canvas = map.getCanvas()
+      const width = canvas.clientWidth
+      const height = canvas.clientHeight
+      if (width === 0 || height === 0) return
+      const zoom = map.getZoom()
+      const seconds = (reducedMotion ? 0 : clockRef.current) / 1000
+      for (const vehicle of vehicles) {
+        const element = elements.get(vehicle.key)
+        if (!element) continue
+        const { path } = vehicle
+        const cycle = path.loop ? path.total : path.total * 2
+        let run = (vehicle.offset + seconds * BUS_SPEED_MPS) % cycle
+        let backward = false
+        if (!path.loop && run > path.total) {
+          run = cycle - run
+          backward = true
         }
-      }
-      const visibleIds = new Set(projected.map((path) => path.route.id))
-      for (const [id, vehicle] of vehicles) {
-        if (!visibleIds.has(id)) vehicle.style.visibility = 'hidden'
+        const position = pointAlong(path, run)
+        const screen = map.project(position)
+        if (screen.x < -40 || screen.x > width + 40 || screen.y < -40 || screen.y > height + 40) {
+          element.style.visibility = 'hidden'
+          headings.delete(vehicle.key)
+          continue
+        }
+        const behind = pointAlong(path, run - HEADING_SPAN_M)
+        const ahead = pointAlong(path, run + HEADING_SPAN_M)
+        let target = compassHeading(behind, ahead)
+        if (backward) target += Math.PI
+        const previous = headings.get(vehicle.key)
+        let heading = target
+        if (previous !== undefined) {
+          // A redraw in the same millisecond (map render right after our frame) has step 0 and keeps the heading.
+          const turn = Math.atan2(Math.sin(target - previous), Math.cos(target - previous))
+          heading = previous + turn * (1 - Math.exp(-step / 140))
+        }
+        headings.set(vehicle.key, heading)
+        // Project a point a few meters ahead so bearing and pitch tilt the heading exactly as the map does.
+        const lookMeters = 8
+        const tip = map.project([
+          position[0] + (Math.sin(heading) * lookMeters) / (111_320 * Math.cos(position[1] * DEG)),
+          position[1] + (Math.cos(heading) * lookMeters) / 110_540,
+        ])
+        const angle = Math.atan2(tip.y - screen.y, tip.x - screen.x) / DEG
+        // A little bigger as you zoom in, never too small to read.
+        const scale = Math.min(1.25, Math.max(0.8, 0.8 + (zoom - 13) * 0.12))
+        element.style.visibility = 'visible'
+        element.setAttribute('transform', `translate(${screen.x.toFixed(1)} ${screen.y.toFixed(1)}) rotate(${angle.toFixed(1)}) scale(${scale.toFixed(2)})`)
       }
     }
 
-    const pause = () => {
-      if (startedAt !== null) {
-        elapsedRef.current += performance.now() - startedAt
-        startedAt = null
-      }
-      playing = false
-      if (frame) cancelAnimationFrame(frame)
-      frame = 0
-    }
     const tick = () => {
-      draw(reducedMotion ? 12_000 : animationTime())
-      if (playing && !reducedMotion) frame = requestAnimationFrame(tick)
+      draw(advance())
+      frame = requestAnimationFrame(tick)
     }
-    const resume = () => {
-      if (playing) return
-      projectRoutes()
-      if (startedAt === null) startedAt = performance.now()
-      playing = true
-      draw(reducedMotion ? 12_000 : animationTime())
-      if (!reducedMotion) frame = requestAnimationFrame(tick)
-    }
-    const redrawAfterMapRender = () => {
-      projectRoutes()
-      draw(reducedMotion ? 12_000 : animationTime())
-    }
+    // The map repaints after our frame while it moves; redraw then so buses stay glued to the roads.
+    const onRender = () => draw(advance())
 
-    resume()
-    map.on('movestart', pause)
-    map.on('moveend', resume)
-    map.on('render', redrawAfterMapRender)
+    draw(0)
+    if (!reducedMotion) frame = requestAnimationFrame(tick)
+    map.on('render', onRender)
     return () => {
-      pause()
-      for (const vehicle of vehicles.values()) vehicle.style.visibility = 'hidden'
-      elapsedRef.current = animationTime()
-      startedAt = null
-      map.off('render', redrawAfterMapRender)
-      map.off('movestart', pause)
-      map.off('moveend', resume)
+      cancelAnimationFrame(frame)
+      map.off('render', onRender)
+      for (const element of elements.values()) element.style.visibility = 'hidden'
     }
-  }, [map, routes, reducedMotion])
+  }, [map, vehicles, reducedMotion])
 
-  if (!map || routes.length === 0) return null
+  if (!map || vehicles.length === 0) return null
   return (
     <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[2] h-full w-full overflow-hidden">
-      {routes.map((route) => (
+      {vehicles.map((vehicle) => (
         <g
-          key={route.id}
+          key={vehicle.key}
+          data-vehicle={vehicle.key}
           ref={(element) => {
-            if (element) vehicleRefs.current.set(route.id, element)
-            else vehicleRefs.current.delete(route.id)
+            if (element) vehicleRefs.current.set(vehicle.key, element)
+            else vehicleRefs.current.delete(vehicle.key)
           }}
           style={{ visibility: 'hidden' }}
-          aria-label={`${route.name} illustrative vehicle`}
+          aria-label={`${vehicle.path.route.name} illustrative vehicle`}
         >
-          <title>{`${route.name} · illustrative movement, not live tracking`}</title>
-          <circle r="10" fill="#0b1424" stroke={route.color} strokeWidth="2" />
-          <rect x="-6.5" y="-4" width="13" height="8" rx="2" fill={route.color} />
-          <path d="M -3 -2.5 h2.5 v2.5 h-2.5 z M 1 -2.5 h2.5 v2.5 h-2.5 z" fill="#0b1424" />
-          <circle cx="-3.5" cy="4" r="1" fill="#e6edf7" />
-          <circle cx="3.5" cy="4" r="1" fill="#e6edf7" />
+          <title>{`${vehicle.path.route.name} · illustrative movement, not live tracking`}</title>
+          <BusGlyph color={vehicle.path.route.color} />
         </g>
       ))}
     </svg>
+  )
+}
+
+/** Top-down bus, nose pointing +x. Seen from above it has no upside down, so it can turn to any heading. */
+function BusGlyph({ color }: { color: string }) {
+  return (
+    <>
+      {/* Dark halo keeps it readable on the light map, the white edge on the dark one. */}
+      <rect x="-13" y="-6" width="26" height="12" rx="3.5" fill="rgba(2,6,23,0.45)" />
+      <rect x="-12" y="-5" width="24" height="10" rx="3" fill={color} stroke="#f8fafc" strokeWidth="1.3" />
+      {/* Side mirrors at the front corners. */}
+      <path d="M 8.5 -5 l 1.6 -2 M 8.5 5 l 1.6 2" stroke="#f8fafc" strokeWidth="1.3" strokeLinecap="round" />
+      {/* Windshield at the nose, small rear window at the tail. */}
+      <rect x="6.6" y="-3.6" width="3.8" height="7.2" rx="1.2" fill="#0b1424" />
+      <rect x="-10.8" y="-2.8" width="1.6" height="5.6" rx="0.6" fill="#0b1424" fillOpacity="0.7" />
+      {/* Roof hatches. */}
+      <rect x="-6.5" y="-2" width="3.5" height="4" rx="0.6" fill="#f8fafc" fillOpacity="0.45" />
+      <rect x="-0.5" y="-2" width="3.5" height="4" rx="0.6" fill="#f8fafc" fillOpacity="0.45" />
+    </>
   )
 }
 
