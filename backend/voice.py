@@ -23,6 +23,8 @@ import logging
 import os
 from typing import Any
 
+import re
+
 import httpx
 
 import llm
@@ -78,6 +80,29 @@ async def transcribe(audio: bytes, filename: str, content_type: str) -> str:
     if not text:
         raise RuntimeError("transcription was empty")
     return text
+
+
+# Typed or spoken hazards, first match wins. The heat wave keeps its own order (is_heat_wave_order).
+_HAZARD_ORDERS: list[tuple[str, tuple[str, ...]]] = [
+    ("tornado", ("tornado", "twister", "funnel cloud")),
+    ("ice_storm", ("ice storm", "freezing rain", "ice")),
+    ("heavy_snow", ("heavy snow", "snowstorm", "blizzard", "snow")),
+    ("thunderstorm_wind", ("thunderstorm", "thunder storm", "derecho", "severe storm", "storm")),
+    ("extreme_cold", ("extreme cold", "cold snap", "polar vortex", "cold")),
+    ("high_wind", ("high wind", "windstorm", "wind")),
+]
+_NOT_A_HAZARD = ("restore", "reset", "bring back", "repair", "fix ")
+
+
+def hazard_order(text: str) -> str | None:
+    """The hazard an order names, e.g. "an ice storm hit North Campus" -> "ice_storm". None for grid orders."""
+    t = " " + text.lower().replace("\u2019", "'") + " "
+    if any(word in t for word in _NOT_A_HAZARD):
+        return None
+    for hazard_id, words in _HAZARD_ORDERS:
+        if any(re.search(rf"(?<![a-z]){re.escape(w)}(?![a-z])", t) for w in words):
+            return hazard_id
+    return None
 
 
 def is_heat_wave_order(text: str) -> bool:

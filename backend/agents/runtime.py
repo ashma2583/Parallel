@@ -204,6 +204,9 @@ def apply_order(sim: CampusGraph, policy: dict) -> list[str]:
     """
     global paused
     notes = apply_policy(sim, policy)
+    if policy.get("action") == "fail":
+        # A failure starts the clock, as one picked in the console does.
+        paused = False
     if policy.get("action") == "reset":
         fresh_start()
         forget()

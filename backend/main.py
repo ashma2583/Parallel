@@ -769,11 +769,30 @@ async def post_strategy(req: StrategyRequest) -> dict:
 @app.post("/command")
 async def post_command(req: CommandRequest) -> dict:
     """Parse a typed order and hand it to the coordinator. Used by the mic flow too."""
-    policy = await voice.parse_policy(graph, req.text.strip())
+    text = req.text.strip()
+    hazard_id = voice.hazard_order(text)
+    if hazard_id:
+        return await _order_hazard(text, hazard_id)
+    policy = await voice.parse_policy(graph, text)
     notes = await _settle_policy(policy)
     with runtime.lock:
         body = _state()
-    return {"transcript": req.text.strip(), "policy": policy, "notes": notes, **body}
+    return {"transcript": text, "policy": policy, "notes": notes, **body}
+
+
+async def _order_hazard(transcript: str, hazard_id: str) -> dict:
+    """A typed or spoken hazard ("an ice storm hit North Campus") runs like the strip's hazard pill."""
+    body = await post_hazard_apply(HazardApplyRequest(id=hazard_id))
+    picked = body.pop("hazard")
+    policy = {
+        "action": "hazard",
+        "hazard": hazard_id,
+        "node_ids": [],
+        "reason": transcript,
+        "summary": f"{picked['name']} scenario",
+        "parser": "keyword",
+    }
+    return {"transcript": transcript, "policy": policy, "notes": [f"Director: {picked['name']} scenario"], **body}
 
 
 @app.post("/voice")
@@ -788,6 +807,9 @@ async def post_voice(file: UploadFile) -> dict:
         transcript = await voice.transcribe(audio, file.filename or "speech.webm", file.content_type or "audio/webm")
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    hazard_id = voice.hazard_order(transcript)
+    if hazard_id:
+        return await _order_hazard(transcript, hazard_id)
     policy = await voice.parse_policy(graph, transcript)
     notes = await _settle_policy(policy)
     with runtime.lock:
