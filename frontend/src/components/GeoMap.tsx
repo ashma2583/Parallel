@@ -69,8 +69,6 @@ interface Props {
   coolingIds?: readonly string[]
   shelterKind?: 'cooling' | 'warming'
   useRouteIds?: readonly string[]
-  /** 3D and the rest of the map tools stay off the opening path. */
-  showExtras?: boolean
   reroutes?: Briefing['buses']['reroute']
   survey?: LocationSurvey | null
   surveyGraph?: SurveyGraphModel | null
@@ -90,7 +88,6 @@ export function GeoMap({
   coolingIds = [],
   shelterKind = 'warming',
   useRouteIds = [],
-  showExtras = false,
   survey = null,
   surveyGraph = null,
   surveyDark,
@@ -289,7 +286,7 @@ export function GeoMap({
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
         <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
-        {showExtras && <Toggle label="3D view" checked={threeD} onChange={setThreeD} />}
+        <Toggle label="3D view" checked={threeD} onChange={setThreeD} />
         <label className="mt-1 flex items-center gap-2">
           Map
           <input

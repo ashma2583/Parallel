@@ -28,7 +28,7 @@ STT_URL = "https://api.x.ai/v1/stt"
 STT_MODEL = "grok-voice-transcribe-2.0"
 CHAT_URL = "https://api.x.ai/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-_ACTIONS = {"fail", "restore", "reset", "none"}
+_ACTIONS = {"fail", "restore", "reset", "heat_wave", "none"}
 
 
 def gemini_configured() -> bool:
@@ -74,8 +74,22 @@ async def transcribe(audio: bytes, filename: str, content_type: str) -> str:
     return text
 
 
+def is_heat_wave_order(text: str) -> bool:
+    """Spoken or typed ask to run the four-hour heat build, not to fail a building."""
+    t = text.lower()
+    return any(phrase in t for phrase in ("heat wave", "heatwave", "heat-wave", "simulate the heat", "start a heat"))
+
+
 async def parse_policy(graph: CampusGraph, text: str) -> dict[str, Any]:
     """Model when a key is set, otherwise the keyword parser. Model errors fall back too."""
+    if is_heat_wave_order(text):
+        return {
+            "action": "heat_wave",
+            "node_ids": [],
+            "reason": text.strip(),
+            "summary": "Start a four-hour heat wave",
+            "parser": "keyword",
+        }
     which = policy_parser()
     if which == "keyword":
         policy = keyword_policy(text)
@@ -106,9 +120,10 @@ def _prompt(graph: CampusGraph, text: str) -> str:
         "Reply with JSON only, no markdown.\n"
         "Use only node ids from this list:\n"
         f"{catalog}\n\n"
-        "action is one of: fail, restore, reset, none.\n"
+        "action is one of: fail, restore, reset, heat_wave, none.\n"
         "fail takes nodes offline. restore brings specific nodes back. "
-        "reset clears every failure. none when the utterance is not a grid order.\n"
+        "reset clears every failure. heat_wave starts the four-hour heat build and leaves node_ids empty. "
+        "none when the utterance is not a grid order.\n"
         "A campus-wide grid collapse means node_ids [cpp, uh, north_switch]. "
         "City Hall, Blake Transit Center, and Fire Station 1 stay up unless named.\n"
         'Shape: {"summary": str, "action": str, "node_ids": [str], "reason": str}\n\n'
@@ -141,7 +156,7 @@ async def _gemini(graph: CampusGraph, text: str, key: str) -> dict[str, Any]:
         "type": "OBJECT",
         "properties": {
             "summary": {"type": "STRING"},
-            "action": {"type": "STRING", "enum": ["fail", "restore", "reset", "none"]},
+            "action": {"type": "STRING", "enum": ["fail", "restore", "reset", "heat_wave", "none"]},
             "node_ids": {"type": "ARRAY", "items": {"type": "STRING"}},
             "reason": {"type": "STRING"},
         },

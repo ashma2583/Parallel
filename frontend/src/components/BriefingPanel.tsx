@@ -23,7 +23,7 @@ function Question({ title, children }: { title: string; children: React.ReactNod
 }
 
 /** The outage in plain language, plus ranked plans the desk can try. */
-export function BriefingPanel({ briefing, extras = false, onChanged }: { briefing: Briefing | null; extras?: boolean; onChanged?: () => void }) {
+export function BriefingPanel({ briefing, onChanged }: { briefing: Briefing | null; onChanged?: () => void }) {
   const [debrief, setDebrief] = useState<Debrief | null>(null)
   const [plans, setPlans] = useState<ResponsePlan[]>([])
   const [busy, setBusy] = useState<'summary' | 'plans' | null>(null)
@@ -150,7 +150,7 @@ export function BriefingPanel({ briefing, extras = false, onChanged }: { briefin
         ))}
       </Question>
 
-      {extras && <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         <button
           type="button"
           disabled={!disrupted || busy !== null}
@@ -169,9 +169,9 @@ export function BriefingPanel({ briefing, extras = false, onChanged }: { briefin
         </button>
         {!disrupted && <p className="text-sm text-muted">Run a scenario, then ask for plans or a summary.</p>}
         {error && <p className="text-down">{error}</p>}
-      </div>}
+      </div>
 
-      {extras && plans.length > 0 && disrupted && (
+      {plans.length > 0 && disrupted && (
         <div className="flex flex-col gap-3 border-t border-line pt-3">
           {plans.map((plan) => (
             <article key={plan.rank} className="rounded-md border border-line p-2.5">

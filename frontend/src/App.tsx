@@ -49,7 +49,6 @@ export default function App() {
   const [branching, setBranching] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
   const [scenario, setScenario] = useState<Scenario | null>(null)
-  const [extras, setExtras] = useState(false)
   const [demo] = useState(() => new URLSearchParams(window.location.search).get('demo') === 'heat-wave')
 
   // A researched place, shown in place of the campus until it is cleared.
@@ -140,7 +139,7 @@ export default function App() {
 
   return (
     <div className="grid h-full min-h-[640px] grid-cols-[minmax(0,1fr)] grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-ink text-text">
-      <TopBar sim={sim} nodes={nodes} step={step} onStep={onStep} view={view} onView={setView} extras={extras} onExtras={setExtras} />
+      <TopBar sim={sim} nodes={nodes} step={step} onStep={onStep} view={view} onView={setView} />
 
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_340px] min-[1100px]:grid-cols-[minmax(0,1fr)_400px]">
         <main className="relative flex min-w-0 flex-col">
@@ -170,7 +169,6 @@ export default function App() {
                 coolingIds={coolingIds}
                 shelterKind={shelterKind}
                 useRouteIds={useRouteIds}
-                showExtras={extras}
                 reroutes={sim.briefing?.buses.reroute ?? []}
                 survey={survey}
                 surveyGraph={surveyModel}
@@ -245,11 +243,11 @@ export default function App() {
             <LivePanel
               sim={sim}
               disrupted={disrupted}
-              extras={extras}
               demo={demo}
               onBranch={() => setBranching(true)}
               onCommand={(result) => {
                 if (result.policy.action === 'reset') setScenario(null)
+                else if (result.policy.action === 'heat_wave') setScenario(HEAT_WAVE)
                 else if (result.policy.action === 'fail' && !scenario) setScenario({ label: 'Director’s order', detail: result.transcript })
                 sim.refresh()
               }}

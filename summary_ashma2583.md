@@ -13,8 +13,9 @@ The home page does not auto-start an outage.
 
 - **Run a scenario** goes to `/app`. The campus is whatever the engine is doing. Pause, the tick, and Go stay in the header.
 - **Heat wave demo** goes to `/app?demo=heat-wave`. That calls `POST /heat-wave`, resets first if the campus is already disrupted, and leaves the live side panel open.
+- Saying or typing “can you simulate a heat wave” does the same ramp. `parse_policy` matches `heat wave` / `heatwave` / `heat-wave` before the model runs and returns `action: "heat_wave"`. `apply_policy` then calls `start_heat_wave`, unpauses, and starts a `Heat wave, 95°F` scenario log. The console sets the heat-wave banner from that action.
 
-Files: `frontend/index.html`, `frontend/src/landing/landing.css`, `frontend/src/App.tsx`, `frontend/src/components/ScenarioStrip.tsx` (`HEAT_WAVE`, `runScenario`).
+Files: `frontend/index.html`, `frontend/src/landing/landing.css`, `frontend/src/App.tsx`, `frontend/src/components/ScenarioStrip.tsx` (`HEAT_WAVE`, `runScenario`), `backend/voice.py`, `backend/agents/logic.py`.
 
 ## 2. The heat wave builds over four hours
 
@@ -75,17 +76,19 @@ Files: `frontend/src/components/Schematic.tsx`, `frontend/src/components/GeoMap.
 `8c9054c` put the earlier sustainability desk onto the new console. Keep these if a partner’s branch was cut before that merge:
 
 - Seasons and warming vs cooling shelters when there is **no** heat wave.
-- Five written response plans and “Try this allocation”, behind **More** in the header. They adopt `tiered | residential | academic | people | even`.
-- U-M building planner: pin, move, confirm, per-building remove. Other-campus research with a role graph. Both live on the Plan tab, also behind **More**.
+- Five written response plans and “Try this allocation” on the Briefing tab. They adopt `tiered | residential | academic | people | even`. Summarize this scenario is on that same tab.
+- U-M building planner: pin, move, confirm, per-building remove. Other-campus research with a role graph. Both live on the Plan tab.
+- Voice and typed director’s orders sit at the bottom of the live side panel. Hold the mic, or type and Send. A heat-wave phrase starts the ramp; other orders still fail, restore, or reset nodes.
 - Tick history: Pause, type a tick, Go. Forward and back. A jump pauses.
 - Map opacity slider, U-M-only bus lines, stable legend, red dashed gap where a served stop is dark, “use” on lines that still have a lit stop.
-- 3D buildings on the Ann Arbor map, behind **More**.
+- 3D buildings on the Ann Arbor map, toggled in the map’s layer list.
 
-**More** still hides the plan tab, the voice box, the 3D toggle, and the five written plans. The clock is always visible.
+There is no **More** button. Voice, Plan, the five written plans, the summary, and 3D are visible without an extra click.
 
 ## Merge notes
 
-- Treat an instant `derate` of `cpp` to 0.35 as the old heat wave. The button and the demo must call `/heat-wave`.
+- Treat an instant `derate` of `cpp` to 0.35 as the old heat wave. The button, the demo, and a spoken “heat wave” must call `start_heat_wave`, not a one-shot derate.
+- Do not hide voice, Plan, the five written plans, or 3D behind a More toggle.
 - Do not key cooling centers only on `season == "summer"` while a heat wave is armed.
 - Do not put the agent log back on a 12-line deque.
 - Branch rows are scored by people in a shelter, not by essential-demand percent alone.

@@ -64,6 +64,7 @@ function Feed({ scenarios }: { scenarios: readonly ScenarioFeed[] }) {
 
 function describe({ policy }: CommandResult) {
   if (policy.action === 'reset') return 'reset campus'
+  if (policy.action === 'heat_wave') return 'heat wave'
   if (policy.action === 'none' || policy.node_ids.length === 0) return 'no action'
   return `${policy.action} ${policy.node_ids.join(', ')}`
 }
@@ -180,7 +181,6 @@ const TABS = [
 interface Props {
   sim: Sim
   disrupted: boolean
-  extras: boolean
   /** Heat-wave demo: point at the briefing, the feed, and the policy comparison. */
   demo?: boolean
   onBranch: () => void
@@ -190,10 +190,9 @@ interface Props {
 }
 
 /** Right panel while watching the live campus: current policy, feed and briefing, director's order. */
-export function LivePanel({ sim, disrupted, extras, demo = false, onBranch, onCommand, plan }: Props) {
+export function LivePanel({ sim, disrupted, demo = false, onBranch, onCommand, plan }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('briefing')
   const [cue, setCue] = useState(demo)
-  const tabs = extras ? TABS : TABS.filter((t) => t.id !== 'plan')
   const policy = strategyFor(sim.strategy)
 
   return (
@@ -233,7 +232,7 @@ export function LivePanel({ sim, disrupted, extras, demo = false, onBranch, onCo
 
       <div className="flex min-h-0 flex-1 flex-col px-4 pt-3.5">
         <div className="mb-3 flex gap-4 border-b border-line">
-          {tabs.map((t) => (
+          {TABS.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -248,13 +247,13 @@ export function LivePanel({ sim, disrupted, extras, demo = false, onBranch, onCo
         </div>
         <div className="-mr-1.5 min-h-0 flex-1 overflow-y-auto pb-3 pr-1.5">
           {tab === 'feed' && <Feed scenarios={sim.scenarios} />}
-          {tab === 'briefing' && <BriefingPanel briefing={sim.briefing} extras={extras} onChanged={sim.refresh} />}
+          {tab === 'briefing' && <BriefingPanel briefing={sim.briefing} onChanged={sim.refresh} />}
           {/* Kept mounted so a half-filled form or a research result survives a tab switch. */}
           <div hidden={tab !== 'plan'} className="flex flex-col gap-6">{plan}</div>
         </div>
       </div>
 
-      {extras && <CommandBox onDone={onCommand} />}
+      <CommandBox onDone={onCommand} />
     </>
   )
 }
