@@ -684,7 +684,7 @@ async def post_reset() -> dict:
             savings.start(graph, kept["policy"], kept["weekday"], kept["minute"])
         runtime.remember(graph)
         runtime.fresh_start()
-        runtime.begin_scenario("Campus reset")
+        runtime.clear_scenarios()
         runtime.push(["Director: campus reset"])
         graph.set_clock(CLOCK_START_MINUTES)
         runtime.run_cycle(graph, force=True)

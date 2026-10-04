@@ -51,9 +51,8 @@ function HeatWaveBanner({ wave }: { wave: Briefing['heat_wave'] }) {
       ? `Heat has been building for ${formatMinutes(wave.minutes)} of ${formatMinutes(wave.total_minutes)}. Central plant at ${plant}%, still falling toward 35%. You can keep the dorms or the classrooms. The hospital stays on.`
       : 'Central plant at 35%. You can keep the dorms or the classrooms. The hospital stays on.'
   return (
-    <div className="border-b border-line bg-ink px-4 py-2.5">
-      <p className="text-base font-medium">{line}</p>
-      <p className="mt-1 text-sm text-muted">The three intakes, these buildings, and the U-M bus lines are real. The kilowatts are a scaled model. One tick is 4 minutes of the afternoon.</p>
+    <div className="pointer-events-none absolute inset-x-3 top-3 z-20 rounded-md border border-line bg-panel/95 px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+      <p className="text-sm font-medium leading-snug">{line}</p>
     </div>
   )
 }
@@ -309,11 +308,11 @@ export default function App() {
   }, [])
 
   return (
-    <div className="grid h-full min-h-[640px] grid-cols-[minmax(0,1fr)] grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-ink text-text">
+    <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)] grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-ink text-text">
       <TopBar sim={sim} nodes={nodes} view={view} onView={setView} clock={clock} />
 
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_340px] min-[1100px]:grid-cols-[minmax(0,1fr)_400px]">
-        <main className="relative flex min-w-0 flex-col">
+        <main className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
           <ScenarioStrip
             disrupted={disrupted}
             scenario={mapWeather.running ? RUNNING : scenario ? shownLabel(scenario, darkCount, weather) : weatherNote(weather, darkCount)}
@@ -336,11 +335,11 @@ export default function App() {
             }
           />
 
-          {(sim.briefing?.heat_wave || (demo && !demoReady)) && (
-            <HeatWaveBanner wave={demoReady ? sim.briefing?.heat_wave ?? null : null} />
-          )}
-
           <div className="relative min-h-0 flex-1 overflow-hidden">
+            {(sim.briefing?.heat_wave || (demo && !demoReady)) && (
+              <HeatWaveBanner wave={demoReady ? sim.briefing?.heat_wave ?? null : null} />
+            )}
+
             {mapSeen && (
               // Opacity as well: MapLibre's attribution sets its own visibility.
               <div className={`absolute inset-0 ${view === 'map' ? '' : 'invisible opacity-0'}`} inert={view !== 'map'}>
@@ -466,7 +465,7 @@ export default function App() {
           </div>
         </main>
 
-        <aside className={`flex min-h-0 flex-col border-l border-line bg-panel ${demo ? 'demo-rail' : ''}`}>
+        <aside className={`flex min-h-0 flex-col overflow-hidden border-l border-line bg-panel ${demo ? 'demo-rail' : ''}`}>
           {branching ? (
             <BranchPanel
               demo={demo}

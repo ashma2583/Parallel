@@ -127,7 +127,7 @@ function CommandBox({ onDone }: { onDone: (result: CommandResult) => void }) {
   const utterance = text.trim()
 
   return (
-    <div className="border-t border-line px-4 pb-4 pt-3">
+    <div className="shrink-0 border-t border-line px-4 pb-4 pt-3">
       <div className={`flex items-center gap-1 rounded-md border bg-ink p-1 ${recording ? 'border-down' : 'border-line focus-within:border-branch'}`}>
         <button
           type="button"
@@ -153,7 +153,7 @@ function CommandBox({ onDone }: { onDone: (result: CommandResult) => void }) {
           }}
           disabled={busy}
           placeholder={recording ? 'Listening… release to send' : busy ? 'Working…' : 'Director’s order: the power plant just failed'}
-          className="min-w-0 flex-1 bg-transparent px-1.5 text-base outline-none placeholder:text-muted/70"
+          className="min-w-0 flex-1 bg-transparent px-1.5 text-[16px] outline-none placeholder:text-muted/70"
         />
         <button
           type="button"
