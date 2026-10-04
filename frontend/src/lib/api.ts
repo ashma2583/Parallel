@@ -5,6 +5,7 @@
  */
 import { BACKEND_URL } from '../config'
 import { fromApiNode, type ApiNode, type SimNode } from './sim'
+import { reducerLive, sendDefault } from './actions'
 
 export type DisruptAction = 'fail' | 'restore' | 'derate'
 
@@ -25,16 +26,28 @@ export function startHeatWave() {
   return post('/heat-wave')
 }
 
+/**
+ * Disrupt, reset and adopt go through the shared action queue when SpacetimeDB is
+ * live and the engine is consuming it (every director sees the result). Otherwise
+ * they are the plain REST calls, exactly as before.
+ */
+async function act(kind: string, path: string, body?: Record<string, unknown>): Promise<unknown> {
+  if (!reducerLive()) return post(path, body)
+  const res = await sendDefault(kind, body ?? {})
+  if (!res.ok) throw new Error(`${path} -> ${res.restStatus ?? 'failed'} ${res.error ?? ''}`.trim())
+  return res
+}
+
 export function disrupt(nodeIds: string[], action: DisruptAction = 'fail', reason?: string, factor?: number) {
-  return post('/disrupt', { node_ids: nodeIds, action, reason, factor })
+  return act('disrupt', '/disrupt', { node_ids: nodeIds, action, reason, factor })
 }
 
 export function resetSim() {
-  return post('/reset')
+  return act('reset', '/reset')
 }
 
 export function adoptStrategy(strategy: string) {
-  return post('/strategy', { strategy })
+  return act('strategy', '/strategy', { strategy })
 }
 
 export interface BranchMetrics {

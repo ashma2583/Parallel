@@ -10,6 +10,50 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const Action = __t.object("Action", {
+  id: __t.u64(),
+  clientKey: __t.string(),
+  kind: __t.string(),
+  payload: __t.string(),
+  sender: __t.identity(),
+  senderName: __t.string(),
+  status: __t.string(),
+  result: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type Action = __Infer<typeof Action>;
+
+export const BranchResult = __t.object("BranchResult", {
+  id: __t.u64(),
+  actionId: __t.u64(),
+  label: __t.string(),
+  payload: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type BranchResult = __Infer<typeof BranchResult>;
+
+export const Campus = __t.object("Campus", {
+  id: __t.string(),
+  name: __t.string(),
+  lat: __t.f64(),
+  lng: __t.f64(),
+  logo: __t.string(),
+  tier: __t.string(),
+  featured: __t.bool(),
+  hazardCounty: __t.string(),
+  sortOrder: __t.u32(),
+});
+export type Campus = __Infer<typeof Campus>;
+
+export const CampusSurvey = __t.object("CampusSurvey", {
+  campusId: __t.string(),
+  status: __t.string(),
+  payload: __t.string(),
+  updatedAt: __t.timestamp(),
+});
+export type CampusSurvey = __Infer<typeof CampusSurvey>;
+
 export const Edge = __t.object("Edge", {
   id: __t.string(),
   source: __t.string(),
@@ -17,6 +61,21 @@ export const Edge = __t.object("Edge", {
   type: __t.string(),
 });
 export type Edge = __Infer<typeof Edge>;
+
+export const Engine = __t.object("Engine", {
+  id: __t.u32(),
+  engine: __t.identity(),
+  hasEngine: __t.bool(),
+  claimedAt: __t.timestamp(),
+  lastSeen: __t.timestamp(),
+});
+export type Engine = __Infer<typeof Engine>;
+
+export const ModuleOwner = __t.object("ModuleOwner", {
+  id: __t.u32(),
+  owner: __t.identity(),
+});
+export type ModuleOwner = __Infer<typeof ModuleOwner>;
 
 export const Node = __t.object("Node", {
   id: __t.string(),
@@ -35,6 +94,31 @@ export const Node = __t.object("Node", {
   y: __t.f64(),
 });
 export type Node = __Infer<typeof Node>;
+
+export const Presence = __t.object("Presence", {
+  identity: __t.identity(),
+  conn: __t.string(),
+  name: __t.string(),
+  role: __t.string(),
+  hasCursor: __t.bool(),
+  cursorLng: __t.f64(),
+  cursorLat: __t.f64(),
+  joinedAt: __t.timestamp(),
+  lastSeen: __t.timestamp(),
+});
+export type Presence = __Infer<typeof Presence>;
+
+export const ScenarioPlan = __t.object("ScenarioPlan", {
+  itemKey: __t.string(),
+  kind: __t.string(),
+  payload: __t.string(),
+  position: __t.u32(),
+  version: __t.u32(),
+  updatedBy: __t.identity(),
+  updatedByName: __t.string(),
+  updatedAt: __t.timestamp(),
+});
+export type ScenarioPlan = __Infer<typeof ScenarioPlan>;
 
 export const SimState = __t.object("SimState", {
   id: __t.u32(),

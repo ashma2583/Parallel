@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSpacetimeDB, useTable } from 'spacetimedb/react'
 import { BACKEND_URL } from '../config'
 import { tables } from '../module_bindings'
+import { noteEngineActions } from './actions'
 import type { Briefing, ProposalPin } from './api'
 import { PLACES, ZONES } from './places'
 
@@ -139,13 +140,16 @@ export function useSim(): Sim {
   const pull = useCallback(async () => {
     try {
       // With SpacetimeDB live only the agent feed comes over REST.
-      const [res, brief, plans] = await Promise.all([
-        fetch(`${BACKEND_URL}${stdbLiveRef.current ? '/activity' : '/state'}`),
-        fetch(`${BACKEND_URL}/briefing`),
-        fetch(`${BACKEND_URL}/proposals`),
-      ])
+      const resP = fetch(`${BACKEND_URL}${stdbLiveRef.current ? '/activity' : '/state'}`)
+      const briefP = fetch(`${BACKEND_URL}/briefing`)
+      const plansP = fetch(`${BACKEND_URL}/proposals`)
+      const res = await resP
       if (!res.ok) throw new Error(String(res.status))
       const data = await res.json()
+      // /activity says whether the engine is applying reducer actions; /state is the REST-only path.
+      // Noted as soon as it arrives, so a slow /briefing cannot make it look stale.
+      noteEngineActions(stdbLiveRef.current && data.actions_live === true)
+      const [brief, plans] = await Promise.all([briefP, plansP])
       if (brief.ok) setBriefing(await brief.json())
       if (plans.ok) setProposals((await plans.json()).proposals ?? [])
       setEngineUp(true)
@@ -165,6 +169,7 @@ export function useSim(): Sim {
         },
       })
     } catch {
+      noteEngineActions(false)
       setEngineUp(false)
     }
   }, [])
