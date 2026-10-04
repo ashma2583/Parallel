@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PARALLEL · Blueprint</title>
+<meta name="description" content="A live simulation of the University of Michigan campus power grid. Break a feed, branch the timeline, compare four response policies, adopt one.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+
+.hero-c { min-height: 100svh; display: grid; grid-template-rows: 1fr auto; overflow: hidden; }
+.hero-body-outer { position: relative; display: flex; align-items: center; }
+.hero-body { width: min(1240px, 100% - 48px); margin-inline: auto; position: relative; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; align-items: center; padding-top: 64px; }
+.hero-c .grid { position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(var(--hair) 1px, transparent 1px), linear-gradient(90deg, var(--hair) 1px, transparent 1px);
+  background-size: 96px 96px; opacity: .45; mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 85%, transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 85%, transparent); }
+.hero-c .hero-svg { position: relative; display: block; width: 100%; height: min(100%, calc(100svh - 190px)); min-height: 360px; }
+.hero-c .copy { position: relative; z-index: 2; padding: 32px 0; width: auto; margin: 0; }
+.hero-c h1 { font: 500 clamp(34px, 4vw, 54px)/1.04 var(--font-sans); letter-spacing: -0.025em; }
+.hero-c .lede { margin: 20px 0 28px; color: var(--muted); font-size: 17px; max-width: 44ch; }
+.hero-c .lede b { color: var(--text); font-weight: 500; }
+.scrub { position: relative; z-index: 2; border-top: 1px solid var(--hair); background: color-mix(in srgb, var(--ground) 86%, transparent); backdrop-filter: blur(6px); }
+.scrub .wrap { display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center; height: 96px; }
+.scrub .t { font: 500 22px/1 var(--font-mono); min-width: 64px; }
+.scrub .t small { font-size: 11px; color: var(--muted); display: block; margin-top: 6px; letter-spacing: .12em; text-transform: uppercase; font-weight: 400; }
+.scrub-mid { display: grid; gap: 8px; }
+.scrub input { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; margin: 0; cursor: pointer; accent-color: var(--accent); }
+.scrub input::-webkit-slider-runnable-track { height: 2px; background: repeating-linear-gradient(to right, var(--text) 0 1px, var(--hair) 1px calc(100% / 11)); }
+.scrub input::-moz-range-track { height: 2px; background: var(--hair); }
+.scrub input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); margin-top: -6px; border: 0; }
+.scrub input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 0; }
+.scrub .cap { font: 400 12px/1.4 var(--font-mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scrub .cap b { color: var(--text); font-weight: 500; }
+.scrub .ghost { white-space: nowrap; }
+@media (max-width: 860px) {
+  .hero-c { min-height: 0; }
+  .hero-body { grid-template-columns: 1fr; gap: 8px; }
+  .hero-c .hero-svg { height: auto; aspect-ratio: 1.3; min-height: 0; }
+  .hero-c .copy { padding: 24px 0 8px; }
+  .scrub .wrap { grid-template-columns: auto 1fr; height: auto; padding: 14px 0; }
+  .scrub .ghost { display: none; }
+}
+/* steps: text column + sticky diagram that swaps */
+.walk { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 64px; align-items: start; }
+.walk-steps { display: grid; gap: 0; }
+.wstep { padding: 48px 0; border-top: 1px solid var(--hair); opacity: .35; transition: opacity .4s; }
+.wstep.on { opacity: 1; }
+.wstep h3 { font: 500 clamp(22px, 2.2vw, 28px)/1.2 var(--font-sans); letter-spacing: -0.015em; margin: 12px 0 10px; }
+.wstep p { color: var(--muted); font-size: 16px; max-width: 40ch; }
+.walk-stage { position: sticky; top: 96px; align-self: start; border: 1px solid var(--hair); border-radius: 6px; background: var(--panel); padding: 20px; }
+.walk-stage svg { display: block; width: 100%; aspect-ratio: 2; }
+.walk-stage .k { display: block; margin-bottom: 8px; }
+@media (max-width: 860px) { .walk { grid-template-columns: 1fr; gap: 24px; } .walk-stage { position: sticky; top: 64px; z-index: 1; } .wstep { padding: 32px 0; } }
+/* comparison: hover list + preview */
+.pv { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: start; }
+.pols { border-top: 1px solid var(--hair); }
+.pol { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 24px; padding: 20px 0; border-bottom: 1px solid var(--hair); cursor: pointer; position: relative; }
+.pol::before { content: ''; position: absolute; left: -16px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background .2s; }
+.pol.on::before { background: var(--accent); }
+.pol h3 { font: 500 17px/1.3 var(--font-sans); display: flex; gap: 10px; align-items: center; }
+.pol p { color: var(--muted); font-size: 14px; grid-column: 1; grid-row: 2; }
+.pol h3 { grid-column: 1; grid-row: 1; }
+.pol .pct { grid-column: 2; grid-row: 1 / span 2; font: 500 34px/1 var(--font-mono); align-self: center; font-variant-numeric: tabular-nums; }
+.pol .pct small { font-size: 14px; color: var(--muted); }
+.pv-stage { border: 1px solid var(--hair); border-radius: 6px; background: var(--panel); padding: 20px; position: sticky; top: 96px; }
+.pv-stage svg { display: block; width: 100%; aspect-ratio: 2; }
+.pv-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.pv-head h3 { font: 500 16px var(--font-sans); }
+.pv-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--hair); margin-top: 16px; }
+.pv-metrics div { padding: 12px 12px 0 0; }
+.pv-metrics .v { font: 500 18px/1.2 var(--font-mono); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.pv-metrics .v.dark { color: var(--dark); } .pv-metrics .v.red { color: var(--reduced); }
+@media (max-width: 860px) { .pv { grid-template-columns: 1fr; } .pv-stage { position: static; } .pv-metrics { grid-template-columns: repeat(2, 1fr); } }
+
+</style>
+<script>(function(){var t=localStorage.getItem('parallel-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+</head>
+<body>
+
+<header class="hero hero-c">
+  <nav class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/" aria-label="PARALLEL home">
+      <svg class="mark" viewBox="0 0 22 22" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M5 3v16"/><path d="M5 11c0-4 6-4 6-8"/><path d="M5 11c0 4 6 4 6 8"/><path d="M11 3v16" opacity=".5"/></svg>
+      <span><span class="word">PARALLEL</span><span class="sub" style="display:block">Ann Arbor campus twin</span></span>
+    </a>
+    <div class="nav-actions">
+      <button class="ghost" id="theme" type="button" aria-label="Switch colour mode">Light</button>
+      <a class="btn nav-cta" href="/app" tabindex="-1">Run a scenario <span class="arrow">→</span></a>
+    </div>
+  </div>
+</nav>
+
+  <div class="grid"></div>
+  <div class="hero-body-outer"><div class="wrap hero-body">
+  <div class="copy">
+    <h1>See what your decision does before you make it.</h1>
+    <p class="lede">PARALLEL is a live simulation of the University of Michigan campus power grid. <b>Break a feed.</b> Watch twenty real buildings react. <b>Branch the timeline</b> into four response policies, compare the outcomes, and adopt the one that holds.</p>
+    <div class="hero-actions"><a class="btn btn-lg" href="/app">Run a scenario <span class="arrow">→</span></a><span class="hint">Runs in the browser. Nothing to install.</span></div>
+  </div>
+  <svg class="hero-svg" data-parallel-hero data-manual aria-hidden="true"></svg>
+  </div></div>
+  <div class="scrub">
+    <div class="wrap">
+      <div class="t"><span id="tick">t+0</span><small>tick</small></div>
+      <div class="scrub-mid">
+        <input type="range" id="scrub" min="0" max="10" value="0" step="1" aria-label="Scrub the timeline">
+        <div class="cap" id="cap">campus nominal</div>
+      </div>
+      <button class="ghost" id="play" type="button">Pause</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="sec" id="how">
+    <div class="wrap">
+      <div class="sec-head reveal"><span class="k q">What do I do with it?</span><h2>Break it. Watch it cascade. Branch. Adopt.</h2></div>
+      <div class="walk">
+        <div class="walk-steps">
+          <div class="wstep on" data-step="1"><span class="k">01 · Break something</span><h3>Trip a feed or start a heat wave</h3><p>Fail the Central Power Plant, or cut it to 35% and the north feed to 50%. Or click any building and fail it.</p></div>
+          <div class="wstep" data-step="2"><span class="k">02 · Watch it cascade</span><h3>Twenty buildings on three feeds react</h3><p>An energy agent sheds load. A transit agent moves people out of dark buildings. Nothing is scripted. No agent can invent power that is not there.</p></div>
+          <div class="wstep" data-step="3"><span class="k">03 · Branch the timeline</span><h3>Four policies on four copies</h3><p>The engine forks the campus and runs each response policy forward on its own copy, with the same agents and the same supply.</p></div>
+          <div class="wstep" data-step="4"><span class="k">04 · Compare and adopt</span><h3>Pick one. The live campus switches to it.</h3><p>Essential demand served, people relocated, buildings dark, side by side. Adopt a timeline and the live campus follows it.</p></div>
+        </div>
+        <div class="walk-stage"><span class="k" id="walk-k">01 · Break something</span><svg id="walk-svg" aria-hidden="true"></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="compare">
+    <div class="wrap">
+      <div class="sec-head reveal"><span class="k q">Is the comparison real?</span><h2>One fork, four outcomes, from the simulation.</h2></div>
+      <div class="pv reveal">
+        <div class="pols" id="pols">
+          <div class="pol" tabindex="0" data-p="tiers" data-rel="3.0k" data-red="52" data-dark="6" data-pct="92.7"><h3>Priority tiers <span class="tag">Live now</span></h3><p>Shed the lowest priority tier first. Critical care is never shed.</p><div class="pct">92.7<small>%</small></div></div>
+          <div class="pol on" tabindex="0" data-p="residential" data-rel="2.1k" data-red="52" data-dark="6" data-pct="92.7"><h3>Protect residential <span class="tag best">Best</span></h3><p>Keep dorms powered. Academic and commons buildings go dark first.</p><div class="pct">92.7<small>%</small></div></div>
+          <div class="pol" tabindex="0" data-p="perkw" data-rel="1.9k" data-red="502" data-dark="5" data-pct="89"><h3>Most people per kW</h3><p>Shed the buildings that serve the fewest people per kilowatt first.</p><div class="pct">89<small>%</small></div></div>
+          <div class="pol" tabindex="0" data-p="ration" data-rel="4.0k" data-red="2.9k" data-dark="6" data-pct="80"><h3>Ration evenly</h3><p>No load shedding. Every building on the feed gets the same share.</p><div class="pct">80<small>%</small></div></div>
+        </div>
+        <div class="pv-stage">
+          <div class="pv-head"><h3 id="pv-name">Protect residential</h3><span class="k">End state after 6 ticks</span></div>
+          <svg id="pv-svg" aria-hidden="true"></svg>
+          <div class="pv-metrics">
+            <div><span class="k">Essential served</span><div class="v" id="pv-pct">92.7%</div></div>
+            <div><span class="k">Critical care</span><div class="v">100%</div></div>
+            <div><span class="k">People relocated</span><div class="v" id="pv-rel">2.1k</div></div>
+            <div><span class="k">Buildings dark</span><div class="v dark" id="pv-dark">6</div></div>
+          </div>
+        </div>
+      </div>
+      <p class="cmp-note reveal">Scenario: <span class="mono">Heat wave, 95°F</span>. Forked at tick 7. Each policy ran 6 ticks on its own copy of the campus, with the same agents and the same supply. Best is the highest essential service; fewer people moved breaks a tie. The live campus did not change until a policy was adopted.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="trust">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="k q">Can I trust the numbers?</span>
+        <h2>Real campus. Hard constraints. Not a forecast.</h2>
+      </div>
+      <div class="trust">
+        <p class="limit reveal">This is a <b>constraint-based teaching model</b>, not a forecast of the real grid. The numbers come from running the simulation. Use them to practise a decision, not to predict an outage.</p>
+        <ul class="facts reveal">
+          <li><span class="num">20</span><span class="t"><b>Real buildings.</b> Markley, South Quad, University Hospital, Mott, Duderstadt, NCRC and fourteen more, with demand in kW and occupancy.</span></li>
+          <li><span class="num">3</span><span class="t"><b>Real feeds.</b> Central Power Plant, the medical campus tie, and the North Campus Switching Station, wired the way the campus is.</span></li>
+          <li><span class="num">38</span><span class="t"><b>Power lines and roads.</b> Fifteen lines carry power. Twenty-three roads carry people when the transit agent moves them.</span></li>
+          <li><span class="num">0</span><span class="t"><b>Invented kilowatts.</b> Supply is a hard limit on every feed. Agents shed, reroute and relocate. They never create power.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec close" id="run">
+    <div class="wrap reveal">
+      <h2>Lose a feed before the campus does.</h2>
+      <div class="row">
+        <a class="btn btn-lg" href="/app">Run a scenario <span class="arrow">→</span></a>
+        <span class="hint">Heat wave, plant trip, switchgear fault, regional outage.</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>PARALLEL · Built at MHacks 2026</span>
+    <div class="cols">
+      <span>Contact <span class="ph">[CONTACT EMAIL]</span></span>
+      <span>Source <span class="ph">[REPOSITORY URL]</span></span>
+      <span>Map data © OpenStreetMap contributors</span>
+    </div>
+  </div>
+</footer>
+
+<script src="hero.js"></script>
+<script>
+(function(){
+  var cap = document.getElementById('cap'), tickEl = document.getElementById('tick'), scrub = document.getElementById('scrub'), play = document.getElementById('play');
+  var playing = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var hero = ParallelHero.mount(document.querySelector('[data-parallel-hero]'), {
+    par: 'xMidYMid meet',
+    onCaption: function (t) { var p = t.split(' · '); cap.innerHTML = '<b>' + p[0] + '</b>' + (p.length > 1 ? ' · ' + p.slice(1).join(' · ') : ''); },
+    onTick: function (m, k, total) { scrub.max = total - 1; scrub.value = k; tickEl.textContent = k >= total - 2 ? (k === total - 2 ? 'fork' : 'adopt') : 't+' + k; }
+  });
+  scrub.addEventListener('input', function () { if (playing) { hero.pause(); playing = false; play.textContent = 'Play'; } hero.setTick(+scrub.value); });
+  play.addEventListener('click', function () { playing = !playing; play.textContent = playing ? 'Pause' : 'Play'; playing ? hero.play() : hero.pause(); });
+  if (!playing) play.textContent = 'Play';
+  window.parallelHero = hero;
+
+  // steps: swap the sticky diagram as each step passes the middle of the viewport
+  var wsvg = document.getElementById('walk-svg'), wk = document.getElementById('walk-k'), wsteps = Array.prototype.slice.call(document.querySelectorAll('.wstep')), cur = 0;
+  function showStep(i) { if (i === cur && wsvg.childNodes.length) return; cur = i; ParallelHero.drawStep(wsvg, i + 1); wk.textContent = wsteps[i].querySelector('.k').textContent; wsteps.forEach(function (s, j) { s.classList.toggle('on', j === i); }); }
+  showStep(0);
+  function onWalk() { var mid = window.innerHeight * 0.5, best = 0; wsteps.forEach(function (s, i) { if (s.getBoundingClientRect().top < mid) best = i; }); showStep(best); }
+  window.addEventListener('scroll', onWalk, { passive: true });
+  wsteps.forEach(function (s, i) { s.addEventListener('mouseenter', function () { showStep(i); }); });
+
+  // comparison: hover or focus a policy to preview its end state
+  var pvsvg = document.getElementById('pv-svg'), pols = Array.prototype.slice.call(document.querySelectorAll('.pol'));
+  function showPol(p) { pols.forEach(function (q) { q.classList.toggle('on', q === p); }); ParallelHero.drawPolicy(pvsvg, p.getAttribute('data-p'), { labels: false }); document.getElementById('pv-name').textContent = p.querySelector('h3').firstChild.textContent.trim(); document.getElementById('pv-pct').textContent = p.getAttribute('data-pct') + '%'; document.getElementById('pv-rel').textContent = p.getAttribute('data-rel'); document.getElementById('pv-dark').textContent = p.getAttribute('data-dark'); }
+  pols.forEach(function (p) { ['mouseenter', 'focus', 'click'].forEach(function (ev) { p.addEventListener(ev, function () { showPol(p); }); }); });
+  showPol(pols[1]);
+})();
+
+(function () {
+  var root = document.documentElement, btn = document.getElementById('theme');
+  function current() { var t = root.getAttribute('data-theme'); if (t) return t; return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
+  function label() { btn.textContent = current() === 'dark' ? 'Light' : 'Dark'; }
+  btn.addEventListener('click', function () { var next = current() === 'dark' ? 'light' : 'dark'; root.setAttribute('data-theme', next); localStorage.setItem('parallel-theme', next); label(); });
+  label();
+  var nav = document.getElementById('nav'), hero = document.querySelector('.hero'), navCta = nav.querySelector('.nav-cta');
+  function onNav() { var past = window.scrollY > hero.offsetHeight - 120; nav.classList.toggle('past', past); navCta.tabIndex = past ? 0 : -1; }
+  window.addEventListener('scroll', onNav, { passive: true }); onNav();
+  var els = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { els.forEach(function (e) { e.classList.add('in'); }); return; }
+  function check() {
+    var h = window.innerHeight;
+    els = els.filter(function (e) { if (e.getBoundingClientRect().top < h * 0.92) { e.classList.add('in'); return false; } return true; });
+    if (!els.length) { window.removeEventListener('scroll', check); window.removeEventListener('resize', check); }
+  }
+  window.addEventListener('scroll', check, { passive: true }); window.addEventListener('resize', check); check(); var iv = setInterval(function () { check(); if (!els.length) clearInterval(iv); }, 400);
+})();
+</script>
+</body>
+</html>

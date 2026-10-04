@@ -3,7 +3,7 @@ import { setClock } from '../lib/api'
 import { essentialServed, type Sim, type SimNode } from '../lib/sim'
 import { STATUS_COLOR } from '../lib/status'
 
-export type View = 'grid' | 'map'
+export type View = 'city' | 'grid' | 'map'
 
 const STEPS = ['Break', 'Watch', 'Branch', 'Adopt'] as const
 
@@ -77,14 +77,14 @@ export function TopBar({ sim, nodes, step, onStep, view, onView }: Props) {
         </div>
         <Clock tick={sim.summary?.tick} />
         <div className="flex whitespace-nowrap rounded-md border border-line bg-ink p-0.5 text-xs font-medium">
-          {(['grid', 'map'] as const).map((v) => (
+          {(['city', 'grid', 'map'] as const).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => onView(v)}
               className={`rounded px-3 py-1 ${view === v ? 'bg-panel text-text' : 'text-muted'}`}
             >
-              {v === 'grid' ? 'Grid' : 'Ann Arbor'}
+              {v === 'city' ? 'City' : v === 'grid' ? 'Grid' : 'Ann Arbor'}
             </button>
           ))}
         </div>

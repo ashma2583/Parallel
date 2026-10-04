@@ -1,0 +1,113 @@
+CAMPUS MAP PROJECT — CONVERSATION AND CHANGE HISTORY
+====================================================
+
+Purpose
+-------
+This file is a readable summary of the project requests and the related work
+recorded in this conversation, from the initial "how do I activate the program"
+question through the latest map-theme and marker requests. It is a change
+history, not a verbatim transcript. It describes the implemented map-preview
+work and notes where map content is illustrative rather than verified.
+
+Conversation and implementation timeline
+-----------------------------------------
+
+1. Starting and activating the project
+   The conversation began with a general question about how to start the
+   program. The user tried `spacetime publish` and `spacetime start` from
+   `backend/spacetimedb` and got `spacetime: command not found`. Earlier startup
+   troubleshooting also covered missing SpacetimeDB server/dependency setup.
+   This was setup guidance; it did not change the map feature code.
+
+2. University of Michigan campus map
+   The map work focused first on the University of Michigan and Ann Arbor:
+   real-world map context, detailed buildings, movement, dormitories, and
+   Michigan Stadium. A building hover-highlight experiment was removed after
+   the user reported that it remained buggy. The later campus previews remain
+   previews; selecting another school does not change the U-M simulation.
+
+3. Campus map usability and power markers
+   The user asked for map movement and zoom to feel less laggy, requested
+   electricity-themed markers, and asked that forms show blue dots rather than
+   names. Bus and route overlays were adjusted so they remain projected while
+   the map moves, rather than disappearing during navigation. Bus animation
+   progress is kept stable across map redraws and pauses while the user pans or
+   zooms. Power-node markers use a circular blue badge with a lightning bolt.
+   In the current update, only bolt badges grow on hover or keyboard focus.
+
+4. Multi-school map previews
+   The user asked for other schools to receive campus-map treatment comparable
+   to U-M, including UPenn, UChicago, UIUC, MSU, Northwestern, and additional
+   schools. The preview catalog grew to U-M plus 30 non-U-M schools, including
+   nearby and geographically distributed institutions. The user also asked
+   for roughly 20 schools geographically near U-M and additional highly ranked
+   schools near the region. School markers use school imagery where available,
+   with prominent schools receiving larger overview markers and smaller
+   schools represented by compact points with a hover/focus reveal.
+
+5. Zoom-dependent school markers and campus detail
+   Prominent school markers are larger at a far-out overview. At regional
+   zoom, smaller markers and school-specific logos/tooltips are used; at
+   detailed-campus zoom, those overview markers yield to local campus
+   landmarks. This implements the requested transition where large logos
+   disappear as the view gets closer and local campus points take over.
+   Non-U-M map previews also have a compact information card with campus name,
+   logo, landmark count, illustrative-route count, and a preview-only note.
+
+6. Routes, buses, and map navigation
+   The user reported that buses/routes disappeared during map movement, that
+   buses moved with the map instead of staying geographically anchored, and
+   that bus locations changed when a building broke. The route and marker
+   overlays now use geographic coordinates and are reprojected during map
+   navigation. Bus animation uses stable route identity rather than geometry
+   that can split around an outage, and animation progress is paused during
+   user navigation. Regional preview routes and power links are explicitly
+   labeled illustrative and not verified live transit or infrastructure.
+
+7. Day/night map presentation
+   The current update adds a "Night map" switch to the map-layer panel. On the
+   vector basemap it recolors eligible background, land, water, road, and label
+   layers and adjusts map lighting; 3D building extrusions receive a night
+   palette while retaining their height detail. Returning to day mode restores
+   the vector style's original static paint colors. On the raster basemap, the
+   map canvas receives day/night filters. The underlying detailed vector style,
+   street data, building footprints, and 3D building layer are retained.
+
+8. Current branch and commit history
+   At the start of this latest update the checked-out branch was
+   `duke/design_improvements`, tracking `origin/duke/design_improvements`.
+   The latest existing commit was `95f1ca9` ("Keep compact school markers at
+   regional zoom"). Earlier map-preview commits recorded in the branch include:
+     - `1d80fe7` Add multi-campus map previews
+     - `3178acc` Add more campus map previews
+     - `e0859f9` Expand campus preview details
+     - `2e3aea7` Keep campus routes visible while navigating
+     - `656a3e2` Stabilize campus bus movement and preview layers
+     - `e5c09c9` Add nearby university campus previews
+     - `cfb5f41` Use school logos and show campus name tooltips
+     - `69599d9` Add campus preview info card
+     - `f214817` Refine campus logo tiers and add regional schools
+     - `f2699b1` Layer prominent school logos above nearby markers
+     - `95f1ca9` Keep compact school markers at regional zoom
+
+9. Automatic campus selection by map location
+   The user asked for the campus preview window to switch to a school when the
+   map is moved near it, with more important schools prioritized. At zoom 8 or
+   closer, the map center now selects a campus when it is within 6 km. Schools
+   are ranked by the existing featured/extra/prominent-nearby groupings when
+   candidates are geographically close; a small distance hysteresis avoids
+   flickering between neighboring previews. Automatic selection updates the
+   campus selector and preview card without recentering or interrupting the
+   user's map movement. Manual selection still navigates to the selected
+   school's campus.
+
+Important accuracy notes
+------------------------
+- Only the U-M campus simulation is connected to the existing simulation data.
+- Non-U-M campuses, routes, shuttle movement, and energy links are visual
+  previews; they must not be presented as verified official/live information.
+- The basemap depends on externally hosted map tiles/styles being available.
+- The project originally encountered a missing local `spacetime` executable;
+  this history file does not claim that the SpacetimeDB CLI was installed.
+- Historical requests are summarized from available conversation context;
+  this document intentionally does not reproduce messages verbatim.
