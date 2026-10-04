@@ -17,6 +17,7 @@ from typing import Any
 from graph import CampusGraph, Status, TickResult
 
 from agents.logic import DEFAULT_STRATEGY, apply_energy, apply_policy, apply_transit
+import savings
 
 TICK_SECONDS = 1.0
 
@@ -59,6 +60,7 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
         return []
     notes: list[str] = []
     notes.extend(sim.advance_heat_wave())
+    notes.extend(savings.advance(sim))
     notes.extend(apply_energy(sim, strategy))
     sim.tick()
     notes.extend(apply_transit(sim))
@@ -110,6 +112,8 @@ def recall(sim: CampusGraph, tick: int) -> bool:
         node.load_shed = fields["load_shed"]
         if "derate" in fields:
             node.derate = fields["derate"]
+        node.limit = fields.get("limit", 1.0)
+    sim.saver = copy.deepcopy(frame.get("saver"))
     saved_wave = frame.get("heat_wave")
     sim.heat_wave = copy.deepcopy(saved_wave) if saved_wave else None
     summary = frame["summary"]
@@ -148,10 +152,12 @@ def _capture(sim: CampusGraph) -> dict[str, Any]:
                 "failed": node.failed,
                 "load_shed": node.load_shed,
                 "derate": node.derate,
+                "limit": node.limit,
             }
             for node in sim.nodes.values()
         },
         "heat_wave": copy.deepcopy(sim.heat_wave) if sim.heat_wave else None,
+        "saver": copy.deepcopy(sim.saver) if getattr(sim, "saver", None) else None,
         "summary": summary,
     }
 

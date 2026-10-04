@@ -4,7 +4,7 @@ const fmt = (n: number) => n.toLocaleString()
 
 /** Estimated students in class by time of day, from the class schedule and campus events. */
 export function ClassLoad({ load }: { load: ClassLoadState }) {
-  const { data, loading, error, weekday, setWeekday, turnup, setTurnup, slot, setSlot } = load
+  const { data, loading, error, weekday, setWeekday, turnup, setTurnup, slot, setSlot, following } = load
   const selected = data?.slots[slot]
   const ranked = data
     ? data.buildings
@@ -59,7 +59,8 @@ export function ClassLoad({ load }: { load: ClassLoadState }) {
                   title={`${s.label}: ${fmt(s.students)}`}
                   aria-label={`${s.label}, ${fmt(s.students)} people`}
                   onClick={() => setSlot(index)}
-                  className={`min-w-0 flex-1 rounded-sm ${index === slot ? 'bg-people' : 'bg-line hover:bg-muted'}`}
+                  disabled={following}
+                  className={`min-w-0 flex-1 rounded-sm ${index === slot ? 'bg-people' : following ? 'bg-line' : 'bg-line hover:bg-muted'}`}
                   style={{ height: `${Math.max(8, (s.students / peak) * 100)}%` }}
                 />
               ))}
@@ -71,12 +72,14 @@ export function ClassLoad({ load }: { load: ClassLoadState }) {
               value={slot}
               onChange={(event) => setSlot(Number(event.target.value))}
               aria-label="Time of day"
+              disabled={following}
               className="mt-1.5 w-full accent-[var(--color-people)]"
             />
             <div className="flex justify-between font-mono text-[10px] text-faint">
               <span>{data.slots[0]?.label}</span>
               <span>{data.slots[last]?.label}</span>
             </div>
+            {following && <p className="mt-1.5 text-[11px] leading-snug text-people">Following the simulation clock in the top bar while the scenario runs. Scrub again once it ends.</p>}
             {selected.events ? (
               <p className="mt-1.5 text-[11px] text-muted">Includes {fmt(selected.events)} at campus events.</p>
             ) : null}

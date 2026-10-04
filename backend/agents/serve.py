@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import socket
 import threading
 
 from uagents import Agent, Bureau, Context, Model
@@ -21,7 +23,19 @@ from agents import runtime
 
 log = logging.getLogger("parallel.agents")
 
-BUREAU_PORT = 8110
+BUREAU_PORT = int(os.getenv("AGENTS_PORT", "8110"))
+
+
+def _free_port(start: int, tries: int = 10) -> int | None:
+    """The first port from `start` nobody is listening on. Another engine may hold the default."""
+    for port in range(start, start + tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind(("0.0.0.0", port))
+            except OSError:
+                continue
+            return port
+    return None
 
 
 class CycleReport(Model):
@@ -33,7 +47,14 @@ class PolicyDirective(Model):
     summary: str
 
 
-def start_in_thread() -> threading.Thread:
+def start_in_thread() -> threading.Thread | None:
+    global BUREAU_PORT
+    port = _free_port(BUREAU_PORT)
+    if port is None:
+        log.warning("FetchAI bureau not started: ports %s-%s are busy", BUREAU_PORT, BUREAU_PORT + 9)
+        runtime.agent_status["running"] = False
+        return None
+    BUREAU_PORT = port
     thread = threading.Thread(target=_run, name="fetchai-bureau", daemon=True)
     thread.start()
     return thread
@@ -118,6 +139,7 @@ def _run() -> None:
         }
         log.info("FetchAI bureau listening on %s", BUREAU_PORT)
         Bureau(agents=[energy, transit, coordinator], port=BUREAU_PORT, loop=loop).run()
-    except Exception:
+    except BaseException:
+        # A bind error inside the bureau can raise SystemExit; never let it reach the engine.
         log.exception("FetchAI bureau stopped")
         runtime.agent_status["running"] = False

@@ -114,18 +114,19 @@ def apply_energy(graph: CampusGraph, strategy: str = DEFAULT_STRATEGY) -> list[s
             if n.feeder == feeder and not n.is_supplier and not n.failed
         ]
         supply = supply_for(graph.nodes, feeder, graph.cut_edges)
-        deficit = max(0.0, sum(n.demand for n in consumers) - supply)
+        deficit = max(0.0, sum(n.allowed_demand for n in consumers) - supply)
         order = _shed_order(consumers, strategy)
         remaining = deficit
         for node in order:
-            if remaining <= 1e-6 or node.demand <= 0:
+            want = node.allowed_demand
+            if remaining <= 1e-6 or want <= 0:
                 plan[node.id] = 0.0
                 continue
-            if node.demand <= remaining + 1e-6:
+            if want <= remaining + 1e-6:
                 plan[node.id] = 1.0
-                remaining -= node.demand
+                remaining -= want
             else:
-                plan[node.id] = remaining / node.demand
+                plan[node.id] = remaining / want
                 remaining = 0.0
 
         changed = any(round(plan[n.id], 4) != before[n.id] for n in order)

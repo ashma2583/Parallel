@@ -59,6 +59,7 @@ from agents.serve import start_in_thread
 from branch import ScenarioBatch, run_branches, scenario_ticks
 from graph import CampusGraph
 from stdb import SpacetimePublisher
+import savings
 from stdb_actions import ActionConsumer, asgi_dispatcher
 import storms
 import hazards
@@ -152,6 +153,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(storms.build_router(graph, publisher))
+app.include_router(savings.build_router(graph, publisher))
 
 
 class DisruptRequest(BaseModel):
@@ -167,6 +169,10 @@ class BranchRequest(BaseModel):
     strategies: list[str] | None = Field(None, examples=[["tiered", "residential"]])
     # A planned scenario to play forward on each copy, in timed batches.
     scenario: list[ScenarioBatch] | None = Field(None, max_length=400)
+    # "saver" compares energy saver policies through 23:30 instead of response policies.
+    mode: Literal["policy", "saver"] = "policy"
+    weekday: Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] = "Tue"
+    start_minute: int = Field(savings.DEFAULT_START, ge=0, lt=1440)
 
 
 class StrategyRequest(BaseModel):
@@ -238,6 +244,7 @@ def _state() -> dict:
     body["scenarios"] = runtime.scenario_logs()
     body["strategy"] = runtime.strategy
     body["reset_count"] = graph.reset_count
+    body["saver"] = savings.live(graph)
     return body
 
 
@@ -293,7 +300,7 @@ async def poke_actions() -> dict:
 
 @app.get("/activity")
 def get_activity() -> dict:
-    return {**runtime.snapshot(), "actions_live": actions_live()}
+    return {**runtime.snapshot(), "saver": savings.live(graph), "actions_live": actions_live()}
 
 
 @app.get("/bus-routes")
@@ -588,7 +595,11 @@ async def post_heat_wave() -> dict:
 async def post_reset() -> dict:
     with runtime.lock:
         runtime.forget()
+        kept = graph.saver
         graph.reset()
+        # The energy saver is a focus, not part of the scenario: it stays on across a reset.
+        if kept:
+            savings.start(graph, kept["policy"], kept["weekday"], kept["minute"])
         runtime.remember(graph)
         runtime.fresh_start()
         runtime.begin_scenario("Campus reset")
@@ -603,6 +614,9 @@ async def post_reset() -> dict:
 @app.post("/branch")
 def post_branch(req: BranchRequest) -> dict:
     """Fork the live state and run each response policy forward. The live sim is untouched."""
+    if req.mode == "saver":
+        with runtime.lock:
+            return savings.compare(graph, savings.parse_weekday(req.weekday), req.start_minute, runtime.strategy)
     ids = req.strategies or list(STRATEGIES)
     unknown = [sid for sid in ids if sid not in STRATEGIES]
     if unknown:

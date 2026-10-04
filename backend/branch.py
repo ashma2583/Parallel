@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 import storms
 from agents.logic import STRATEGIES, apply_energy, apply_transit
 from briefing import _is_shelter
+import savings
 from graph import HEAT_WAVE_SPAN, CampusGraph, Priority, Status, _node_to_dict
 from hazards import EFFECTS
 
@@ -86,6 +87,7 @@ def _run(
             if batch.tick == tick:
                 _land(sim, batch)
         log.extend(sim.advance_heat_wave())
+        log.extend(savings.advance(sim))
         log.extend(apply_energy(sim, strategy))
         sim.tick()
         log.extend(apply_transit(sim))
@@ -120,7 +122,7 @@ def _run(
 
 def _served(nodes: list) -> float:
     """Delivered kW over wanted kW. A failed building still counts as unserved demand."""
-    wanted = sum(n.demand for n in nodes)
+    wanted = sum(n.allowed_demand for n in nodes)
     if wanted <= 0:
         return 1.0
     return round(sum(n.current_power for n in nodes) / wanted, 4)

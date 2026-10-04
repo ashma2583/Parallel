@@ -11,6 +11,8 @@ export interface ClassClock {
   students: number
   /** Busiest building at any slot of the day, so circle sizes hold still while scrubbing. */
   dayPeak: number
+  /** The slot follows the sim clock, so the arrows and slider are off. */
+  following: boolean
 }
 
 export interface ClassLoadState {
@@ -26,13 +28,16 @@ export interface ClassLoadState {
   setSlot: (slot: number) => void
   spots: ClassSpot[]
   clock: ClassClock | null
+  /** The sim clock is moving (a scenario or heat wave runs), so the slot follows it. */
+  following: boolean
 }
 
 /**
  * Students in class by building and time of day, from the Fall 2026 schedule and campus events.
  * Owned by App so it outlives the panel that shows it. Display only: nothing is written to the engine.
+ * While `follow` (minutes into the day) is set, the slot tracks it; scrubbing is for when the sim is idle.
  */
-export function useClassLoad(): ClassLoadState {
+export function useClassLoad(follow: number | null = null): ClassLoadState {
   const [weekday, setWeekday] = useState<string | undefined>(undefined)
   const [turnup, setTurnup] = useState(0.75)
   const [query, setQuery] = useState(0.75)
@@ -79,6 +84,16 @@ export function useClassLoad(): ClassLoadState {
     }
   }, [weekday, query, attempt])
 
+  const following = follow !== null
+  useEffect(() => {
+    if (follow === null || !data?.slots.length) return
+    let at = 0
+    data.slots.forEach((s, index) => {
+      if (s.minutes <= follow) at = index
+    })
+    setSlotRaw(at)
+  }, [follow, data])
+
   const count = data?.slots.length ?? 0
   const shown = count ? Math.min(Math.max(0, slot), count - 1) : 0
 
@@ -101,8 +116,8 @@ export function useClassLoad(): ClassLoadState {
   const clock = useMemo<ClassClock | null>(() => {
     const at = data?.slots[shown]
     if (!data || !at) return null
-    return { slot: shown, count, label: `${data.weekday} ${at.label}`, students: at.students, dayPeak }
-  }, [data, shown, count, dayPeak])
+    return { slot: shown, count, label: `${data.weekday} ${at.label}`, students: at.students, dayPeak, following }
+  }, [data, shown, count, dayPeak, following])
 
   return {
     data,
@@ -113,8 +128,11 @@ export function useClassLoad(): ClassLoadState {
     turnup,
     setTurnup,
     slot: shown,
-    setSlot: (next: number) => setSlotRaw(count ? Math.min(Math.max(0, next), count - 1) : next),
+    setSlot: (next: number) => {
+      if (!following) setSlotRaw(count ? Math.min(Math.max(0, next), count - 1) : next)
+    },
     spots,
     clock,
+    following,
   }
 }

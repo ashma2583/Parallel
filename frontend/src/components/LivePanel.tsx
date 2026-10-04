@@ -13,7 +13,7 @@ const AGENT_COLOR: Record<string, string> = {
   Planner: 'var(--color-branch)',
 }
 
-function Feed({ scenarios }: { scenarios: readonly ScenarioFeed[] }) {
+function Feed({ scenarios, clockAt }: { scenarios: readonly ScenarioFeed[]; clockAt: (tick: number) => string }) {
   const latest = scenarios[scenarios.length - 1]
   const [picked, setPicked] = useState<number | null>(null)
   const viewing = scenarios.find((scenario) => scenario.id === picked) ?? latest
@@ -47,8 +47,8 @@ function Feed({ scenarios }: { scenarios: readonly ScenarioFeed[] }) {
         const split = line.indexOf(':')
         const who = split > 0 ? line.slice(0, split) : 'System'
         return (
-          <li key={`${lines.length - index}-${line}`} className="grid grid-cols-[44px_1fr] items-baseline gap-2.5">
-            <span className="font-mono text-sm text-muted">t{tick}</span>
+          <li key={`${lines.length - index}-${line}`} className="grid grid-cols-[52px_1fr] items-baseline gap-2.5">
+            <span className="font-mono text-sm tabular-nums text-muted">{clockAt(tick)}</span>
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: AGENT_COLOR[who.split(' ')[0]] ?? 'var(--color-muted)' }}>
                 {who}
@@ -188,6 +188,8 @@ interface Props {
   running?: boolean
   /** The scenario dock has a plan the last run has not played. Branch plays it forward. */
   planned?: boolean
+  /** Time of day at an engine tick, from the one sim clock. */
+  clockAt: (tick: number) => string
   /** Heat-wave demo: point at the briefing, the feed, and the policy comparison. */
   demo?: boolean
   onBranch: () => void
@@ -201,7 +203,7 @@ interface Props {
 }
 
 /** Right panel while watching the live campus: current policy, feed and briefing, director's order. */
-export function LivePanel({ sim, disrupted, running = false, planned = false, demo = false, onBranch, onCommand, plan, people, hazard }: Props) {
+export function LivePanel({ sim, disrupted, running = false, planned = false, demo = false, onBranch, onCommand, plan, people, hazard, clockAt }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('briefing')
   const [cue, setCue] = useState(demo)
   const policy = strategyFor(sim.strategy)
@@ -243,7 +245,9 @@ export function LivePanel({ sim, disrupted, running = false, planned = false, de
             : running
             ? 'Finish or stop the scenario run first. A comparison forked mid-run is out of date before it shows.'
             : disrupted
-              ? 'Forks the campus and runs each policy 6 ticks on its own copy.'
+              ? sim.briefing?.heat_wave && sim.briefing.heat_wave.step < sim.briefing.heat_wave.span
+                ? 'Forks the campus and runs each policy through the heat peak on its own copy.'
+                : 'Forks the campus and runs each policy the next 24 minutes on its own copy.'
               : 'Break something first. With every building served, all five policies end in the same place.'}
         </p>
       </div>
@@ -264,7 +268,7 @@ export function LivePanel({ sim, disrupted, running = false, planned = false, de
           ))}
         </div>
         <div className="-mr-1.5 min-h-0 flex-1 overflow-y-auto pb-3 pr-1.5">
-          {tab === 'feed' && <Feed scenarios={sim.scenarios} />}
+          {tab === 'feed' && <Feed scenarios={sim.scenarios} clockAt={clockAt} />}
           {tab === 'briefing' && <BriefingPanel briefing={sim.briefing} hazard={hazard} onChanged={sim.refresh} />}
           {/* Kept mounted so a half-filled form or a research result survives a tab switch. */}
           <div hidden={tab !== 'plan'} className="flex flex-col gap-6">{plan}</div>
