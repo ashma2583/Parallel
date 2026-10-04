@@ -285,8 +285,37 @@ export async function fetchClock(): Promise<{ tick: number; paused: boolean }> {
   return res.json()
 }
 
-export async function setClock(body: { paused?: boolean; until?: number }): Promise<{ tick: number; paused: boolean }> {
+export async function setClock(body: { paused?: boolean; until?: number; at?: string }): Promise<{ tick: number; paused: boolean }> {
   return post('/clock', body) as Promise<{ tick: number; paused: boolean }>
+}
+
+/** Students in class right now by building, at the engine's clock. The engine counts these in each building. */
+export interface PeopleNow {
+  slot: string | null
+  weekday: string | null
+  minutes: number
+  driving: boolean
+  total: number
+  buildings: { node_id: string; name: string; students: number; present: number }[]
+}
+
+export async function fetchPeopleNow(): Promise<PeopleNow | null> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/people/now`)
+    if (!res.ok) return null
+    return (await res.json()) as PeopleNow
+  } catch {
+    return null
+  }
+}
+
+/** Tell the engine which weekday and turnup the People tab shows, so its occupancy counts the same day. */
+export async function selectPeople(weekday: string | undefined, turnup: number): Promise<void> {
+  try {
+    await post('/people/selection', weekday ? { weekday, turnup } : { turnup })
+  } catch {
+    // The tab still works without the engine.
+  }
 }
 
 export async function setSeason(season: Season): Promise<Briefing> {

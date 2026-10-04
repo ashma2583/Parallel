@@ -327,9 +327,10 @@ def repair_line(sess: Session) -> str | None:
     if not r:
         return None
     n = len(sess.options) + 1
+    students = f", {r['students']:,} of them students in class now" if r.get("students") else ""
     return (
         f"{n}. Restore {r['name']} first (proposed by {planners.REPAIR}): about {r['people']:,} people "
-        f"depend on it. Sent as a repair order, not run through the policy branches."
+        f"depend on it{students}. Sent as a repair order, not run through the policy branches."
     )
 
 
@@ -365,10 +366,45 @@ def session_for(sender: str) -> Session:
     return SESSIONS.setdefault(sender, Session())
 
 
+async def people_now() -> dict | None:
+    """Who is in class in each building right now. None if this engine has no /people/now."""
+    try:
+        return await engine("GET", "/people/now")
+    except EngineError:
+        return None
+
+
+def students_line(people: dict | None, state: dict) -> str | None:
+    """The busiest buildings by students in class now, and the dark ones among them."""
+    if not people or not people.get("slot"):
+        return None
+    here = [row for row in people.get("buildings", []) if int(row.get("students") or 0) > 0]
+    if not here:
+        return f"Students ({people['slot']}): nobody is in class right now."
+    dark = {n["id"] for n in state.get("nodes", []) if n.get("failed") or n.get("status") == "Red"}
+    top = ", ".join(f"{int(r['students']):,} students in {r['name']}" for r in here[:3])
+    line = f"Students ({people['slot']}): {top} now."
+    lost = [r for r in here if r["node_id"] in dark]
+    if lost:
+        line += " In the dark: " + ", ".join(f"{int(r['students']):,} in {r['name']}" for r in lost[:3]) + "."
+    return line
+
+
+def busiest_fact(people: dict | None) -> str:
+    """One sentence for the headline's FACTS: the busiest building now, by students in class."""
+    rows = [r for r in (people or {}).get("buildings", []) if int(r.get("students") or 0) > 0]
+    if not rows:
+        return ""
+    return f" {int(rows[0]['students'])} students are in class in {rows[0]['name']} right now."
+
+
 async def specialist_lines(state: dict, briefing: dict) -> list[str]:
-    tr = planners.transit_plan(briefing)
-    rp = planners.repair_plan(state)
-    return [f"{planners.TRANSIT}: {tr['text']}", f"{planners.REPAIR}: {rp['text']}"]
+    people = await people_now()
+    tr = planners.transit_plan(briefing, people, state)
+    rp = planners.repair_plan(state, people)
+    lines = [f"{planners.TRANSIT}: {tr['text']}", f"{planners.REPAIR}: {rp['text']}"]
+    seen = students_line(people, state)
+    return [*lines, seen] if seen else lines
 
 
 # -------------------------------------------------------------------------- flow
@@ -400,15 +436,19 @@ async def do_scenario(sess: Session, text: str, meta: dict) -> str:
     sess.scenario = what
     meta["scenario"] = what
 
-    branch, briefing, state = await asyncio.gather(
+    branch, briefing, state, people = await asyncio.gather(
         engine("POST", "/branch", {"ticks": BRANCH_TICKS}),
         engine("GET", "/briefing"),
         engine("GET", "/state"),
+        people_now(),
     )
     sess.labels.update({b["id"]: b["label"] for b in branch.get("branches", [])})
     sess.options = planners.rank_policies(branch, top=3)
-    first = planners.repair_plan(state)["first"]
-    sess.repair = {"node_id": first["id"], "name": first["name"], "people": first["people"]} if first else None
+    first = planners.repair_plan(state, people)["first"]
+    sess.repair = (
+        {"node_id": first["id"], "name": first["name"], "people": first["people"], "students": first.get("students", 0)}
+        if first else None
+    )
     if not sess.options:
         return f"Applied {what}, but the simulator returned no policies to compare."
 
@@ -417,6 +457,7 @@ async def do_scenario(sess: Session, text: str, meta: dict) -> str:
         f"Scenario applied: {what}. Each policy was simulated for {BRANCH_TICKS} ticks. "
         f"Best policy: {best['label']} serves {pct(best['essential_served'])} of essential load "
         f"with {best['people_dark']} people dark and {best['people_relocated']} relocated."
+        f"{busiest_fact(people)}"
     )
     fallback = (
         f"{what} is applied. Best simulated policy is {best['label']}: "

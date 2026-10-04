@@ -10,7 +10,7 @@
  *   ok / warn / down  building state only, never decoration
  *   flow              energized power lines
  *   branch            anything that forks or adopts a timeline
- *   people            students in class (occupancy), display only
+ *   people            students in class (occupancy)
  */
 @theme {
   --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;

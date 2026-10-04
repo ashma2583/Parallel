@@ -137,7 +137,7 @@ interface Props {
   onWeatherStatus?: (status: WeatherStatus) => void
   /** Pull engine state after a write. */
   onChanged?: () => void
-  /** Students in class by building at the chosen time. Display only. */
+  /** Students in class by building at the chosen time. */
   classSpots?: readonly ClassSpot[]
   classClock?: ClassClock | null
   onClassSlot?: (slot: number) => void

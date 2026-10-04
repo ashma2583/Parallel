@@ -15,6 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+import occupancy
 import storms
 from agents.logic import STRATEGIES, apply_energy, apply_transit
 from briefing import _is_shelter
@@ -76,19 +77,24 @@ def _run(
     sim = copy.deepcopy(graph)
     if scenario:
         _scenario_start(sim)
-    # Every branch starts with people at home, so the policies are compared on
-    # the same footing whatever the live transit agent has already done.
+    # Who is in each building at the fork's time of day, then everyone back home:
+    # the policies are compared on the same footing whatever the live transit agent has done.
+    occupancy.apply_to_graph(sim)
     sim.send_home()
-    start = {n.id: n.occupancy for n in sim.nodes.values()}
+    relocated = 0
     log: list[str] = []
     for tick in range(ticks):
         for batch in scenario or []:
             if batch.tick == tick:
                 _land(sim, batch)
+        # The class day moves on four minutes a tick, as it does live.
+        occupancy.apply_to_graph(sim)
         log.extend(sim.advance_heat_wave())
         log.extend(apply_energy(sim, strategy))
         sim.tick()
+        before = {n.id: n.occupancy for n in sim.nodes.values()}
         log.extend(apply_transit(sim))
+        relocated += sum(max(0, before[n.id] - n.occupancy) for n in sim.nodes.values())
 
     consumers = [n for n in sim.nodes.values() if not n.is_supplier]
     essential = [n for n in consumers if n.priority in (Priority.CRITICAL, Priority.HIGH)]
@@ -107,7 +113,7 @@ def _run(
             "people_full_power": sum(n.occupancy for n in sim.nodes.values() if n.status == Status.GREEN),
             "people_reduced_power": sum(n.occupancy for n in sim.nodes.values() if n.status == Status.AMBER),
             "people_dark": sum(n.occupancy for n in sim.nodes.values() if n.status == Status.RED),
-            "people_relocated": sum(max(0, start[n.id] - n.occupancy) for n in sim.nodes.values()),
+            "people_relocated": relocated,
             "people_in_shelter": sum(n.occupancy for n in shelters),
             "shelter_kw": round(sum(n.current_power for n in shelters)),
             "buildings_dark": sum(1 for n in consumers if n.status == Status.RED),

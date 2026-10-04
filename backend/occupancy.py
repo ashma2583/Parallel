@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass
 from urllib.parse import quote
 from datetime import datetime
@@ -1226,3 +1227,208 @@ def _coord(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number
+
+
+# ---------------------------------------------------------------------------
+# People drive the simulation
+#
+# At the campus clock's time of day, each simulation node that has a registrar
+# code gets its occupancy from the schedule instead of a fixed number. The
+# energy agent's "people" policy, the transit agent's evacuations, the briefing
+# and Branch all read node.occupancy, so they all see who is really there.
+# ---------------------------------------------------------------------------
+
+# Staff and the people who are in a building whatever the class schedule says, as a share of its
+# fixed headcount. Labs work through the day and libraries fill with people studying, not in a section.
+STAFF_SHARE = {"academic": 0.08, "research": 0.35, "library": 0.2, "dining": 0.1, "dorm": 0.08}
+STAFF_DEFAULT = 0.08
+STAFF_MIN = 5
+# At the busiest slot of the day this share of residents is out in class.
+RESIDENTS_IN_CLASS = 0.4
+
+# What the People tab has selected. None means the weekday of today's clock.
+selection: dict[str, Any] = {"weekday": None, "turnup": 0.75}
+_sim_cache: dict[tuple, dict[str, Any]] = {}
+_weekday_cache: dict[tuple, int] = {}
+_sim_schedule: dict[str, Any] | None = None
+_sim_schedule_tried = 0.0
+
+
+def drives_sim() -> bool:
+    """PEOPLE_DRIVES_SIM=0 turns this off. Anything else, or unset, leaves it on."""
+    return os.getenv("PEOPLE_DRIVES_SIM", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def select(weekday: str | None = None, turnup: float | None = None) -> dict[str, Any]:
+    """Record the People tab's weekday and turnup so the engine uses the same ones."""
+    if turnup is not None:
+        if turnup < 0 or turnup > 1:
+            raise ValueError("turnup must be between 0 and 1")
+        selection["turnup"] = float(turnup)
+    if weekday is not None:
+        selection["weekday"] = parse_weekday(weekday)
+    day = selection["weekday"]
+    return {"weekday": WEEKDAYS[day] if day is not None else None, "turnup": selection["turnup"]}
+
+
+def schedule_now() -> dict[str, Any] | None:
+    """The schedule without waiting on the network: the one in memory, else a saved copy from disk."""
+    global _sim_schedule, _sim_schedule_tried
+    if _schedule is not None:
+        return _schedule
+    if _sim_schedule is not None:
+        return _sim_schedule
+    # A missing file is retried every half minute, not every tick.
+    stamp = time.monotonic()
+    if stamp - _sim_schedule_tried < 30 and _sim_schedule_tried:
+        return None
+    _sim_schedule_tried = stamp
+    cached = _read_cache()
+    if cached is not None and _fresh(cached):
+        _sim_schedule = cached
+    else:
+        _sim_schedule = _read_snapshot() or cached
+    return _sim_schedule
+
+
+def slot_at(minutes: int) -> int | None:
+    """Index of the 30-minute slot holding this minute of the day, or None outside the class day."""
+    if minutes < SLOT_START or minutes >= SLOT_END + SLOT_STEP:
+        return None
+    return (minutes - SLOT_START) // SLOT_STEP
+
+
+def slot_label(weekday: int, slot: int | None, minutes: int) -> str:
+    """Tue 14:00. Outside the class day it is the time itself."""
+    when = SLOT_START + slot * SLOT_STEP if slot is not None else minutes
+    return f"{WEEKDAYS[weekday]} {when // 60:02d}:{when % 60:02d}"
+
+
+def sim_weekday(schedule: dict[str, Any], requested: int | None = None) -> int:
+    """The People selection, else today, moving on to the next day with classes the way /occupancy does."""
+    chosen = selection["weekday"] if requested is None else requested
+    today = detroit_now()
+    key = (id(schedule), chosen, today.date())
+    if key not in _weekday_cache:
+        _weekday_cache.clear()
+        _weekday_cache[key] = choose_weekday(schedule["meetings"], chosen, today)
+    return _weekday_cache[key]
+
+
+def _node_for(code: str, places: dict[str, Place]) -> str | None:
+    place = places.get(code)
+    return (place.node_id if place and place.node_id else None) or NODE_BY_CODE.get(code)
+
+
+def sim_series(schedule: dict[str, Any], weekday: int) -> dict[str, Any]:
+    """Students in class per slot for each simulation node, and campus-wide. Cached per schedule, day, and turnup."""
+    rate = selection["turnup"]
+    key = (id(schedule), weekday, round(rate, 3))
+    found = _sim_cache.get(key)
+    if found is not None:
+        return found
+    from events import load_demo_events
+
+    events, _ = load_demo_events()
+    body = project(schedule["meetings"], schedule["places"], weekday, rate, detroit_now(), False, events)
+    count = len(slot_minutes())
+    by_node: dict[str, list[int]] = {}
+    for row in body["buildings"]:
+        node_id = row["node_id"]
+        if not node_id:
+            continue
+        series = by_node.setdefault(node_id, [0] * count)
+        for index, students in enumerate(row["students"]):
+            series[index] += students
+    # Nodes the registrar or the events ever put people in, on any day. The rest keep their baseline.
+    known = {
+        node
+        for meeting in (*schedule["meetings"], *events)
+        if (node := _node_for(meeting.building, schedule["places"]))
+    }
+    totals = [slot["students"] for slot in body["slots"]]
+    found = {"by_node": by_node, "totals": totals, "peak": max(totals) if totals else 0, "known": known}
+    if len(_sim_cache) > 24:
+        _sim_cache.clear()
+    _sim_cache[key] = found
+    return found
+
+
+def target_occupancy(node: Any, students: int, share_out: float) -> int:
+    """People in one building in this slot, from its fixed headcount and the students in class there."""
+    from graph import BASE_OCCUPANCY, NodeType
+
+    fixed = BASE_OCCUPANCY.get(node.id, node.baseline_occupancy)
+    floor = max(STAFF_MIN, round(fixed * STAFF_SHARE.get(node.type.value, STAFF_DEFAULT)))
+    if node.type == NodeType.DORM:
+        # Residents who are not out in class, plus anyone attending a class held in the hall.
+        return max(floor, round(fixed * (1.0 - RESIDENTS_IN_CLASS * share_out))) + students
+    return max(floor, students)
+
+
+def apply_to_graph(graph: Any, minutes: int | None = None, weekday: int | None = None) -> bool:
+    """
+    Set each mapped building's occupancy from the schedule at this minute of the day.
+
+    The baseline becomes the real count. A lit building's current headcount is
+    scaled with it, so people the transit agent already moved in stay counted;
+    a dark one keeps what transit left it. Hospitals are never touched. Cheap to
+    call every tick: nothing changes until the 30-minute slot does. Returns True
+    when it changed anything.
+    """
+    if not drives_sim():
+        return False
+    from graph import NodeType, Status
+
+    schedule = schedule_now()
+    if schedule is None:
+        return False
+    series = sim_series(schedule, sim_weekday(schedule, weekday))
+    slot = slot_at(graph.sim_minutes() if minutes is None else minutes)
+    share_out = (series["totals"][slot] / series["peak"]) if slot is not None and series["peak"] else 0.0
+    changed = False
+    for node_id in sorted(set(NODE_BY_CODE.values())):
+        node = graph.nodes.get(node_id)
+        if node is None or node.type in (NodeType.HOSPITAL, NodeType.SUBSTATION):
+            continue
+        if node_id not in series["known"] and node_id not in series["by_node"]:
+            continue
+        students = series["by_node"][node_id][slot] if slot is not None and node_id in series["by_node"] else 0
+        target = target_occupancy(node, students, share_out)
+        old = node.baseline_occupancy
+        if target == old:
+            continue
+        node.baseline_occupancy = target
+        changed = True
+        if node.failed or node.status == Status.RED:
+            continue
+        node.occupancy = round(node.occupancy * target / old) if old > 0 else node.occupancy + target
+    return changed
+
+
+def people_now(graph: Any, weekday: int | None = None) -> dict[str, Any]:
+    """Who is in class right now, by building, for the agents and the language model."""
+    schedule = schedule_now()
+    when = graph.sim_minutes()
+    if schedule is None:
+        return {"slot": None, "weekday": None, "minutes": when, "driving": drives_sim(), "total": 0, "buildings": []}
+    day = sim_weekday(schedule, weekday)
+    series = sim_series(schedule, day)
+    slot = slot_at(when)
+    rows = []
+    for node_id in sorted(set(NODE_BY_CODE.values())):
+        node = graph.nodes.get(node_id)
+        if node is None:
+            continue
+        students = series["by_node"][node_id][slot] if slot is not None and node_id in series["by_node"] else 0
+        rows.append({"node_id": node_id, "name": node.name, "students": students, "present": node.occupancy})
+    rows.sort(key=lambda row: (-row["students"], row["name"]))
+    return {
+        "slot": slot_label(day, slot, when),
+        "weekday": WEEKDAYS[day],
+        "minutes": when,
+        "turnup": selection["turnup"],
+        "driving": drives_sim(),
+        "total": sum(row["students"] for row in rows),
+        "buildings": rows,
+    }

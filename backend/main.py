@@ -23,6 +23,8 @@ Environment (all optional):
     UM_CLIENT_SECRET
     UM_TERM         optional term code, default from today's date
     SOC_CSV         optional registrar CSV path or URL
+    PEOPLE_DRIVES_SIM  "0" keeps each building's fixed headcount; by default the class
+                       schedule sets who is in each U-M building at the campus clock's time
 """
 
 from __future__ import annotations
@@ -57,7 +59,7 @@ import location_agent
 import proposal
 from agents.serve import start_in_thread
 from branch import ScenarioBatch, run_branches, scenario_ticks
-from graph import CampusGraph
+from graph import CLOCK_START_MINUTES, CampusGraph
 from stdb import SpacetimePublisher
 from stdb_actions import ActionConsumer, asgi_dispatcher
 import storms
@@ -184,6 +186,15 @@ class SeasonRequest(BaseModel):
 class ClockRequest(BaseModel):
     paused: bool | None = None
     until: int | None = Field(None, ge=1, le=100_000)
+    # Set the time of day on the campus clock, "HH:MM", at the current tick.
+    at: str | None = Field(None, pattern=r"^\d{1,2}:\d{2}$", examples=["20:00"])
+
+
+class PeopleSelection(BaseModel):
+    """What the People tab shows, so the engine counts the same day and turnup."""
+
+    weekday: str | None = Field(None, examples=["Tue"])
+    turnup: float | None = Field(None, ge=0, le=1)
 
 
 # The first briefing build named these modes. Each is one of the strategies.
@@ -315,6 +326,27 @@ async def get_occupancy(weekday: str | None = None, turnup: float = 0.75) -> dic
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/people/now")
+def get_people_now() -> dict:
+    """Students in class right now, by simulation building, at the campus clock's time of day."""
+    with runtime.lock:
+        return occupancy.people_now(graph)
+
+
+@app.post("/people/selection")
+async def post_people_selection(req: PeopleSelection) -> dict:
+    """The People tab's weekday and turnup. The engine uses them for who is in each building."""
+    try:
+        chosen = occupancy.select(req.weekday, req.turnup)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    with runtime.lock:
+        occupancy.apply_to_graph(graph)
+        body = {**chosen, **occupancy.people_now(graph)}
+    await publisher.publish(graph)
+    return body
+
+
 @app.get("/briefing")
 def get_briefing() -> dict:
     with runtime.lock:
@@ -424,7 +456,21 @@ async def post_priority(req: PriorityRequest) -> dict:
 @app.get("/clock")
 def get_clock() -> dict:
     with runtime.lock:
-        return {"tick": graph.tick_count, "paused": runtime.paused}
+        return _clock_body()
+
+
+def _clock_body() -> dict:
+    """Tick, pause, and the campus clock's time of day. Caller holds the lock."""
+    minutes = graph.sim_minutes()
+    now = occupancy.people_now(graph)
+    return {
+        "tick": graph.tick_count,
+        "paused": runtime.paused,
+        "minutes": minutes,
+        "time": f"{minutes // 60:02d}:{minutes % 60:02d}",
+        "slot": now["slot"],
+        "weekday": now["weekday"],
+    }
 
 
 @app.post("/clock")
@@ -444,7 +490,14 @@ async def post_clock(req: ClockRequest) -> dict:
                     runtime.run_cycle(graph, force=True)
                     steps += 1
             runtime.paused = True
-        body = {"tick": graph.tick_count, "paused": runtime.paused}
+        if req.at is not None:
+            hour, minute = (int(part) for part in req.at.split(":"))
+            if hour > 23 or minute > 59:
+                raise HTTPException(status_code=400, detail="at must be a time of day such as 20:00.")
+            graph.set_clock(hour * 60 + minute)
+            runtime.forget_after(graph.tick_count)
+            occupancy.apply_to_graph(graph)
+        body = _clock_body()
     await publisher.publish(graph)
     return body
 
@@ -474,6 +527,7 @@ async def post_hazard_apply(req: HazardApplyRequest) -> dict:
         steps = [] if req.id == "extreme_heat" else effect["steps"]
         if req.id == "extreme_heat":
             graph.start_heat_wave()
+            graph.set_clock(CLOCK_START_MINUTES)
         for step in steps:
             for nid in step["node_ids"]:
                 if nid not in graph.nodes:
@@ -577,6 +631,7 @@ async def post_heat_wave() -> dict:
         runtime.forget_after(graph.tick_count)
         runtime.begin_scenario("Heat wave, 95°F")
         graph.start_heat_wave()
+        graph.set_clock(CLOCK_START_MINUTES)
         runtime.push(["Director: heat wave, 95°F. Plant output falls over the next 4 hours."])
         body = _state()
         body["heat_wave"] = graph.heat_wave_view()
@@ -639,11 +694,14 @@ def post_branch(req: BranchRequest) -> dict:
 @app.post("/verdict")
 async def post_verdict(req: VerdictRequest) -> dict:
     """One paragraph on the winning policy, using only the counts the branch run produced."""
+    with runtime.lock:
+        people = briefing.people_facts(graph)
     facts = {
         "season": req.season,
         "shelter": req.shelter,
         "winner": req.winner,
         "policies": [p.model_dump() for p in req.policies],
+        "people_now": people,
     }
     return await voice.write_verdict(facts)
 

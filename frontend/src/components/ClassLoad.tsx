@@ -19,8 +19,8 @@ export function ClassLoad({ load }: { load: ClassLoadState }) {
     <section className="flex flex-col gap-3">
       <p className="text-xs leading-[1.55] text-muted">
         Students in class from the {data?.term_name ?? 'Fall 2026'} schedule at {Math.round(turnup * 100)}% turnup, plus
-        estimated crowds at campus events. Shown on the map as circles and on building pins. When a building goes dark, the
-        briefing counts the students in class there. The power model does not use it.
+        estimated crowds at campus events. Shown on the map as circles and on building pins. Used by the agents: occupancy follows
+        the class schedule, so the energy agent, the transit agent, the briefing and Branch all count the students in each building.
       </p>
       {load.clock?.following && (
         <p className="flex items-center gap-1.5 text-[11px] text-muted">

@@ -14,6 +14,7 @@ import time
 from collections import deque
 from typing import Any
 
+import occupancy
 from graph import CampusGraph, Status, TickResult
 
 from agents.logic import DEFAULT_STRATEGY, apply_energy, apply_policy, apply_transit
@@ -58,6 +59,8 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
     if not force and now - last_cycle < TICK_SECONDS * 0.85:
         return []
     notes: list[str] = []
+    # Who is in each building at this time of day, before the agents decide anything.
+    occupancy.apply_to_graph(sim)
     notes.extend(sim.advance_heat_wave())
     notes.extend(apply_energy(sim, strategy))
     sim.tick()
@@ -105,6 +108,8 @@ def recall(sim: CampusGraph, tick: int) -> bool:
             continue
         node.current_power = fields["current_power"]
         node.occupancy = fields["occupancy"]
+        if "baseline" in fields:
+            node.baseline_occupancy = fields["baseline"]
         node.status = Status(fields["status"])
         node.failed = fields["failed"]
         node.load_shed = fields["load_shed"]
@@ -144,6 +149,7 @@ def _capture(sim: CampusGraph) -> dict[str, Any]:
             node.id: {
                 "current_power": node.current_power,
                 "occupancy": node.occupancy,
+                "baseline": node.baseline_occupancy,
                 "status": node.status.value,
                 "failed": node.failed,
                 "load_shed": node.load_shed,

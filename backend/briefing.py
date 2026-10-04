@@ -10,6 +10,7 @@ import math
 from functools import lru_cache
 from pathlib import Path
 
+import occupancy
 from agents.logic import cut_off_by_roads
 from graph import CampusGraph, Node, NodeType, Status
 import storms
@@ -35,6 +36,22 @@ ON_STRETCH_M = 40.0
 SAME_STRETCH_M = 500.0
 
 
+def people_facts(graph: CampusGraph) -> dict:
+    """Students in class right now, for the language model: the slot and the busiest buildings."""
+    now = occupancy.people_now(graph)
+    return {
+        "slot": now["slot"],
+        "weekday": now["weekday"],
+        "students_in_class": now["total"],
+        "note": "Students in class by building at this time of day, from the class schedule and campus events. A building's people count in nodes follows it.",
+        "buildings": [
+            {"node_id": row["node_id"], "name": row["name"], "students": row["students"]}
+            for row in now["buildings"]
+            if row["students"] > 0
+        ],
+    }
+
+
 def debrief_facts(graph: CampusGraph, preference: str, activity: list[str], season: str = "fall") -> dict:
     """Compact snapshot for the after-action summary. Numbers stay as the sim has them."""
     nodes = [
@@ -58,6 +75,7 @@ def debrief_facts(graph: CampusGraph, preference: str, activity: list[str], seas
         "tick": graph.tick_count,
         "scale": "Kilowatts are a demo scale, not the real megawatts. University Hospital and Mott are never shed. City Hall, Blake Transit Center, and Fire Station 1 are on the city grid.",
         "nodes": nodes,
+        "people_now": people_facts(graph),
         "briefing": {**build_briefing(graph, preference, season), "weather": storms.weather_digest(graph)},
         "activity": activity[-24:],
     }

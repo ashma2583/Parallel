@@ -11,8 +11,9 @@ import { HEAT_WAVE, ScenarioStrip, runScenario, type Scenario } from './componen
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
-import { fetchHazards, proposeBuilding, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
+import { fetchHazards, proposeBuilding, setClock, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
 import { SCENARIO_START, useClassLoad } from './lib/classLoad'
+import { usePeopleNow } from './lib/peopleNow'
 import { isDisrupted, isSupplier, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
@@ -61,6 +62,17 @@ export default function App() {
   const [runMinutes, setRunMinutes] = useState<number | null>(null)
   const wave = sim.briefing?.heat_wave
   const classLoad = useClassLoad(runMinutes ?? (wave ? SCENARIO_START + wave.minutes : null))
+  // A scenario run opens the engine's clock at its start time, so who is in each building follows the run.
+  const runOpen = useRef(false)
+  useEffect(() => {
+    if (runMinutes == null) {
+      runOpen.current = false
+      return
+    }
+    if (runOpen.current) return
+    runOpen.current = true
+    void setClock({ at: `${String(Math.floor(runMinutes / 60) % 24).padStart(2, '0')}:${String(runMinutes % 60).padStart(2, '0')}` }).catch(() => undefined)
+  }, [runMinutes])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('map')
   const [branching, setBranching] = useState(false)
@@ -138,6 +150,16 @@ export default function App() {
     if (!runningRef.current) setScenario((current) => current ?? next)
   }
   const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
+  // The engine's own count of who is in each building now, the one its agents work from.
+  const peopleNow = usePeopleNow(selected != null)
+  const selectedInClass = useMemo(() => {
+    if (!selected) return null
+    const row = peopleNow?.slot ? peopleNow.buildings.find((b) => b.node_id === selected.id) : undefined
+    if (peopleNow?.slot && row) return { students: row.students, when: peopleNow.slot }
+    // No engine count (offline, or a building without classes): the People tab's slot, as before.
+    if (classLoad.clock && selected.id in classLoad.byNode) return { students: classLoad.byNode[selected.id], when: classLoad.clock.label }
+    return null
+  }, [selected, peopleNow, classLoad.clock, classLoad.byNode])
   // Students in class in buildings that are dark now, at the People tab's time.
   const classDark = useMemo(() => {
     const names: string[] = []
@@ -371,11 +393,7 @@ export default function App() {
                 key={selected.id}
                 node={selected}
                 corner={view === 'map' ? 'top-right' : 'bottom-left'}
-                inClass={
-                  classLoad.clock && selected.id in classLoad.byNode
-                    ? { students: classLoad.byNode[selected.id], when: classLoad.clock.label }
-                    : null
-                }
+                inClass={selectedInClass}
                 onClose={() => setSelectedId(null)}
                 onToggled={(node, failed) => {
                   if (failed) offerLabel({ label: 'Manual override', detail: `${node.name} failed` })

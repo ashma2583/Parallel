@@ -12,8 +12,10 @@ then answers with options the simulator actually tested, ranked by essential loa
 and people left in the dark. Three specialists weigh in:
 
 - **Energy Planner** ranks the load-shedding policies.
-- **Transit Planner** says which bus lines to reroute and which shelters to open.
-- **Repair Crew** says which failed node to restore first.
+- **Transit Planner** says which bus lines to reroute, which shelters to open, and where the students in each dark building should go.
+- **Repair Crew** says which failed node to restore first, ranked by the students in class there now.
+
+The student counts come from the simulator's class schedule at the campus clock's time of day (`GET /people/now`).
 
 Try:
 
