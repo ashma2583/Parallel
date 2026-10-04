@@ -444,7 +444,13 @@ export function GeoMap({
       >
         <NavigationControl position="bottom-right" showCompass />
         {campusOverview ? CAMPUSES.map((school) => (
-          <Marker key={`campus-${school.id}`} longitude={school.center[0]} latitude={school.center[1]} anchor="center">
+          <Marker
+            key={`campus-${school.id}`}
+            longitude={school.center[0]}
+            latitude={school.center[1]}
+            anchor="center"
+            style={{ zIndex: school.collection !== 'nearby' || school.prominent ? 20 : 1 }}
+          >
             <div className="group relative">
               <button
                 type="button"
