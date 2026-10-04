@@ -11,10 +11,12 @@ interface Props {
   onClose: () => void
   /** Called after the node is failed or restored. `failed` is the new state. */
   onToggled: (node: SimNode, failed: boolean) => void
+  /** Students in class here at the People tab's time, for buildings on the class schedule. */
+  inClass?: { students: number; when: string } | null
 }
 
 /** Card over the map for the selected building. */
-export function Inspector({ node, corner = 'bottom-left', onClose, onToggled }: Props) {
+export function Inspector({ node, corner = 'bottom-left', onClose, onToggled, inClass = null }: Props) {
   const [busy, setBusy] = useState(false)
   const supplier = isSupplier(node)
   const color = statusColor(node.status)
@@ -57,6 +59,19 @@ export function Inspector({ node, corner = 'bottom-left', onClose, onToggled }: 
           </div>
         ))}
       </dl>
+      {inClass && (
+        <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-people" />
+          {inClass.students > 0 ? (
+            <span>
+              <span className="font-mono font-semibold tabular-nums text-people">{inClass.students.toLocaleString()}</span> in class now
+              {node.status === 'Red' ? ', in the dark' : ''} ({inClass.when})
+            </span>
+          ) : (
+            <span>No classes meeting ({inClass.when})</span>
+          )}
+        </p>
+      )}
       <div className="mt-3.5 flex gap-2">
         <button
           type="button"

@@ -11,7 +11,7 @@ export interface ClassClock {
   students: number
   /** Busiest building at any slot of the day, so circle sizes hold still while scrubbing. */
   dayPeak: number
-  /** The slot follows the sim clock, so the arrows and slider are off. */
+  /** The slot follows a running scenario's clock. */
   following: boolean
 }
 
@@ -28,6 +28,8 @@ export interface ClassLoadState {
   setSlot: (slot: number) => void
   spots: ClassSpot[]
   clock: ClassClock | null
+  /** Students in class at the shown slot, by simulation node. Only nodes with classes that day are keys. */
+  byNode: Record<string, number>
   /** The sim clock is moving (a scenario or heat wave runs), so the slot follows it. */
   following: boolean
 }
@@ -35,9 +37,8 @@ export interface ClassLoadState {
 /**
  * Students in class by building and time of day, from the Fall 2026 schedule and campus events.
  * Owned by App so it outlives the panel that shows it. Display only: nothing is written to the engine.
- * While `follow` (minutes into the day) is set, the slot tracks it; scrubbing is for when the sim is idle.
  */
-export function useClassLoad(follow: number | null = null): ClassLoadState {
+export function useClassLoad(followAt: number | null = null): ClassLoadState {
   const [weekday, setWeekday] = useState<string | undefined>(undefined)
   const [turnup, setTurnup] = useState(0.75)
   const [query, setQuery] = useState(0.75)
@@ -84,15 +85,15 @@ export function useClassLoad(follow: number | null = null): ClassLoadState {
     }
   }, [weekday, query, attempt])
 
-  const following = follow !== null
+  // While a scenario plays, show the slot that holds its minute of the day.
   useEffect(() => {
-    if (follow === null || !data?.slots.length) return
-    let at = 0
-    data.slots.forEach((s, index) => {
-      if (s.minutes <= follow) at = index
+    if (followAt == null || !data) return
+    let index = -1
+    data.slots.forEach((s, i) => {
+      if (s.minutes <= followAt) index = i
     })
-    setSlotRaw(at)
-  }, [follow, data])
+    setSlotRaw(Math.max(0, index))
+  }, [followAt, data])
 
   const count = data?.slots.length ?? 0
   const shown = count ? Math.min(Math.max(0, slot), count - 1) : 0
@@ -116,8 +117,17 @@ export function useClassLoad(follow: number | null = null): ClassLoadState {
   const clock = useMemo<ClassClock | null>(() => {
     const at = data?.slots[shown]
     if (!data || !at) return null
-    return { slot: shown, count, label: `${data.weekday} ${at.label}`, students: at.students, dayPeak, following }
-  }, [data, shown, count, dayPeak, following])
+    return { slot: shown, count, label: `${data.weekday} ${at.label}`, students: at.students, dayPeak, following: followAt != null }
+  }, [data, shown, count, dayPeak, followAt])
+
+  const byNode = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const b of data?.buildings ?? []) {
+      if (!b.node_id || !b.students.some((n) => n > 0)) continue
+      out[b.node_id] = (out[b.node_id] ?? 0) + (b.students[shown] ?? 0)
+    }
+    return out
+  }, [data, shown])
 
   return {
     data,
@@ -128,11 +138,13 @@ export function useClassLoad(follow: number | null = null): ClassLoadState {
     turnup,
     setTurnup,
     slot: shown,
-    setSlot: (next: number) => {
-      if (!following) setSlotRaw(count ? Math.min(Math.max(0, next), count - 1) : next)
-    },
+    setSlot: (next: number) => setSlotRaw(count ? Math.min(Math.max(0, next), count - 1) : next),
     spots,
     clock,
-    following,
+    byNode,
+    following: followAt != null,
   }
 }
+
+/** Scenario clocks start at 14:00, the heat wave's afternoon. Minute of the day. */
+export const SCENARIO_START = 14 * 60
