@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BranchPanel } from './components/BranchPanel'
 import { ClassLoad } from './components/ClassLoad'
-import { CityCanvas } from './components/CityCanvas'
 import { GeoMap, type GeoMapHandle, type WeatherStatus } from './components/GeoMap'
 import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
@@ -15,7 +14,6 @@ import { fetchHazards, proposeBuilding, removeProposal, resetSim, type Branch, t
 import { useClassLoad } from './lib/classLoad'
 import { isDisrupted, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
-import { DEFAULT_STRATEGY } from './lib/strategies'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
 import type { StormNote } from './components/weather/useWeather'
 import { endAbandoned } from './lib/weather/api'
@@ -239,17 +237,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Break, Watch, Branch, Adopt. A policy other than the default means one was adopted.
-  const step = !disrupted && !branching ? 0 : branching ? 2 : sim.strategy !== DEFAULT_STRATEGY ? 3 : 1
-  // Mid-run, Branch only opens to replay the plan: a plain fork taken then is out of date before it shows.
-  const onStep = (index: number) => {
-    if (index === 1) closeBranch()
-    if (index >= 2 && (disrupted || mapWeather.planned)) openBranch()
-  }
-
   return (
     <div className="grid h-full min-h-[640px] grid-cols-[minmax(0,1fr)] grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-ink text-text">
-      <TopBar sim={sim} nodes={nodes} step={step} onStep={onStep} view={view} onView={setView} />
+      <TopBar sim={sim} nodes={nodes} view={view} onView={setView} />
 
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_340px] min-[1100px]:grid-cols-[minmax(0,1fr)_400px]">
         <main className="relative flex min-w-0 flex-col">
@@ -319,17 +309,6 @@ export default function App() {
                 />
               </div>
             )}
-            {view === 'city' &&
-              (surveyModel ? (
-                <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
-              ) : (
-                <CityCanvas
-                  nodes={nodes}
-                  edges={sim.edges}
-                  selectedId={selectedId}
-                  onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
-                />
-              ))}
             {view === 'grid' &&
               (surveyModel ? (
                 <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
@@ -464,7 +443,6 @@ export default function App() {
                     onClear={() => {
                       setSurvey(null)
                       setSurveyFailed([])
-                      setView('city')
                     }}
                     graph={surveyModel}
                     dark={surveyDark}
