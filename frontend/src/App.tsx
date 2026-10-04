@@ -3,13 +3,17 @@ import { BranchPanel } from './components/BranchPanel'
 import { GeoMap } from './components/GeoMap'
 import { Inspector } from './components/Inspector'
 import { LivePanel } from './components/LivePanel'
+import { LocationPanel } from './components/LocationPanel'
+import { PlanBuilding, type PlanDraft } from './components/PlanBuilding'
 import { ScenarioStrip, type Scenario } from './components/ScenarioStrip'
 import { Schematic } from './components/Schematic'
+import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
-import type { Branch } from './lib/api'
+import { proposeBuilding, removeProposal, type Branch, type LocationSurvey, type ProposalImpact } from './lib/api'
 import { isDisrupted, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { DEFAULT_STRATEGY } from './lib/strategies'
+import { buildSurvey, darkIds } from './lib/surveyGraph'
 
 export default function App() {
   const sim = useSim()
@@ -18,6 +22,43 @@ export default function App() {
   const [branching, setBranching] = useState(false)
   const [preview, setPreview] = useState<Branch | null>(null)
   const [scenario, setScenario] = useState<Scenario | null>(null)
+
+  // A researched place, shown in place of the campus until it is cleared.
+  const [survey, setSurvey] = useState<LocationSurvey | null>(null)
+  const [surveyFailed, setSurveyFailed] = useState<string[]>([])
+  const surveyModel = useMemo(() => (survey ? buildSurvey(survey) : null), [survey])
+  const surveyDark = useMemo(() => (surveyModel ? darkIds(surveyModel, surveyFailed) : new Set<string>()), [surveyModel, surveyFailed])
+  const toggleSurvey = (id: string) =>
+    setSurveyFailed((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+
+  // A planned building: fill the form, drop a pin on the map, confirm.
+  const [placing, setPlacing] = useState<PlanDraft | null>(null)
+  const [draftPoint, setDraftPoint] = useState<{ lng: number; lat: number } | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [proposalImpact, setProposalImpact] = useState<ProposalImpact | null>(null)
+  const [planError, setPlanError] = useState<string | null>(null)
+
+  async function confirmPlacement() {
+    if (!placing || !draftPoint || confirming) return
+    setConfirming(true)
+    setPlanError(null)
+    try {
+      setProposalImpact(await proposeBuilding({ ...placing, lng: draftPoint.lng, lat: draftPoint.lat }))
+      setPlacing(null)
+      setDraftPoint(null)
+      sim.refresh()
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  async function dropProposal(id: string) {
+    await removeProposal(id)
+    setProposalImpact((current) => (current?.id === id ? null : current))
+    sim.refresh()
+  }
 
   // While a policy is hovered in the branch list, the whole console shows its end state.
   const nodes = preview ? preview.nodes : sim.nodes
@@ -74,8 +115,18 @@ export default function App() {
                 selectedId={selectedId}
                 coolingIds={coolingIds}
                 reroutes={sim.briefing?.buses.reroute ?? []}
+                survey={survey}
+                surveyGraph={surveyModel}
+                surveyDark={surveyDark}
+                onToggleSurvey={toggleSurvey}
+                placing={placing !== null}
+                proposals={sim.proposals}
+                draftPoint={draftPoint ? { ...draftPoint, name: placing?.name ?? 'Planned' } : null}
+                onPlace={(lng, lat) => setDraftPoint({ lng, lat })}
                 onNodeClick={(n) => setSelectedId(n.id === selectedId ? null : n.id)}
               />
+            ) : surveyModel ? (
+              <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
             ) : (
               <Schematic
                 nodes={nodes}
@@ -141,6 +192,46 @@ export default function App() {
                 else if (result.policy.action === 'fail' && !scenario) setScenario({ label: 'Director’s order', detail: result.transcript })
                 sim.refresh()
               }}
+              plan={
+                <>
+                  <PlanBuilding
+                    placing={placing !== null}
+                    pinReady={draftPoint !== null}
+                    confirming={confirming}
+                    impact={proposalImpact}
+                    pins={sim.proposals}
+                    onStart={(draft) => {
+                      setPlanError(null)
+                      setDraftPoint(null)
+                      setPlacing(draft)
+                      setView('map')
+                    }}
+                    onUndo={() => setDraftPoint(null)}
+                    onConfirm={() => void confirmPlacement()}
+                    onCancel={() => {
+                      setPlacing(null)
+                      setDraftPoint(null)
+                    }}
+                    onRemove={(id) => void dropProposal(id)}
+                    error={planError}
+                  />
+                  <LocationPanel
+                    onShow={(next) => {
+                      setSurvey(next)
+                      setSurveyFailed([])
+                      setView('map')
+                    }}
+                    onClear={() => {
+                      setSurvey(null)
+                      setSurveyFailed([])
+                      setView('grid')
+                    }}
+                    graph={surveyModel}
+                    dark={surveyDark}
+                    onToggle={toggleSurvey}
+                  />
+                </>
+              }
             />
           )}
         </aside>

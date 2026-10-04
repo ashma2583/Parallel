@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSpacetimeDB, useTable } from 'spacetimedb/react'
 import { BACKEND_URL } from '../config'
 import { tables } from '../module_bindings'
-import type { Briefing } from './api'
+import type { Briefing, ProposalPin } from './api'
 import { PLACES, ZONES } from './places'
 
 export interface SimNode {
@@ -96,6 +96,8 @@ export interface Sim {
   strategy: string
   /** Plain-language answers for the current outage. Null until the engine replies. */
   briefing: Briefing | null
+  /** Buildings a planner has added to the campus. */
+  proposals: ProposalPin[]
   /** Pull engine state now instead of waiting for the next poll. */
   refresh: () => void
 }
@@ -118,6 +120,7 @@ export function useSim(): Sim {
   const [activity, setActivity] = useState<FeedLine[]>([])
   const [strategy, setStrategy] = useState('tiered')
   const [briefing, setBriefing] = useState<Briefing | null>(null)
+  const [proposals, setProposals] = useState<ProposalPin[]>([])
 
   const stdbLiveRef = useRef(stdbLive)
   useEffect(() => {
@@ -127,13 +130,15 @@ export function useSim(): Sim {
   const pull = useCallback(async () => {
     try {
       // With SpacetimeDB live only the agent feed comes over REST.
-      const [res, brief] = await Promise.all([
+      const [res, brief, plans] = await Promise.all([
         fetch(`${BACKEND_URL}${stdbLiveRef.current ? '/activity' : '/state'}`),
         fetch(`${BACKEND_URL}/briefing`),
+        fetch(`${BACKEND_URL}/proposals`),
       ])
       if (!res.ok) throw new Error(String(res.status))
       const data = await res.json()
       if (brief.ok) setBriefing(await brief.json())
+      if (plans.ok) setProposals((await plans.json()).proposals ?? [])
       setEngineUp(true)
       setStrategy(data.strategy ?? 'tiered')
       if (stdbLiveRef.current) {
@@ -177,14 +182,15 @@ export function useSim(): Sim {
         activity,
         strategy,
         briefing,
+        proposals,
         refresh: pull,
       }
     }
     if (engineUp && engine) {
-      return { source: 'engine', ...engine, nodes: [...engine.nodes].sort(byId), activity, strategy, briefing, refresh: pull }
+      return { source: 'engine', ...engine, nodes: [...engine.nodes].sort(byId), activity, strategy, briefing, proposals, refresh: pull }
     }
-    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, strategy, briefing, refresh: pull }
-  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, strategy, briefing, pull])
+    return { source: 'offline', nodes: [], edges: [], summary: undefined, activity, strategy, briefing, proposals, refresh: pull }
+  }, [stdbLive, nodeRows, edgeRows, simRows, engine, engineUp, activity, strategy, briefing, proposals, pull])
 }
 
 function feedLines(lines: string[] = [], ticks: number[] = []): FeedLine[] {

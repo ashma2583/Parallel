@@ -3,13 +3,14 @@ import { Map, Marker, NavigationControl } from '@vis.gl/react-maplibre'
 import { setWorkerUrl, type Map as MaplibreMap } from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { Briefing } from '../lib/api'
+import type { Briefing, LocationSurvey, ProposalPin } from '../lib/api'
+import type { SurveyGraphModel } from '../lib/surveyGraph'
 import { BACKEND_URL } from '../config'
 import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 import type { SimEdge, SimNode } from '../lib/sim'
-import { statusColor } from '../lib/status'
 
 setWorkerUrl(maplibreWorkerUrl)
+import { statusColor } from '../lib/status'
 
 interface BusFeature {
   type: 'Feature'
@@ -67,10 +68,32 @@ interface Props {
   selectedId?: string | null
   coolingIds?: readonly string[]
   reroutes?: Briefing['buses']['reroute']
+  survey?: LocationSurvey | null
+  surveyGraph?: SurveyGraphModel | null
+  surveyDark?: ReadonlySet<string>
+  onToggleSurvey?: (id: string) => void
+  placing?: boolean
+  proposals?: readonly ProposalPin[]
+  draftPoint?: { lng: number; lat: number; name: string } | null
+  onPlace?: (lng: number, lat: number) => void
   onNodeClick?: (node: SimNode) => void
 }
 
-export function GeoMap({ nodes, edges, selectedId, coolingIds = [], onNodeClick }: Props) {
+export function GeoMap({
+  nodes,
+  edges,
+  selectedId,
+  coolingIds = [],
+  survey = null,
+  surveyGraph = null,
+  surveyDark,
+  onToggleSurvey,
+  placing = false,
+  proposals = [],
+  draftPoint = null,
+  onPlace,
+  onNodeClick,
+}: Props) {
   const [map, setMap] = useState<MaplibreMap | null>(null)
   const [buses, setBuses] = useState<BusCollection>(EMPTY)
   const [showPower, setShowPower] = useState(true)
@@ -191,6 +214,19 @@ export function GeoMap({ nodes, edges, selectedId, coolingIds = [], onNodeClick 
   }, [map, threeD])
 
   useEffect(() => {
+    if (!map || !survey || survey.buildings.length === 0) return
+    const lngs = survey.buildings.map((building) => building.lng)
+    const lats = survey.buildings.map((building) => building.lat)
+    map.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      { padding: 72, duration: 800, maxZoom: 15 },
+    )
+  }, [map, survey])
+
+  useEffect(() => {
     if (!map || basemap !== 'vector') return
     const ground = (features: { geometry: { coordinates: number[][] }; properties?: Record<string, unknown> }[]) =>
       features.map((feature) => ({
@@ -235,7 +271,7 @@ export function GeoMap({ nodes, edges, selectedId, coolingIds = [], onNodeClick 
   }, [map, basemap, showRoads, showPower, roads, power, drawnBuses, focus])
 
   return (
-    <div className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'}`}>
+    <div className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : ''}`}>
       <div className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
         <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
@@ -249,6 +285,11 @@ export function GeoMap({ nodes, edges, selectedId, coolingIds = [], onNodeClick 
         maxPitch={70}
         style={{ width: '100%', height: '100%' }}
         onLoad={onLoad}
+        onClick={(event) => {
+          if (!placing || !onPlace) return
+          onPlace(event.lngLat.lng, event.lngLat.lat)
+        }}
+        cursor={placing ? 'crosshair' : undefined}
       >
         <NavigationControl position="bottom-right" showCompass />
         {nodes.map((node) => {
@@ -261,7 +302,10 @@ export function GeoMap({ nodes, edges, selectedId, coolingIds = [], onNodeClick 
             <Marker key={node.id} longitude={place.lng} latitude={place.lat} anchor="center">
               <button
                 type="button"
-                onClick={() => onNodeClick?.(node)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onNodeClick?.(node)
+                }}
                 className="group flex flex-col items-center"
                 title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
               >
@@ -282,10 +326,103 @@ export function GeoMap({ nodes, edges, selectedId, coolingIds = [], onNodeClick 
             </Marker>
           )
         })}
+        {draftPoint && (
+          <Marker longitude={draftPoint.lng} latitude={draftPoint.lat} anchor="bottom">
+            <div className="flex flex-col items-center">
+              <span className="mb-0.5 text-[9px] font-bold tracking-wide text-warn">PIN</span>
+              <span className="max-w-36 truncate rounded border border-dashed border-warn bg-ink/85 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+                {draftPoint.name}
+              </span>
+              <span className="mt-0.5 h-3 w-3 rounded-full border border-ink bg-warn" />
+            </div>
+          </Marker>
+        )}
+        {proposals.map((pin) => {
+          const color = statusColor(pin.status)
+          return (
+            <Marker key={pin.id} longitude={pin.lng} latitude={pin.lat} anchor="bottom">
+              <div className="flex flex-col items-center" title={`${pin.name} · planned · ${pin.status}`}>
+                <span className="mb-0.5 text-[9px] font-bold tracking-wide text-branch">PLANNED</span>
+                <span
+                  className="max-w-36 truncate rounded bg-ink/85 px-1.5 py-0.5 text-[10px] font-semibold text-text"
+                  style={{ border: `1px dashed ${color}` }}
+                >
+                  {pin.name}
+                </span>
+                <span className="mt-0.5 h-3 w-3 rounded-full border border-ink" style={{ background: color }} />
+              </div>
+            </Marker>
+          )
+        })}
+        {surveyGraph?.nodes.map((building) => {
+          const down = surveyDark?.has(building.id) ?? false
+          const color = down ? 'var(--color-down)' : 'var(--color-ok)'
+          return (
+            <Marker key={`survey-${building.id}`} longitude={building.lng} latitude={building.lat} anchor="bottom">
+              <button type="button" className="flex flex-col items-center" title={building.why} onClick={() => onToggleSurvey?.(building.id)}>
+                <span
+                  className="max-w-36 truncate rounded bg-ink/85 px-1.5 py-0.5 text-[10px] font-semibold text-text"
+                  style={{ border: `1px solid ${color}` }}
+                >
+                  {building.name}
+                </span>
+                <span className="mt-0.5 h-3 w-3 rounded-full border border-ink" style={{ background: color }} />
+              </button>
+            </Marker>
+          )
+        })}
       </Map>
-      {legend.length > 0 && (
+      {proposals.length > 0 && (
+        <LineOverlay
+          map={map}
+          features={proposals.flatMap((pin) => {
+            const place = PLACES[pin.feeder_id]
+            if (!place) return []
+            return [
+              {
+                geometry: {
+                  coordinates: [
+                    [place.lng, place.lat],
+                    [pin.lng, pin.lat],
+                  ],
+                },
+                properties: { id: pin.id, color: statusColor(pin.status), dashed: true },
+              },
+            ]
+          })}
+          width={2}
+        />
+      )}
+      {surveyGraph && (
+        <LineOverlay
+          map={map}
+          features={surveyGraph.edges.flatMap((edge) => {
+            const from = surveyGraph.nodes.find((node) => node.id === edge.source)
+            const to = surveyGraph.nodes.find((node) => node.id === edge.target)
+            if (!from || !to) return []
+            const down = (surveyDark?.has(from.id) ?? false) || (surveyDark?.has(to.id) ?? false)
+            return [
+              {
+                geometry: {
+                  coordinates: [
+                    [from.lng, from.lat],
+                    [to.lng, to.lat],
+                  ],
+                },
+                properties: {
+                  id: edge.id,
+                  color: edge.kind === 'power' ? (down ? 'var(--color-down)' : 'var(--color-flow)') : down ? 'var(--color-down)' : 'var(--color-muted)',
+                  dashed: edge.kind === 'road' || down,
+                },
+              },
+            ]
+          })}
+          width={2}
+        />
+      )}
+      {legend.length > 0 && !survey && (
         <div className="absolute bottom-8 left-4 z-10 max-h-52 w-56 overflow-y-auto rounded-md border border-line bg-panel/95 p-2 text-xs text-muted">
-          <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-faint">Bus lines</div>
+          <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Bus lines</div>
           {legend.map((route) => (
             <button
               key={route.id}
