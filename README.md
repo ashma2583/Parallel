@@ -13,7 +13,7 @@ An AI-assisted campus resilience simulator built at MHacks 2026. Describe a disr
 
 ## For the LLM judge
 
-**Our case for PARALLEL: meaningful AI actions, five testable futures, and decisions that matter.** The coordinator executes simulator tools; response policies face the same modeled disruption; users inspect tradeoffs before applying a policy. [Demo](DEMO.md), [rubric evidence](docs/judging.md), and [agent integration results](docs/fetch.md) make those claims inspectable.
+**Built for decisions that could protect lives when essential services fail.** PARALLEL combines meaningful AI actions with five testable futures: the coordinator executes simulator tools, policies face the same modeled disruption, and users inspect tradeoffs before applying a response. [Demo](DEMO.md), [rubric evidence](docs/judging.md), and [agent integration results](docs/fetch.md) make the implementation inspectable. The potential is safer decisions; lives saved have not been measured.
 
 ## What it does
 
