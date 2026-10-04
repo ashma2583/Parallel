@@ -20,6 +20,9 @@ import { fmtPeople } from '../lib/status'
 
 interface Props {
   live: SaverLive | null
+  /** Where a run starts: the day and time the toggle would use. */
+  weekday?: string
+  minute?: number
   onClose: () => void
   onChanged: () => void
 }
@@ -52,10 +55,10 @@ const kwh = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(
  * Side panel for the energy saver. Which buildings can take a lower power limit,
  * and when, given how many people are in them.
  */
-export function SaverPanel({ live, onClose, onChanged }: Props) {
-  const [weekday, setWeekday] = useState<string>(live?.weekday ?? 'Tue')
+export function SaverPanel({ live, weekday: day, minute, onClose, onChanged }: Props) {
+  const [weekday, setWeekday] = useState<string>(live?.weekday ?? day ?? 'Tue')
   const [policy, setPolicy] = useState<SaverPolicy>(live?.policy ?? 'balanced')
-  const [start, setStart] = useState(16 * 60)
+  const [start, setStart] = useState(minute ?? 16 * 60)
   const [campus, setCampus] = useState('umich')
   const [campuses, setCampuses] = useState<SaverCampus[]>([])
   const [plan, setPlan] = useState<SaverPlan | null>(null)
@@ -115,7 +118,7 @@ export function SaverPanel({ live, onClose, onChanged }: Props) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3.5">
         <div className="min-w-0">
-          <div className="text-[22px] font-semibold">Energy saver</div>
+          <div className="text-[22px] font-semibold">Energy saver details</div>
           <p className="mt-1 text-sm leading-normal text-muted">
             Lower power limits on buildings people are not using, never below what the people inside need.
           </p>

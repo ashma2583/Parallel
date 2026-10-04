@@ -595,7 +595,11 @@ async def post_heat_wave() -> dict:
 async def post_reset() -> dict:
     with runtime.lock:
         runtime.forget()
+        kept = graph.saver
         graph.reset()
+        # The energy saver is a focus, not part of the scenario: it stays on across a reset.
+        if kept:
+            savings.start(graph, kept["policy"], kept["weekday"], kept["minute"])
         runtime.remember(graph)
         runtime.fresh_start()
         runtime.begin_scenario("Campus reset")

@@ -582,7 +582,7 @@ def build_router(graph: Any, publisher: Any):
         label = f"Energy saver · {POLICIES[req.policy]['label']}, {WEEKDAYS[weekday]}"
         with runtime.lock:
             runtime.forget_after(graph.tick_count)
-            runtime.begin_scenario(label)
+            # No new scenario log: the saver rides along with whatever is running.
             body = start(graph, req.policy, weekday, req.start_minute)
             runtime.push([f"Director: {label} from {clock(req.start_minute)}. {body['totals']['kwh_saved']} kWh a day vs always-on."])
             runtime.paused = False

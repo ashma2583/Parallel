@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { disrupt, fetchHazards, resetSim, startHeatWave, type DisruptAction, type Hazard, type HazardList } from '../lib/api'
 import { FAULT_SPECS, type FaultSpec, type WeatherRequest } from '../lib/weather/types'
 import { FaultIcon, HazardIcon, StormIcon } from './weather/icons'
@@ -73,15 +73,13 @@ interface Props {
   onResetting?: () => void
   /** The campus was reset. */
   onReset: () => void
-  /** Open the energy saver panel. */
-  onSaver?: () => void
-  /** The energy saver is running on the clock. */
-  saving?: boolean
+  /** The energy saver toggle, kept at the right end of the strip. */
+  saver?: ReactNode
 }
 
 const pill = 'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition'
 
-export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onResetting, onReset, onSaver, saving = false }: Props) {
+export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onResetting, onReset, saver }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [list, setList] = useState<HazardList | null>(null)
@@ -158,17 +156,7 @@ export function ScenarioStrip({ disrupted, scenario, previewName, onRequest, onR
         </>
       )}
       {error && <span className="shrink-0 text-xs text-down">{error}</span>}
-      {onSaver && (
-        <button
-          type="button"
-          onClick={onSaver}
-          className={`${pill} ml-auto ${saving ? 'border-flow text-text' : 'border-line text-muted hover:text-text'}`}
-          title="Cap power in buildings people are not using"
-        >
-          <span className={`h-1.5 w-1.5 rounded-full ${saving ? 'bg-flow' : 'bg-line'}`} />
-          {saving ? 'Saving energy' : 'Save energy'}
-        </button>
-      )}
+      {saver && <div className="ml-auto shrink-0">{saver}</div>}
     </div>
   )
 }
