@@ -6,9 +6,45 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AckActionReducer from "../ack_action_reducer";
+import AckActionsReducer from "../ack_actions_reducer";
+import ClaimEngineReducer from "../claim_engine_reducer";
 import ClearStateReducer from "../clear_state_reducer";
+import EngineHeartbeatReducer from "../engine_heartbeat_reducer";
+import HeartbeatReducer from "../heartbeat_reducer";
+import JoinReducer from "../join_reducer";
+import LeaveReducer from "../leave_reducer";
+import MoveCursorReducer from "../move_cursor_reducer";
+import PlanClearReducer from "../plan_clear_reducer";
+import PlanRemoveReducer from "../plan_remove_reducer";
+import PlanUpsertReducer from "../plan_upsert_reducer";
+import PruneActionsReducer from "../prune_actions_reducer";
+import PublishBranchResultReducer from "../publish_branch_result_reducer";
 import PublishStateReducer from "../publish_state_reducer";
+import PublishSurveyReducer from "../publish_survey_reducer";
+import ReleaseEngineReducer from "../release_engine_reducer";
+import RequestActionReducer from "../request_action_reducer";
+import SweepPresenceReducer from "../sweep_presence_reducer";
+import UpsertCampusesReducer from "../upsert_campuses_reducer";
 
+export type AckActionParams = __Infer<typeof AckActionReducer>;
+export type AckActionsParams = __Infer<typeof AckActionsReducer>;
+export type ClaimEngineParams = __Infer<typeof ClaimEngineReducer>;
 export type ClearStateParams = __Infer<typeof ClearStateReducer>;
+export type EngineHeartbeatParams = __Infer<typeof EngineHeartbeatReducer>;
+export type HeartbeatParams = __Infer<typeof HeartbeatReducer>;
+export type JoinParams = __Infer<typeof JoinReducer>;
+export type LeaveParams = __Infer<typeof LeaveReducer>;
+export type MoveCursorParams = __Infer<typeof MoveCursorReducer>;
+export type PlanClearParams = __Infer<typeof PlanClearReducer>;
+export type PlanRemoveParams = __Infer<typeof PlanRemoveReducer>;
+export type PlanUpsertParams = __Infer<typeof PlanUpsertReducer>;
+export type PruneActionsParams = __Infer<typeof PruneActionsReducer>;
+export type PublishBranchResultParams = __Infer<typeof PublishBranchResultReducer>;
 export type PublishStateParams = __Infer<typeof PublishStateReducer>;
+export type PublishSurveyParams = __Infer<typeof PublishSurveyReducer>;
+export type ReleaseEngineParams = __Infer<typeof ReleaseEngineReducer>;
+export type RequestActionParams = __Infer<typeof RequestActionReducer>;
+export type SweepPresenceParams = __Infer<typeof SweepPresenceReducer>;
+export type UpsertCampusesParams = __Infer<typeof UpsertCampusesReducer>;
 

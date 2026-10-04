@@ -34,20 +34,96 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AckActionReducer from "./ack_action_reducer";
+import AckActionsReducer from "./ack_actions_reducer";
+import ClaimEngineReducer from "./claim_engine_reducer";
 import ClearStateReducer from "./clear_state_reducer";
+import EngineHeartbeatReducer from "./engine_heartbeat_reducer";
+import HeartbeatReducer from "./heartbeat_reducer";
+import JoinReducer from "./join_reducer";
+import LeaveReducer from "./leave_reducer";
+import MoveCursorReducer from "./move_cursor_reducer";
+import PlanClearReducer from "./plan_clear_reducer";
+import PlanRemoveReducer from "./plan_remove_reducer";
+import PlanUpsertReducer from "./plan_upsert_reducer";
+import PruneActionsReducer from "./prune_actions_reducer";
+import PublishBranchResultReducer from "./publish_branch_result_reducer";
 import PublishStateReducer from "./publish_state_reducer";
+import PublishSurveyReducer from "./publish_survey_reducer";
+import ReleaseEngineReducer from "./release_engine_reducer";
+import RequestActionReducer from "./request_action_reducer";
+import SweepPresenceReducer from "./sweep_presence_reducer";
+import UpsertCampusesReducer from "./upsert_campuses_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import ActionRow from "./action_table";
+import BranchResultRow from "./branch_result_table";
+import CampusRow from "./campus_table";
+import CampusSurveyRow from "./campus_survey_table";
 import EdgeRow from "./edge_table";
+import EngineRow from "./engine_table";
 import NodeRow from "./node_table";
+import PresenceRow from "./presence_table";
+import ScenarioPlanRow from "./scenario_plan_table";
 import SimStateRow from "./sim_state_table";
 
 /** Type-only namespace exports for generated type groups. */
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  action: __table({
+    name: 'action',
+    indexes: [
+      { accessor: 'clientKey', name: 'action_client_key_idx_btree', algorithm: 'btree', columns: [
+        'clientKey',
+      ] },
+      { accessor: 'id', name: 'action_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'status', name: 'action_status_idx_btree', algorithm: 'btree', columns: [
+        'status',
+      ] },
+    ],
+    constraints: [
+      { name: 'action_client_key_key', constraint: 'unique', columns: ['clientKey'] },
+      { name: 'action_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ActionRow),
+  branchResult: __table({
+    name: 'branch_result',
+    indexes: [
+      { accessor: 'id', name: 'branch_result_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'branch_result_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, BranchResultRow),
+  campus: __table({
+    name: 'campus',
+    indexes: [
+      { accessor: 'id', name: 'campus_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'campus_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, CampusRow),
+  campusSurvey: __table({
+    name: 'campus_survey',
+    indexes: [
+      { accessor: 'campusId', name: 'campus_survey_campus_id_idx_btree', algorithm: 'btree', columns: [
+        'campusId',
+      ] },
+    ],
+    constraints: [
+      { name: 'campus_survey_campus_id_key', constraint: 'unique', columns: ['campusId'] },
+    ],
+  }, CampusSurveyRow),
   edge: __table({
     name: 'edge',
     indexes: [
@@ -59,6 +135,17 @@ const tablesSchema = __schema({
       { name: 'edge_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, EdgeRow),
+  engine: __table({
+    name: 'engine',
+    indexes: [
+      { accessor: 'id', name: 'engine_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'engine_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, EngineRow),
   node: __table({
     name: 'node',
     indexes: [
@@ -70,6 +157,28 @@ const tablesSchema = __schema({
       { name: 'node_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, NodeRow),
+  presence: __table({
+    name: 'presence',
+    indexes: [
+      { accessor: 'identity', name: 'presence_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
+    ],
+    constraints: [
+      { name: 'presence_identity_key', constraint: 'unique', columns: ['identity'] },
+    ],
+  }, PresenceRow),
+  scenarioPlan: __table({
+    name: 'scenario_plan',
+    indexes: [
+      { accessor: 'itemKey', name: 'scenario_plan_item_key_idx_btree', algorithm: 'btree', columns: [
+        'itemKey',
+      ] },
+    ],
+    constraints: [
+      { name: 'scenario_plan_item_key_key', constraint: 'unique', columns: ['itemKey'] },
+    ],
+  }, ScenarioPlanRow),
   simState: __table({
     name: 'sim_state',
     indexes: [
@@ -85,8 +194,26 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("ack_action", AckActionReducer),
+  __reducerSchema("ack_actions", AckActionsReducer),
+  __reducerSchema("claim_engine", ClaimEngineReducer),
   __reducerSchema("clear_state", ClearStateReducer),
+  __reducerSchema("engine_heartbeat", EngineHeartbeatReducer),
+  __reducerSchema("heartbeat", HeartbeatReducer),
+  __reducerSchema("join", JoinReducer),
+  __reducerSchema("leave", LeaveReducer),
+  __reducerSchema("move_cursor", MoveCursorReducer),
+  __reducerSchema("plan_clear", PlanClearReducer),
+  __reducerSchema("plan_remove", PlanRemoveReducer),
+  __reducerSchema("plan_upsert", PlanUpsertReducer),
+  __reducerSchema("prune_actions", PruneActionsReducer),
+  __reducerSchema("publish_branch_result", PublishBranchResultReducer),
   __reducerSchema("publish_state", PublishStateReducer),
+  __reducerSchema("publish_survey", PublishSurveyReducer),
+  __reducerSchema("release_engine", ReleaseEngineReducer),
+  __reducerSchema("request_action", RequestActionReducer),
+  __reducerSchema("sweep_presence", SweepPresenceReducer),
+  __reducerSchema("upsert_campuses", UpsertCampusesReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

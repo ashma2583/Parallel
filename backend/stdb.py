@@ -54,6 +54,8 @@ class SpacetimePublisher:
         self.timeout = timeout if timeout is not None else float(os.getenv("STDB_TIMEOUT", "2"))
 
         self._client: httpx.AsyncClient | None = None
+        self._identity: Any = None  # stdb_actions.StdbHttp, created lazily
+        self._claimed = False
         self.publishes = 0
         self.failures = 0
         self.consecutive_failures = 0
@@ -66,10 +68,35 @@ class SpacetimePublisher:
         if self._client is None:
             self._client = httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout)
 
+    # -- engine identity (Phase 5) ------------------------------------------- #
+    # publish_state / clear_state are engine-only (`ensureEngine` in the module).
+    # The engine uses one persistent identity (token file shared with
+    # stdb_actions.StdbHttp) and holds the lock via `claim_engine`.
+
+    async def _ensure_auth(self) -> None:
+        if self._identity is None:
+            from stdb_actions import StdbHttp  # local import: no cycle at module load
+
+            self._identity = StdbHttp(self.base_url, self.database, timeout=self.timeout)
+        if self._identity.token is None:
+            await self._identity.start()  # loads or mints the token (raises if STDB is down)
+        if not self._claimed:
+            assert self._client is not None
+            resp = await self._client.post(self._reducer_url("claim_engine"), json=[], headers=self._auth_headers())
+            if resp.status_code >= 400:
+                raise RuntimeError(f"claim_engine {resp.status_code} {resp.text[:200]}")
+            self._claimed = True
+
+    def _auth_headers(self) -> dict[str, str]:
+        token = self._identity.token if self._identity is not None else None
+        return {"Authorization": f"Bearer {token}"} if token else {}
+
     async def close(self) -> None:
         if self._client is not None:
             await self._client.aclose()
             self._client = None
+        if self._identity is not None:
+            await self._identity.close()
 
     # -- publishing ---------------------------------------------------------- #
 
@@ -85,7 +112,13 @@ class SpacetimePublisher:
         assert self._client is not None
 
         try:
-            resp = await self._client.post(self._reducer_url(reducer), json=args)
+            await self._ensure_auth()
+            resp = await self._client.post(self._reducer_url(reducer), json=args, headers=self._auth_headers())
+            if resp.status_code == 530 and "engine lock" in resp.text:
+                # Phase 5: engine-only reducers need the engine lock. Take it and retry once.
+                self._claimed = False
+                await self._ensure_auth()
+                resp = await self._client.post(self._reducer_url(reducer), json=args, headers=self._auth_headers())
             if resp.status_code >= 400:
                 raise RuntimeError(f"{resp.status_code} {resp.text[:300]}")
         except Exception as exc:  # noqa: BLE001 - publishing must never kill the sim

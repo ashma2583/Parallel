@@ -1,13 +1,16 @@
 /**
- * PARALLEL - SpacetimeDB schema (Phase 2: State Sync).
+ * PARALLEL - SpacetimeDB schema.
  *
- * Three public tables mirror the Python simulation engine's state so that any
- * client (the React map in Phase 3) can subscribe and receive row-level
- * updates the instant the backend publishes a new tick.
- *
- *   node      - one row per campus node (15 rows), keyed by string id
- *   edge      - power lines + roads (static), keyed by string id
- *   sim_state - singleton row (id = 0) with the latest tick summary
+ * Phase 2 (state sync): `node`, `edge`, `sim_state` mirror the Python engine.
+ * Phase 5 (multiplayer):
+ *   presence       - one row per connected director (cursor, name, role)
+ *   action         - browser -> engine command queue (request_action / ack_action)
+ *   branch_result  - last Branch runs, shared by every director
+ *   scenario_plan  - co-edited Scenario dock plan, one row per plan item
+ *   campus         - campus catalog (U-M twin + researched + illustrative)
+ *   campus_survey  - research results for a campus, shared by every director
+ *   engine         - engine lock: which identity may call engine-only reducers
+ *   module_owner   - private: identity that first published the database
  *
  * Columns are declared camelCase (TS convention) but SpacetimeDB stores them
  * under canonical snake_case names (`currentPower` -> `current_power`). SQL
@@ -16,6 +19,10 @@
  */
 
 import { schema, table, t } from 'spacetimedb/server';
+
+// --------------------------------------------------------------------------- //
+// Phase 2: simulation mirror (engine-only writes)
+// --------------------------------------------------------------------------- //
 
 export const node = table(
   { name: 'node', public: true },
@@ -74,5 +81,135 @@ export const TickSummary = t.object('TickSummary', {
   red: t.u32(),
 });
 
-const spacetimedb = schema({ node, edge, simState });
+// --------------------------------------------------------------------------- //
+// Phase 5 L1: presence
+// --------------------------------------------------------------------------- //
+
+export const presence = table(
+  { name: 'presence', public: true },
+  {
+    identity: t.identity().primaryKey(),
+    conn: t.string(),         // hex connection id that last called join ('' over HTTP)
+    name: t.string(),
+    role: t.string(),         // '' | energy | transit | observer ...
+    hasCursor: t.bool(),
+    cursorLng: t.f64(),
+    cursorLat: t.f64(),
+    joinedAt: t.timestamp(),
+    lastSeen: t.timestamp(),  // join / heartbeat / move_cursor
+  }
+);
+
+// --------------------------------------------------------------------------- //
+// Phase 5 L2: action queue (browser -> engine)
+// --------------------------------------------------------------------------- //
+
+export const action = table(
+  { name: 'action', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    clientKey: t.string().unique(),  // client-generated id: idempotency + correlation
+    kind: t.string(),                // fail_node | restore_node | hazard | scenario_run | ...
+    payload: t.string(),             // JSON
+    sender: t.identity(),
+    senderName: t.string(),
+    status: t.string().index('btree'), // pending | running | done | error
+    result: t.string(),              // short JSON / error text written by the engine
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
+  }
+);
+
+// --------------------------------------------------------------------------- //
+// Phase 5 L3: shared state
+// --------------------------------------------------------------------------- //
+
+export const branchResult = table(
+  { name: 'branch_result', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    actionId: t.u64(),        // 0 when not triggered through the action queue
+    label: t.string(),
+    payload: t.string(),      // JSON: the /branch response (trimmed by the engine)
+    createdAt: t.timestamp(),
+  }
+);
+
+export const scenarioPlan = table(
+  { name: 'scenario_plan', public: true },
+  {
+    itemKey: t.string().primaryKey(), // client-generated; one row per plan item
+    kind: t.string(),                 // storm | hazard | heat | node | ...
+    payload: t.string(),              // JSON
+    position: t.u32(),                // ordering in the dock
+    version: t.u32(),                 // bumped on every edit (last writer wins per item)
+    updatedBy: t.identity(),
+    updatedByName: t.string(),
+    updatedAt: t.timestamp(),
+  }
+);
+
+export const campus = table(
+  { name: 'campus', public: true },
+  {
+    id: t.string().primaryKey(),
+    name: t.string(),
+    lat: t.f64(),
+    lng: t.f64(),
+    logo: t.string(),
+    tier: t.string(),          // twin | researched | illustrative
+    featured: t.bool(),
+    hazardCounty: t.string(),
+    sortOrder: t.u32(),
+  }
+);
+
+export const campusSurvey = table(
+  { name: 'campus_survey', public: true },
+  {
+    campusId: t.string().primaryKey(),
+    status: t.string(),        // running | done | error
+    payload: t.string(),       // JSON summary (buildings, feeds, transit)
+    updatedAt: t.timestamp(),
+  }
+);
+
+// --------------------------------------------------------------------------- //
+// Engine lock
+// --------------------------------------------------------------------------- //
+
+/** Singleton (id = 0). Public so the UI can tell whether an engine is live. */
+export const engine = table(
+  { name: 'engine', public: true },
+  {
+    id: t.u32().primaryKey(),
+    engine: t.identity(),
+    hasEngine: t.bool(),
+    claimedAt: t.timestamp(),
+    lastSeen: t.timestamp(),
+  }
+);
+
+/** Private singleton (id = 0): the identity that first published the database. */
+export const moduleOwner = table(
+  { name: 'module_owner' },
+  {
+    id: t.u32().primaryKey(),
+    owner: t.identity(),
+  }
+);
+
+const spacetimedb = schema({
+  node,
+  edge,
+  simState,
+  presence,
+  action,
+  branchResult,
+  scenarioPlan,
+  campus,
+  campusSurvey,
+  engine,
+  moduleOwner,
+});
 export default spacetimedb;
