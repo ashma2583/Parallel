@@ -209,7 +209,7 @@ async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
     )
     result = await llm.complete_json(
         "", prompt,
-        providers=TEXT_CHAIN, timeout=25, total_timeout=50, max_tokens=1500, schema=_DEBRIEF_SCHEMA,
+        providers=TEXT_CHAIN, timeout=25, total_timeout=45, max_tokens=1500, schema=_DEBRIEF_SCHEMA,
         accept=lambda parsed: bool(str(parsed.get("headline") or "").strip()),
         label="debrief",
     )
@@ -267,7 +267,7 @@ async def write_verdict(facts: dict[str, Any]) -> dict[str, Any]:
     )
     result = await llm.complete_json(
         "", prompt,
-        providers=TEXT_CHAIN, timeout=12, total_timeout=28, max_tokens=600, schema=_VERDICT_SCHEMA,
+        providers=TEXT_CHAIN, timeout=15, total_timeout=25, max_tokens=600, schema=_VERDICT_SCHEMA,
         accept=lambda parsed: bool(str(parsed.get("paragraph") or "").strip()),
         label="verdict",
     )
@@ -303,7 +303,7 @@ async def write_plans(facts: dict[str, Any]) -> dict[str, Any]:
     )
     result = await llm.complete_json(
         "", prompt,
-        providers=TEXT_CHAIN, timeout=40, total_timeout=75, max_tokens=6000, schema=_PLANS_SCHEMA,
+        providers=TEXT_CHAIN, timeout=35, total_timeout=60, max_tokens=6000, schema=_PLANS_SCHEMA,
         accept=lambda parsed: bool(_rank_plans(parsed.get("plans") or [])),
         label="plans",
     )

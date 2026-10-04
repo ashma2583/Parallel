@@ -119,9 +119,11 @@ async def _research(query: str) -> dict[str, Any]:
     )
     body = None
     if key:
-        body = await _grok_research(model, key, prompt)
-        if body is None and model != "grok-4.7":
-            body = await _grok_research("grok-4.7", key, prompt)
+        body, reachable = await _grok_research(model, key, prompt)
+        # A second Grok model only helps when Grok answered but this model could not;
+        # after a timeout or network error it would just be another 40 s wait.
+        if body is None and reachable and model != "grok-4.7":
+            body, _ = await _grok_research("grok-4.7", key, prompt)
     if body is None:
         body = await _claude_research(prompt)
     if body is None:
@@ -140,13 +142,17 @@ async def _research(query: str) -> dict[str, Any]:
         return found
 
 
-async def _grok_research(model: str, key: str, prompt: str) -> dict[str, Any] | None:
-    """Grok with web search. A timeout or network error is a miss, not a crash."""
+async def _grok_research(model: str, key: str, prompt: str) -> tuple[dict[str, Any] | None, bool]:
+    """(Grok-with-web-search reply or None, whether Grok was reachable). A timeout or
+    network error is a miss, not a crash."""
     try:
-        return await _complete(model, key, prompt)
-    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        return await _complete(model, key, prompt), True
+    except httpx.HTTPError as exc:
         log.warning("grok research failed for %s: %s", model, type(exc).__name__)
-        return None
+        return None, False
+    except (ValueError, KeyError, TypeError) as exc:
+        log.warning("grok research failed for %s: %s", model, type(exc).__name__)
+        return None, True
 
 
 async def _claude_research(prompt: str) -> dict[str, Any] | None:
@@ -155,7 +161,7 @@ async def _claude_research(prompt: str) -> dict[str, Any] | None:
     cannot be found is dropped, so a wrong name costs a building, not a wrong pin."""
     prompt = prompt.replace("Use web search.\n", "Answer from what you know; if unsure of a building, leave it out.\n")
     prompt = prompt.replace("Search at most twice, then answer. ", "")
-    result = await llm.complete_text("", prompt, providers=["claude"], timeout=75, total_timeout=75, max_tokens=4000, label="location")
+    result = await llm.complete_text("", prompt, providers=["claude"], timeout=45, total_timeout=45, max_tokens=4000, label="location")
     if result is None:
         return None
     return {"content": result[0], "citations": [], "model": "claude"}

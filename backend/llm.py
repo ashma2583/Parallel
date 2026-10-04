@@ -27,9 +27,9 @@ Pass `schema` (a plain JSON Schema) to complete_json and Claude is held to it wi
 structured outputs, so its reply is always valid JSON; Gemini gets the same schema
 converted to its dialect. Grok and ASI:One use JSON mode and the prompt.
 
-A provider that fails twice in a row (timeout, HTTP error, network) is moved to
-the back of the line for 30 seconds, so a dead provider costs the demo one slow
-answer, not every answer. A reply that arrives but is unusable (not JSON, or
+A provider that times out is moved to the back of the line for 30 seconds at
+once, and one that fails fast twice in a row (HTTP error, network) the same, so
+a hung provider costs the demo one slow answer, not every answer. A reply that arrives but is unusable (not JSON, or
 rejected by the caller's `accept`) does not count as the provider being down.
 Keys are read from the environment on every call and never logged.
 
@@ -72,6 +72,10 @@ class ProviderError(Exception):
     """A provider could not give an answer (HTTP error, empty or refused reply)."""
 
 
+class ProviderTimeout(ProviderError):
+    """The provider did not answer in time (httpx's own timeout fired first)."""
+
+
 @dataclass
 class Provider:
     name: str
@@ -108,6 +112,8 @@ async def _post(url: str, headers: dict[str, str], body: dict[str, Any], timeout
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(url, headers=headers, json=body)
+    except httpx.TimeoutException as exc:
+        raise ProviderTimeout(f"{who} {type(exc).__name__}") from None
     except httpx.HTTPError as exc:
         raise ProviderError(f"{who} {type(exc).__name__}") from None
     if resp.status_code >= 400:
@@ -198,16 +204,21 @@ async def _claude(system: str, user: str, *, json_mode: bool, max_tokens: int | 
         "max_tokens": max_tokens or 2048,
         "messages": [{"role": "user", "content": user}],
     }
-    if model.startswith("claude-sonnet-5-5"):
+    effort = os.getenv("LLM_CLAUDE_EFFORT", "low").strip().lower()
+    if model.startswith("claude-sonnet-5-5") and effort in {"", "low", "medium", "high"}:
         # Answer straight away. With thinking on, reasoning tokens count against
-        # max_tokens and a tight cap can leave no text block at all.
+        # max_tokens and a tight cap can leave no text block at all. The API takes
+        # between_tools only at effort high or below.
         body["thinking"] = {"type": "between_tools"}
     else:
         body["max_tokens"] += 2048  # headroom for thinking tokens
+    if json_mode and not schema:
+        # Only Claude needs this line: Grok and ASI:One have JSON mode, Gemini a MIME
+        # type, and with a schema structured outputs already guarantee the shape.
+        system = f"{system}\n{JSON_ONLY}".strip()
     if system:
         body["system"] = system
     config: dict[str, Any] = {}
-    effort = os.getenv("LLM_CLAUDE_EFFORT", "low").strip()
     if effort and "haiku" not in model:  # Haiku 4.5 does not take an effort setting
         config["effort"] = effort
     if json_mode and schema:
@@ -307,10 +318,12 @@ def _record_ok(name: str) -> None:
     _answered[name] = _answered.get(name, 0) + 1
 
 
-def _record_down(name: str) -> None:
+def _record_down(name: str, *, timed_out: bool = False) -> None:
     _failed[name] = _failed.get(name, 0) + 1
     _fails[name] = _fails.get(name, 0) + 1
-    if _fails[name] >= FAIL_THRESHOLD:
+    # A timeout is the slow failure: park at once so the next request does not wait
+    # for it again. Fast failures (401, 5xx, refused) cost nothing, so they get two.
+    if timed_out or _fails[name] >= FAIL_THRESHOLD:
         _parked_until[name] = time.monotonic() + COOLDOWN_S
 
 
@@ -364,23 +377,23 @@ async def _complete(
     if not names:
         log.info("llm %s: no provider is configured, caller falls back", label or "call")
         return None
-    sys_prompt = f"{system}\n{JSON_ONLY}".strip() if json_mode else system
     for name in names:
         remaining = deadline - time.monotonic()
         if remaining < 0.2:
             log.warning("llm %s: total time cap reached before %s", label or "call", name)
             break
+        budget = min(per_call, remaining)
         started = time.monotonic()
         try:
             raw = await asyncio.wait_for(
                 REGISTRY[name].call(
-                    sys_prompt, user, json_mode=json_mode, max_tokens=max_tokens, schema=schema,
-                    timeout=min(per_call, remaining),
+                    system, user, json_mode=json_mode, max_tokens=max_tokens, schema=schema, timeout=budget,
                 ),
-                min(per_call, remaining),
+                budget,
             )
-        except asyncio.TimeoutError:
-            _record_down(name)
+        except (asyncio.TimeoutError, ProviderTimeout):
+            # Parked at once only if it had its full slot; one cut short by the total cap is not proof it hangs.
+            _record_down(name, timed_out=budget >= per_call)
             log.warning("llm %s: %s timed out after %.1fs", label or "call", name, time.monotonic() - started)
             continue
         except Exception as exc:  # noqa: BLE001 - one provider's failure must not escape

@@ -37,12 +37,16 @@ uagents.Agent.publish_manifest = _no_publish
 PORT = 8621
 BASE = f"http://127.0.0.1:{PORT}"
 DEAD = "http://127.0.0.1:9/dead"
+HANG_PORT = 8622
+HANG = f"http://127.0.0.1:{HANG_PORT}/hang"  # accepts the connection, never replies
 
 # (label, env overrides applied to the engine and to this process)
 DRILLS = [
     ("all providers healthy", {}),
     ("Grok bad key", {"XAI_API_KEY": "bogus-key"}),
     ("Grok endpoint dead", {"LLM_GROK_URL": DEAD}),
+    ("Grok hangs (never replies)", {"LLM_GROK_URL": HANG}),
+    ("ASI:One hangs (never replies)", {"LLM_ASI_URL": HANG}),
     ("Claude bad key", {"ANTHROPIC_API_KEY": "bogus-key"}),
     ("ASI:One bad key", {"ASI_ONE_API_KEY": "bogus-key"}),
     ("Grok + ASI:One dead (only Claude left)", {"XAI_API_KEY": "bogus-key", "ASI_ONE_API_KEY": "bogus-key"}),
@@ -193,7 +197,15 @@ async def drill(label: str, env: dict[str, str]) -> bool | None:
             proc.kill()
 
 
+async def _hang(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    try:
+        await reader.read(-1)  # hold the socket open until the client gives up
+    finally:
+        writer.close()
+
+
 async def main() -> int:
+    hang_server = await asyncio.start_server(_hang, "127.0.0.1", HANG_PORT)
     await direct()
     if "--direct-only" in sys.argv:
         return 0
@@ -209,6 +221,7 @@ async def main() -> int:
             failed.append(label)
     if "--keep-log" not in sys.argv:
         ENGINE_LOG.unlink(missing_ok=True)
+    hang_server.close()
     print("\nALL DRILLS ANSWERED" if not failed else f"\nFAILED: {failed}")
     return 1 if failed else 0
 
