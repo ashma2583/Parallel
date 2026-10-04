@@ -455,7 +455,11 @@ export function GeoMap({
                   setCampusId(school.id)
                   onCampusChange?.()
                 }}
-                className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white p-1 font-sans text-[9px] font-bold shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-transform hover:scale-110"
+                className={`relative flex items-center justify-center overflow-hidden border-2 border-white p-1 font-sans text-[9px] font-bold shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-all duration-150 hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 ${
+                  school.collection !== 'nearby' || school.prominent
+                    ? 'h-12 w-12 rounded-full'
+                    : 'h-3 w-3 rounded-full group-hover:h-10 group-hover:w-10 group-focus-within:h-10 group-focus-within:w-10'
+                }`}
                 style={{
                   backgroundColor: school.logo ? '#fff' : school.badgeColor ?? '#334155',
                   color: school.logo ? '#1e293b' : '#fff',
@@ -469,10 +473,20 @@ export function GeoMap({
                       event.currentTarget.style.display = 'none'
                       event.currentTarget.nextElementSibling?.classList.remove('hidden')
                     }}
-                    className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain"
+                    className={`absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain ${
+                      school.collection === 'nearby' && !school.prominent
+                        ? 'hidden group-hover:block group-focus-within:block'
+                        : ''
+                    }`}
                   />
                 )}
-                <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-5 w-5 ${school.logo ? 'hidden' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8">
+                <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-5 w-5 ${
+                  school.logo
+                    ? `hidden ${school.collection === 'nearby' && !school.prominent ? 'group-hover:block group-focus-within:block' : ''}`
+                    : school.collection === 'nearby' && !school.prominent
+                      ? 'hidden group-hover:block group-focus-within:block'
+                      : ''
+                }`} fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6M8 10h.01M12 10h.01M16 10h.01" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>

@@ -16,6 +16,7 @@ export interface Campus {
   logo?: string | null
   monogram?: string
   badgeColor?: string
+  prominent?: boolean
   collection: 'featured' | 'extra' | 'nearby'
   center: [number, number]
   zoom: number
@@ -31,6 +32,7 @@ function nearbyCampus(
   center: [number, number],
   landmarks: { name: string; point: [number, number] }[],
   logo: string,
+  prominent = false,
 ): Campus {
   return {
     id,
@@ -38,6 +40,7 @@ function nearbyCampus(
     logo,
     monogram,
     badgeColor,
+    prominent,
     collection: 'nearby',
     center,
     zoom: 14.8,
@@ -410,19 +413,19 @@ export const CAMPUSES: Campus[] = [
     { name: 'Hesburgh Library', point: [-86.2359, 41.7034] },
     { name: 'LaFortune Student Center', point: [-86.2379, 41.6997] },
     { name: 'Notre Dame Stadium', point: [-86.2339, 41.6983] },
-  ], 'https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e2/University_of_Notre_Dame_seal_%282%29.svg/250px-University_of_Notre_Dame_seal_%282%29.svg.png'),
+  ], 'https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e2/University_of_Notre_Dame_seal_%282%29.svg/250px-University_of_Notre_Dame_seal_%282%29.svg.png', true),
   nearbyCampus('indiana', 'Indiana University Bloomington', 'IU', '#990000', [-86.5264, 39.1709], [
     { name: 'Sample Gates', point: [-86.5162, 39.1661] },
     { name: 'Wells Library', point: [-86.5262, 39.1725] },
     { name: 'Indiana Memorial Union', point: [-86.5238, 39.1663] },
     { name: 'Assembly Hall', point: [-86.5268, 39.1804] },
-  ], 'https://www.google.com/s2/favicons?domain=iu.edu&sz=128'),
+  ], 'https://www.google.com/s2/favicons?domain=iu.edu&sz=128', true),
   nearbyCampus('ohio-state', 'The Ohio State University', 'OSU', '#BB0000', [-83.0147, 40.0067], [
     { name: 'Thompson Library', point: [-83.0141, 40.0036] },
     { name: 'Ohio Union', point: [-83.0080, 40.0025] },
     { name: 'Wexner Center for the Arts', point: [-83.0117, 40.0067] },
     { name: 'Ohio Stadium', point: [-83.0198, 40.0017] },
-  ], 'https://commons.wikimedia.org/wiki/Special:FilePath/Ohio_State_Buckeyes_logo.svg'),
+  ], 'https://commons.wikimedia.org/wiki/Special:FilePath/Ohio_State_Buckeyes_logo.svg', true),
   nearbyCampus('toledo', 'The University of Toledo', 'UT', '#005A9C', [-83.6130, 41.6580], [
     { name: 'University Hall', point: [-83.6144, 41.6579] },
     { name: 'Carlson Library', point: [-83.6123, 41.6585] },
@@ -440,7 +443,7 @@ export const CAMPUSES: Campus[] = [
     { name: 'Thwing Center', point: [-81.6067, 41.5027] },
     { name: 'Tinkham Veale University Center', point: [-81.6087, 41.5016] },
     { name: 'Case Quad', point: [-81.6044, 41.5052] },
-  ], 'https://www.google.com/s2/favicons?domain=case.edu&sz=128'),
+  ], 'https://www.google.com/s2/favicons?domain=case.edu&sz=128', true),
   nearbyCampus('cincinnati', 'University of Cincinnati', 'UC', '#E00122', [-84.5150, 39.1329], [
     { name: 'Langsam Library', point: [-84.5148, 39.1318] },
     { name: 'TUC Student Center', point: [-84.5158, 39.1304] },
@@ -453,6 +456,66 @@ export const CAMPUSES: Campus[] = [
     { name: 'Upham Hall', point: [-84.7319, 39.5062] },
     { name: 'Yager Stadium', point: [-84.7444, 39.5085] },
   ], 'https://commons.wikimedia.org/wiki/Special:FilePath/Miami_University_logo.svg'),
+  nearbyCampus('wisconsin', 'University of Wisconsin-Madison', 'UW', '#C5050C', [-89.4050, 43.0766], [
+    { name: 'Memorial Union', point: [-89.4008, 43.0764] },
+    { name: 'Chadbourne Residence Hall', point: [-89.4024, 43.0742] },
+    { name: 'College Library', point: [-89.4048, 43.0735] },
+    { name: 'Camp Randall Stadium', point: [-89.4127, 43.0699] },
+  ], 'https://www.google.com/s2/favicons?domain=wisc.edu&sz=128', true),
+  nearbyCampus('penn-state', 'Pennsylvania State University', 'PSU', '#041E42', [-77.8611, 40.7982], [
+    { name: 'Old Main', point: [-77.8597, 40.7987] },
+    { name: 'Pattee and Paterno Libraries', point: [-77.8568, 40.7982] },
+    { name: 'HUB-Robeson Center', point: [-77.8615, 40.7999] },
+    { name: 'Beaver Stadium', point: [-77.8535, 40.8122] },
+  ], 'https://www.google.com/s2/favicons?domain=psu.edu&sz=128', true),
+  nearbyCampus('pittsburgh', 'University of Pittsburgh', 'PITT', '#003594', [-79.9532, 40.4444], [
+    { name: 'Cathedral of Learning', point: [-79.9534, 40.4441] },
+    { name: 'Hillman Library', point: [-79.9531, 40.4420] },
+    { name: 'William Pitt Union', point: [-79.9543, 40.4432] },
+    { name: 'Petersen Events Center', point: [-79.9603, 40.4438] },
+  ], 'https://www.google.com/s2/favicons?domain=pitt.edu&sz=128', true),
+  nearbyCampus('carnegie-mellon', 'Carnegie Mellon University', 'CMU', '#C41230', [-79.9430, 40.4433], [
+    { name: 'Hunt Library', point: [-79.9457, 40.4421] },
+    { name: 'Cohon University Center', point: [-79.9421, 40.4434] },
+    { name: 'Hamburg Hall', point: [-79.9409, 40.4449] },
+    { name: 'Gesling Stadium', point: [-79.9364, 40.4447] },
+  ], 'https://www.google.com/s2/favicons?domain=cmu.edu&sz=128', true),
+  nearbyCampus('rochester', 'University of Rochester', 'UR', '#003B71', [-77.6300, 43.1284], [
+    { name: 'Rush Rhees Library', point: [-77.6304, 43.1281] },
+    { name: 'Wilson Commons', point: [-77.6285, 43.1293] },
+    { name: 'Susan B. Anthony Hall', point: [-77.6271, 43.1277] },
+    { name: 'Fauver Stadium', point: [-77.6246, 43.1250] },
+  ], 'https://www.google.com/s2/favicons?domain=rochester.edu&sz=128', true),
+  nearbyCampus('rit', 'Rochester Institute of Technology', 'RIT', '#F76902', [-77.6744, 43.0844], [
+    { name: 'Wallace Library', point: [-77.6785, 43.0843] },
+    { name: 'Student Alumni Union', point: [-77.6757, 43.0830] },
+    { name: 'Global Village', point: [-77.6737, 43.0820] },
+    { name: 'Gene Polisseni Center', point: [-77.6664, 43.0837] },
+  ], 'https://www.google.com/s2/favicons?domain=rit.edu&sz=128', true),
+  nearbyCampus('minnesota', 'University of Minnesota Twin Cities', 'UMN', '#7A0019', [-93.2354, 44.9727], [
+    { name: 'Walter Library', point: [-93.2352, 44.9738] },
+    { name: 'Coffman Memorial Union', point: [-93.2357, 44.9747] },
+    { name: 'Pioneer Hall', point: [-93.2342, 44.9760] },
+    { name: 'Huntington Bank Stadium', point: [-93.2228, 44.9762] },
+  ], 'https://www.google.com/s2/favicons?domain=umn.edu&sz=128', true),
+  nearbyCampus('marquette', 'Marquette University', 'MU', '#003366', [-87.5559, 43.0389], [
+    { name: 'Raynor Memorial Libraries', point: [-87.5551, 43.0397] },
+    { name: 'Al McGuire Center', point: [-87.5540, 43.0407] },
+    { name: 'Johnston Hall', point: [-87.5574, 43.0392] },
+    { name: 'Valley Fields', point: [-87.5611, 43.0362] },
+  ], 'https://www.google.com/s2/favicons?domain=marquette.edu&sz=128', true),
+  nearbyCampus('washu', 'Washington University in St. Louis', 'WUSTL', '#A51417', [-90.3070, 38.6487], [
+    { name: 'Brookings Hall', point: [-90.3060, 38.6478] },
+    { name: 'Olin Library', point: [-90.3091, 38.6487] },
+    { name: 'Mallinckrodt Center', point: [-90.3108, 38.6472] },
+    { name: 'Francis Olympic Field', point: [-90.3115, 38.6497] },
+  ], 'https://www.google.com/s2/favicons?domain=wustl.edu&sz=128', true),
+  nearbyCampus('kentucky', 'University of Kentucky', 'UK', '#0033A0', [-84.5041, 38.0395], [
+    { name: 'Main Building', point: [-84.5054, 38.0388] },
+    { name: 'William T. Young Library', point: [-84.5073, 38.0397] },
+    { name: 'Gatton Student Center', point: [-84.5032, 38.0379] },
+    { name: 'Kroger Field', point: [-84.5067, 38.0227] },
+  ], 'https://www.google.com/s2/favicons?domain=uky.edu&sz=128', true),
 ] as const
 
 /** Vector basemap with streets, parks, and building heights. */
