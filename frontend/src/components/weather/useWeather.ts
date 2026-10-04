@@ -55,6 +55,7 @@ import {
   STRIKE,
   travel,
 } from '../../lib/weather/geo'
+import { planScenario, type PlannedScenario } from '../../lib/weather/forecast'
 import { buildWorld, computeImpacts, countImpacts, stormLabel } from '../../lib/weather/impacts'
 import {
   eventLabel,
@@ -159,6 +160,10 @@ export interface WeatherController {
   toggleRoute: (id: string, name: string) => void
   /** Forget weather kept in the browser, e.g. right after a campus reset. */
   clear: () => void
+  /** The plan has something the last run has not already played. Branch can play it forward. */
+  plannable: boolean
+  /** The plan as timed batches for Branch, or null when there is nothing new to play. */
+  planned: () => PlannedScenario | null
 }
 
 const DEFAULT_LEVEL: Record<StormKind, number> = {
@@ -1820,6 +1825,11 @@ export function useWeather(o: WeatherOptions): WeatherController {
   }, [effective, live, cuts, draft, hover, marks, staged, selectedId, campus, plan.startsAt])
 
   const stale = runState === 'done' && ranVersion !== null && version !== ranVersion
+  const plannable = plan.events.length > 0 && (runState !== 'done' || stale)
+  const planned = useCallback(
+    () => (plannable ? planScenario(planRef.current, optsRef.current, runningRef.current) : null),
+    [plannable],
+  )
 
   const dock = useMemo<ComposerDockProps>(
     () => ({
@@ -1893,7 +1903,7 @@ export function useWeather(o: WeatherOptions): WeatherController {
     ],
   )
 
-  return { armed, effective, canvas, dock, hazards: runHazards, toggleRoute, clear }
+  return { armed, effective, canvas, dock, hazards: runHazards, toggleRoute, clear, plannable, planned }
 }
 
 // ---------------------------------------------------------------------------

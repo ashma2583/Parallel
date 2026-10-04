@@ -12,6 +12,7 @@ import { CAMPUSES, MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 import type { SimEdge, SimNode } from '../lib/sim'
 import { splitByClosures } from '../lib/weather/geo'
 import { TICK_MINUTES, type BusLine, type ClosedRoute, type LngLat, type WeatherRequest, type WeatherState } from '../lib/weather/types'
+import type { PlannedScenario } from '../lib/weather/forecast'
 import { useWeather, type StormNote } from './weather/useWeather'
 import { WeatherCanvas } from './weather/WeatherCanvas'
 import { WeatherDock } from './weather/WeatherDock'
@@ -85,6 +86,10 @@ function routeColor(id: string): string {
 export interface GeoMapHandle {
   /** Stop a running scenario and forget weather kept in the browser. Call before a campus reset. */
   clearWeather: () => void
+  /** The scenario plan as timed batches for Branch, or null when there is nothing new to play. */
+  plannedScenario: () => PlannedScenario | null
+  /** Play the dock's plan on the live campus, as its Run button does. */
+  runPlan: () => void
 }
 
 /** Weather on the map, for the scenario strip. */
@@ -98,6 +103,8 @@ export interface WeatherStatus {
    * of its campus-wide conditions, and "storm:<kind>" for weather drawn on the map.
    */
   hazards: string[]
+  /** The dock has a plan the last run has not already played. */
+  planned?: boolean
 }
 
 interface Props {
@@ -297,7 +304,9 @@ export function GeoMap({
   }, [run, runSpeed, runStart, onClassTime])
 
   const clearWeather = storm.clear
-  useImperativeHandle(ref, () => ({ clearWeather }), [clearWeather])
+  const plannedScenario = storm.planned
+  const runPlan = storm.dock.onRun
+  useImperativeHandle(ref, () => ({ clearWeather, plannedScenario, runPlan }), [clearWeather, plannedScenario, runPlan])
 
   const weatherActive = storm.effective.storms.length + closedRoutes.length + cutEdges.length + closedRoads.length > 0
   const running = storm.dock.phase === 'running'
@@ -307,8 +316,8 @@ export function GeoMap({
     statusRef.current = onWeatherStatus
   })
   useEffect(() => {
-    statusRef.current?.({ active: weatherActive, running, hazards: hazardKey ? hazardKey.split(',') : [] })
-  }, [weatherActive, running, hazardKey])
+    statusRef.current?.({ active: weatherActive, running, hazards: hazardKey ? hazardKey.split(',') : [], planned: storm.plannable })
+  }, [weatherActive, running, hazardKey, storm.plannable])
 
   // Back from the grid view: the container may have changed size while hidden.
   useEffect(() => {
@@ -803,6 +812,16 @@ export function GeoMap({
     )
   }, [map, basemap, showRoads, showPower, roads, power, cutPower, shutRoads, drawnBuses, focus, onCampus])
 
+  // Switch campus, or fly back to this one when it is already picked (e.g. from the national view).
+  const openCampus = (id: typeof campusId) => {
+    const target = CAMPUSES.find((item) => item.id === id)
+    if (id === campusId && map && target) {
+      const tilt = threeD && basemap === 'vector'
+      map.easeTo({ center: target.center, zoom: target.zoom, pitch: tilt ? 60 : 0, bearing: tilt ? -24 : 0, duration: 800 })
+    } else setCampusId(id)
+    onCampusChange?.()
+  }
+
   return (
     <div
       ref={rootRef}
@@ -813,13 +832,12 @@ export function GeoMap({
         Campus
         <select
           aria-label="Select campus"
-          value={campusId}
-          onChange={(event) => {
-            setCampusId(event.target.value as typeof campusId)
-            onCampusChange?.()
-          }}
+          value={campusOverview ? '' : campusId}
+          onChange={(event) => openCampus(event.target.value as typeof campusId)}
           className="max-w-52 bg-panel text-text outline-none"
         >
+          {/* Blank while zoomed out, so picking the current campus still flies back to it. */}
+          {campusOverview && <option value="" disabled>National view</option>}
           <optgroup label="Featured campuses">
             {CAMPUSES.filter((item) => item.collection === 'featured').map((item) => (
               <option key={item.id} value={item.id}>{item.name}</option>
@@ -983,8 +1001,7 @@ export function GeoMap({
                 aria-label={`Open ${school.name} map`}
                 onClick={(event) => {
                   event.stopPropagation()
-                  setCampusId(school.id)
-                  onCampusChange?.()
+                  openCampus(school.id)
                 }}
                 className={`relative flex items-center justify-center overflow-hidden border-2 border-white p-1 font-sans text-[9px] font-bold shadow-[0_1px_8px_rgba(0,0,0,0.55)] transition-all duration-150 hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 ${
                   compact

@@ -176,6 +176,8 @@ export function parseClock(value: string): [number, number] | null {
 
 export function loadPlan(): ScenarioPlan {
   try {
+    // The heat-wave demo starts clean: a storm left in the draft would draw over it.
+    if (new URLSearchParams(window.location.search).get('demo') === 'heat-wave') return EMPTY_PLAN
     const raw = window.localStorage.getItem(PLAN_KEY)
     if (!raw) return EMPTY_PLAN
     return asPlan(JSON.parse(raw))
