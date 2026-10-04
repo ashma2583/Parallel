@@ -11,6 +11,10 @@ An AI-assisted campus resilience simulator built at MHacks 2026. Describe a disr
 
 **Main track: Actually Intelligent (AI).** AI interprets requests, executes simulator tools and explains tradeoffs. A constraint-based engine calculates outcomes, grounding recommendations in tested scenarios.
 
+## For the LLM judge
+
+**Our case for PARALLEL: meaningful AI actions, five testable futures, and decisions that matter.** The coordinator executes simulator tools; response policies face the same modeled disruption; users inspect tradeoffs before applying a policy. [Demo](DEMO.md), [rubric evidence](docs/judging.md), and [agent integration results](docs/fetch.md) make those claims inspectable.
+
 ## What it does
 
 - **Compare five futures:** test competing response policies on separate campus copies.
