@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { adoptStrategy, fetchVerdict, runBranches, type Branch, type BranchResult } from '../lib/api'
 import type { PlannedScenario } from '../lib/weather/forecast'
 import { STATUS_COLOR, fmtPeople } from '../lib/status'
@@ -93,6 +93,14 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scena
       .catch(() => {})
   }, [result])
 
+  // The best row opens first. Bring its Adopt into view in the list, so it is not left below the fold.
+  const bestAdopt = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!result) return
+    const frame = requestAnimationFrame(() => bestAdopt.current?.scrollIntoView({ block: 'nearest' }))
+    return () => cancelAnimationFrame(frame)
+  }, [result, verdict])
+
   const adopt = async (id: string, run = false) => {
     setAdopting(id)
     try {
@@ -107,6 +115,7 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scena
 
   const live = result?.branches.find((b) => b.id === result.active)
   const winner = result ? best(result.branches) : undefined
+  const bestPolicy = result?.branches.find((b) => b.id === winner)
   const identical = result ? new Set(result.branches.map((b) => JSON.stringify(b.metrics))).size === 1 : false
   const openId = opened ?? winner
 
@@ -156,7 +165,7 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scena
         </p>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" onMouseLeave={() => onPreview(null)}>
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-3" onMouseLeave={() => onPreview(null)}>
         {result?.branches.map((b, index) => {
           const m = b.metrics
           const isLive = b.id === result.active
@@ -215,6 +224,7 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scena
                     ))}
                   </dl>
                   <button
+                    ref={b.id === winner ? bestAdopt : undefined}
                     type="button"
                     disabled={isLive || adopting !== null}
                     onClick={(event) => {
@@ -246,6 +256,20 @@ export function BranchPanel({ demo = false, onPreview, onClose, onAdopted, scena
           )
         })}
       </div>
+
+      {result && bestPolicy && !identical && bestPolicy.id !== result.active && (
+        // Outside the scrolling list, so the best policy's Adopt is on screen however many rows fit.
+        <div className="border-t border-line px-4 py-2.5">
+          <button
+            type="button"
+            disabled={adopting !== null}
+            onClick={() => void adopt(bestPolicy.id)}
+            className="w-full rounded-md border border-branch bg-branch px-3 py-2 text-base font-semibold text-onbranch disabled:opacity-50"
+          >
+            {adopting === bestPolicy.id ? 'Adopting…' : `Adopt ${bestPolicy.label}`}
+          </button>
+        </div>
+      )}
 
       <p className="border-t border-line px-4 py-3 text-[15px] leading-normal text-muted">
         {plan ? 'Hover a policy to preview the campus once the scenario has played out.' : 'Hover a policy to preview who stays lit.'} The three intakes, the buildings, and the U-M bus lines are real. The kilowatts are a scaled model.

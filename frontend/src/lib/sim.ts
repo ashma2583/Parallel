@@ -114,7 +114,7 @@ export interface Sim {
   /** Energy saver on the live clock. Null when off. */
   saver: SaverLive | null
   /** Pull engine state now instead of waiting for the next poll. */
-  refresh: () => void
+  refresh: () => Promise<void>
 }
 
 interface EngineState {

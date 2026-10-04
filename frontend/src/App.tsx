@@ -9,7 +9,7 @@ import { PlanBuilding, type PlanDraft } from './components/PlanBuilding'
 import { HEAT_WAVE, ScenarioStrip, runScenario, type Scenario } from './components/ScenarioStrip'
 import { SaverPanel } from './components/SaverPanel'
 import { SaverToggle } from './components/SaverToggle'
-import { WEEKDAYS } from './lib/saver'
+import { WEEKDAYS, clearSaver } from './lib/saver'
 import { Schematic } from './components/Schematic'
 import { SurveyGraph } from './components/SurveyGraph'
 import { TopBar, type View } from './components/TopBar'
@@ -62,6 +62,10 @@ const halfHour = (minute: number) => (Math.round(minute / 30) * 30) % 1440
 
 export default function App() {
   const sim = useSim()
+  // ?demo=heat-wave: until the clean start lands, the page still holds the last session's saver and clock. Show neither.
+  const [demoReady, setDemoReady] = useState(() => new URLSearchParams(window.location.search).get('demo') !== 'heat-wave' || heatWaveStarted)
+  const [demoStarted, setDemoStarted] = useState(false)
+  const saver = demoReady ? sim.saver : null
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('map')
   const [branching, setBranching] = useState(false)
@@ -80,7 +84,7 @@ export default function App() {
   const weather = (sim.briefing as { weather?: WeatherState } | null)?.weather ?? null
   // The one clock. A scenario run or heat wave moves it; the People time follows it then.
   const clock = useSimClock({
-    tick: sim.summary?.tick,
+    tick: demoReady ? sim.summary?.tick : undefined,
     run: mapWeather.running ? { startsAt: mapWeather.startsAt ?? '14:00', speed: mapWeather.speed ?? 1 } : null,
     wave: sim.briefing?.heat_wave ?? null,
   })
@@ -262,15 +266,30 @@ export default function App() {
     heatWaveStarted = true
     void (async () => {
       try {
+        // Start clean: a saver left on from an earlier session would cap the dorms and the classrooms under the demo.
+        await clearSaver().catch(() => {})
         if (isDisrupted(sim.nodes) || hasWeather(weather)) await resetSim()
         await runScenario(HEAT_WAVE)
         setScenario(HEAT_WAVE)
-        sim.refresh()
+        await sim.refresh()
+        setDemoStarted(true)
       } catch {
         heatWaveStarted = false
+        setDemoReady(true)
       }
     })()
   }, [sim.nodes.length, sim.refresh])
+
+  // Reveal the saver and the clock once the heat wave shows in the briefing, so the clock never reads the old tick first.
+  useEffect(() => {
+    if (demoStarted && sim.briefing?.heat_wave) setDemoReady(true)
+  }, [demoStarted, sim.briefing?.heat_wave])
+  // Never leave them hidden if the briefing is slow.
+  useEffect(() => {
+    if (demoReady) return
+    const timer = setTimeout(() => setDemoReady(true), 8000)
+    return () => clearTimeout(timer)
+  }, [demoReady])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -295,7 +314,7 @@ export default function App() {
             onReset={afterReset}
             saver={
               <SaverToggle
-                live={sim.saver}
+                live={saver}
                 weekday={saverDay}
                 minute={saverMinute}
                 onWhen={(next) => setSaverWhen((current) => ({ ...current, ...next }))}
@@ -308,8 +327,8 @@ export default function App() {
             }
           />
 
-          {sim.briefing?.heat_wave && (
-            <HeatWaveBanner wave={sim.briefing.heat_wave} />
+          {(sim.briefing?.heat_wave || (demo && !demoReady)) && (
+            <HeatWaveBanner wave={demoReady ? sim.briefing?.heat_wave ?? null : null} />
           )}
 
           <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -421,17 +440,17 @@ export default function App() {
               )
             })}
             {/* A fourth row while the saver runs, packed tighter so the strip keeps its height. */}
-            <dl className={`grid grid-cols-[auto_auto] content-center gap-x-3 whitespace-nowrap px-4 font-mono text-[11px] tabular-nums text-muted max-[1099px]:hidden ${sim.saver ? 'gap-y-0 py-1 leading-[15px]' : 'gap-y-0.5 py-2'}`}>
+            <dl className={`grid grid-cols-[auto_auto] content-center gap-x-3 whitespace-nowrap px-4 font-mono text-[11px] tabular-nums text-muted max-[1099px]:hidden ${saver ? 'gap-y-0 py-1 leading-[15px]' : 'gap-y-0.5 py-2'}`}>
               <dt>supply</dt>
               <dd className="text-right text-text">{sim.summary ? `${Math.round(sim.summary.supply)} kW` : '—'}</dd>
               <dt>demand</dt>
               <dd className="text-right text-text">{Math.round(totals.demand)} kW</dd>
               <dt>unserved</dt>
               <dd className={`text-right ${totals.unserved >= 1 ? 'text-down' : 'text-text'}`}>{Math.round(totals.unserved)} kW</dd>
-              {sim.saver && (
+              {saver && (
                 <>
                   <dt>saved</dt>
-                  <dd className="text-right text-text">{sim.saver.kwh_saved.toFixed(1)} kWh · −{Math.round(sim.saver.kw_saved_now)} kW now</dd>
+                  <dd className="text-right text-text">{saver.kwh_saved.toFixed(1)} kWh · −{Math.round(saver.kw_saved_now)} kW now</dd>
                 </>
               )}
             </dl>
