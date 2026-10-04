@@ -283,9 +283,12 @@ class CampusGraph:
             node.baseline_occupancy = node.occupancy
         self.tick()
 
-    def sim_minutes(self) -> int:
-        """Minute of the day on the campus clock: 14:00 at the first tick, then four minutes a tick."""
-        return (self.clock_start + (self.tick_count - self.clock_tick0) * HEAT_WAVE_MINUTES) % 1440
+    def sim_minutes(self, ahead: int = 0) -> int:
+        """Minute of the day on the campus clock: 14:00 at the first tick, then four minutes a tick.
+
+        ahead counts ticks forward, so a cycle can set occupancy for the tick it is about to run.
+        """
+        return (self.clock_start + (self.tick_count + ahead - self.clock_tick0) * HEAT_WAVE_MINUTES) % 1440
 
     def set_clock(self, minutes: int) -> int:
         """Make it this minute of the day at the current tick."""

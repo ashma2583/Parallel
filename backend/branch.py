@@ -82,21 +82,29 @@ def _run(
     # the policies are compared on the same footing whatever the live transit agent has done.
     occupancy.apply_to_graph(sim)
     sim.send_home()
-    relocated = 0
+    start = {n.id: n.occupancy for n in sim.nodes.values()}
     log: list[str] = []
     for tick in range(ticks):
         for batch in scenario or []:
             if batch.tick == tick:
                 _land(sim, batch)
         # The class day moves on four minutes a tick, as it does live.
-        occupancy.apply_to_graph(sim)
+        occupancy.apply_to_graph(sim, sim.sim_minutes(ahead=1))
         log.extend(sim.advance_heat_wave())
         log.extend(savings.advance(sim))
         log.extend(apply_energy(sim, strategy))
         sim.tick()
-        before = {n.id: n.occupancy for n in sim.nodes.values()}
         log.extend(apply_transit(sim))
-        relocated += sum(max(0, before[n.id] - n.occupancy) for n in sim.nodes.values())
+    if occupancy.drives_sim():
+        # Baselines move with the class day, so count the people sitting in a lit building
+        # beyond its own headcount: each is counted once, however many times transit moved them.
+        relocated = sum(
+            max(0, n.occupancy - n.baseline_occupancy)
+            for n in sim.nodes.values()
+            if n.status != Status.RED and not n.failed
+        )
+    else:
+        relocated = sum(max(0, start[n.id] - n.occupancy) for n in sim.nodes.values())
 
     consumers = [n for n in sim.nodes.values() if not n.is_supplier]
     essential = [n for n in consumers if n.priority in (Priority.CRITICAL, Priority.HIGH)]

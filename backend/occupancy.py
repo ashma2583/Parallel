@@ -1370,14 +1370,23 @@ def apply_to_graph(graph: Any, minutes: int | None = None, weekday: int | None =
     """
     Set each mapped building's occupancy from the schedule at this minute of the day.
 
-    The baseline becomes the real count. A lit building's current headcount is
-    scaled with it, so people the transit agent already moved in stay counted;
-    a dark one keeps what transit left it. Hospitals are never touched. Cheap to
-    call every tick: nothing changes until the 30-minute slot does. Returns True
-    when it changed anything.
+    The baseline becomes the real count. A lit building's current headcount moves
+    by the same number of people, so the ones the transit agent already moved in
+    stay counted and never multiply; a dark one keeps what transit left it.
+    Hospitals are never touched. Cheap to call every tick: nothing changes until
+    the 30-minute slot does. Returns True when it changed anything. Never raises:
+    bad schedule data leaves the fixed numbers in place.
     """
     if not drives_sim():
         return False
+    try:
+        return _apply(graph, minutes, weekday)
+    except Exception:  # noqa: BLE001 - the tick loop must keep running
+        log.exception("people-driven occupancy skipped")
+        return False
+
+
+def _apply(graph: Any, minutes: int | None, weekday: int | None) -> bool:
     from graph import NodeType, Status
 
     schedule = schedule_now()
@@ -1402,16 +1411,24 @@ def apply_to_graph(graph: Any, minutes: int | None = None, weekday: int | None =
         changed = True
         if node.failed or node.status == Status.RED:
             continue
-        node.occupancy = round(node.occupancy * target / old) if old > 0 else node.occupancy + target
+        node.occupancy = max(0, node.occupancy + target - old)
     return changed
 
 
 def people_now(graph: Any, weekday: int | None = None) -> dict[str, Any]:
     """Who is in class right now, by building, for the agents and the language model."""
-    schedule = schedule_now()
     when = graph.sim_minutes()
-    if schedule is None:
-        return {"slot": None, "weekday": None, "minutes": when, "driving": drives_sim(), "total": 0, "buildings": []}
+    empty = {"slot": None, "weekday": None, "minutes": when, "turnup": selection["turnup"],
+             "driving": drives_sim(), "total": 0, "buildings": []}
+    try:
+        schedule = schedule_now()
+        return _people_now(graph, schedule, when, weekday) if schedule is not None else empty
+    except Exception:  # noqa: BLE001 - /clock and the briefing must still answer
+        log.exception("people now unavailable")
+        return empty
+
+
+def _people_now(graph: Any, schedule: dict[str, Any], when: int, weekday: int | None) -> dict[str, Any]:
     day = sim_weekday(schedule, weekday)
     series = sim_series(schedule, day)
     slot = slot_at(when)
