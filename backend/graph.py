@@ -58,6 +58,8 @@ GREEN_THRESHOLD = 0.90
 HEAT_WAVE_SPAN = 60
 HEAT_WAVE_MINUTES = 4
 HEAT_WAVE_TARGETS = {"cpp": 0.35, "north_switch": 0.5}
+# The sim day opens at 14:00. One tick is four minutes of it.
+CLOCK_START_MINUTES = 14 * 60
 AMBER_THRESHOLD = 0.50
 # Emergency feeder from the Central Power Plant into Michigan Medicine.
 MEDICAL_TIE_KW = 140.0
@@ -245,6 +247,10 @@ def _build_edges() -> list[Edge]:
     return edges
 
 
+# The fixed headcount each building opens with, before the class schedule moves it.
+BASE_OCCUPANCY: dict[str, int] = {n.id: n.occupancy for n in _build_nodes()}
+
+
 class CampusGraph:
     def __init__(self) -> None:
         self.reset()
@@ -269,10 +275,23 @@ class CampusGraph:
         self.heat_wave: dict[str, Any] | None = None
         # Energy saver schedule, kept by savings.py. None is off.
         self.saver: dict[str, Any] | None = None
+        # Time of day on the campus clock: clock_start minutes at tick clock_tick0, then four minutes a tick.
+        self.clock_start: int = CLOCK_START_MINUTES
+        self.clock_tick0: int = 1
         assert len(self.nodes) == 20, "expected the 20 approved Ann Arbor places"
         for node in self.nodes.values():
             node.baseline_occupancy = node.occupancy
         self.tick()
+
+    def sim_minutes(self) -> int:
+        """Minute of the day on the campus clock: 14:00 at the first tick, then four minutes a tick."""
+        return (self.clock_start + (self.tick_count - self.clock_tick0) * HEAT_WAVE_MINUTES) % 1440
+
+    def set_clock(self, minutes: int) -> int:
+        """Make it this minute of the day at the current tick."""
+        self.clock_start = int(minutes) % 1440
+        self.clock_tick0 = self.tick_count
+        return self.clock_start
 
     def get(self, node_id: str) -> Node:
         try:

@@ -150,6 +150,7 @@ async def chk_ice(reply, c):
         "ice storm" in reply.lower()
         and n_options(reply) == 3
         and has_specialists(reply)
+        and "students" in reply.lower()
         and "north_switch" in failed
         and top["label"] in line1
         and f"{top['essential_served'] * 100:.1f}%" in line1

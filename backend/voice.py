@@ -197,6 +197,8 @@ async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
         "preference is the response policy: tiered sheds the lowest priority tier first, residential keeps dorms, "
         "academic keeps classes, people keeps the buildings with the most people per kilowatt, even rations every building equally.\n"
         "A bus listed under reroute no longer stops at the dark buildings in skip, and still stops at the lit buildings in keep.\n"
+        "people_now is who is in class right now, by building, at the slot named in it; each node's people count follows the class schedule. "
+        "Name the students at stake in any dark building, using those counts.\n"
         "Reply with JSON only, no markdown, in this shape:\n"
         '{"headline": str, "grid": str, "options": [str], "buses": str, "solutions": [str], "watch": str}\n'
         "headline: one sentence on the situation.\n"
@@ -262,6 +264,7 @@ async def write_verdict(facts: dict[str, Any]) -> dict[str, Any]:
         "Say how many people the winner keeps in a lit shelter, how many kilowatts serve those shelters, "
         "and how many people are still in a dark building.\n"
         "If people_dark is 0, say the transit agent has already moved everyone out of dark buildings.\n"
+        "people_now, if present, is who is in class right now; you may name the busiest building and its student count.\n"
         "Reply with JSON only: {\"paragraph\": str}\n\n"
         f"Facts:\n{json.dumps(facts)}"
     )
@@ -286,6 +289,8 @@ async def write_plans(facts: dict[str, Any]) -> dict[str, Any]:
         "Each plan must say what the energy agent should do with scarce kilowatts, which buses to skip or keep, "
         "what infrastructure bottleneck or cascade matters, and the one intervention to try.\n"
         "Use only buildings, kilowatts, people, and bus lines that appear in the facts. Do not invent dollar costs.\n"
+        "people_now is who is in class right now, by building, at the slot named in it. "
+        "Prefer plans that keep the buildings with the most students lit, and say how many students a plan protects.\n"
         "University Hospital and Mott are never shed. If a feed has no supply left, changing who is protected cannot keep that feed's buildings on.\n"
         "The season in the facts chooses the shelter: summer means cooling centers, every other season means warming centers.\n"
         "Scores are integers from 1 to 10, and higher is better on every score. "

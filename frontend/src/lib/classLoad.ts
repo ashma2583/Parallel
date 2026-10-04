@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchClassLoad, type ClassLoad, type ClassSpot } from './api'
+import { fetchClassLoad, selectPeople, type ClassLoad, type ClassSpot } from './api'
 
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
@@ -36,7 +36,8 @@ export interface ClassLoadState {
 
 /**
  * Students in class by building and time of day, from the Fall 2026 schedule and campus events.
- * Owned by App so it outlives the panel that shows it. Display only: nothing is written to the engine.
+ * Owned by App so it outlives the panel that shows it. The engine uses the same schedule to set who is in each
+ * building, so the weekday and turnup chosen here are sent to it; the slot on show is only the view.
  */
 export function useClassLoad(followAt: number | null = null): ClassLoadState {
   const [weekday, setWeekday] = useState<string | undefined>(undefined)
@@ -61,6 +62,7 @@ export function useClassLoad(followAt: number | null = null): ClassLoadState {
     let retry = 0
     setLoading(true)
     setError(null)
+    void selectPeople(weekday, query)
     fetchClassLoad(weekday, query)
       .then((next) => {
         if (stop) return

@@ -143,5 +143,107 @@ class EventTests(unittest.TestCase):
         self.assertEqual(body["buildings"][0]["students"][16], 0)
 
 
+
+class SimDrivenTests(unittest.TestCase):
+    """People set each mapped building's headcount at the campus clock's time of day."""
+
+    def setUp(self) -> None:
+        import events
+        from graph import CampusGraph
+
+        self.events = events
+        self._load_events = events.load_demo_events
+        events.load_demo_events = lambda: ([], "")
+        angell = Meeting("AH", frozenset({1}), 14 * 60, 15 * 60, 400, "1", "")
+        hall = Meeting("SQ", frozenset({1}), 14 * 60, 15 * 60, 100, "2", "")
+        places = {
+            "AH": Place("AH", "Angell Hall", "Central", None, None, "angell"),
+            "SQ": Place("SQ", "South Quad", "Central", None, None, "south_quad"),
+            "UM HOSP": Place("UM HOSP", "University Hospital", "Medical", None, None, "uh"),
+        }
+        self._saved = (occupancy._schedule, dict(occupancy.selection))
+        occupancy._schedule = {"meetings": [angell, hall], "places": places}
+        occupancy.selection.update({"weekday": 1, "turnup": 1.0})
+        occupancy._sim_cache.clear()
+        occupancy._weekday_cache.clear()
+        self.graph = CampusGraph()
+        os.environ.pop("PEOPLE_DRIVES_SIM", None)
+
+    def tearDown(self) -> None:
+        self.events.load_demo_events = self._load_events
+        occupancy._schedule = self._saved[0]
+        occupancy.selection.clear()
+        occupancy.selection.update(self._saved[1])
+        occupancy._sim_cache.clear()
+        occupancy._weekday_cache.clear()
+        os.environ.pop("PEOPLE_DRIVES_SIM", None)
+
+    def test_class_hours_fill_the_building_and_the_evening_empties_it(self) -> None:
+        occupancy.apply_to_graph(self.graph, 14 * 60)
+        self.assertEqual(self.graph.nodes["angell"].occupancy, 400)
+        self.assertEqual(self.graph.nodes["angell"].baseline_occupancy, 400)
+        occupancy.apply_to_graph(self.graph, 20 * 60)
+        # Staff are all that is left, never zero.
+        self.assertGreater(self.graph.nodes["angell"].occupancy, 0)
+        self.assertLess(self.graph.nodes["angell"].occupancy, 100)
+
+    def test_hospitals_and_unmapped_buildings_are_untouched(self) -> None:
+        before = {k: (n.occupancy, n.baseline_occupancy) for k, n in self.graph.nodes.items()}
+        occupancy.apply_to_graph(self.graph, 14 * 60)
+        for node_id in ("uh", "mott", "kahn", "city_hall", "cpp", "beyster"):
+            node = self.graph.nodes[node_id]
+            self.assertEqual((node.occupancy, node.baseline_occupancy), before[node_id], node_id)
+
+    def test_dorm_keeps_residents(self) -> None:
+        occupancy.apply_to_graph(self.graph, 14 * 60)
+        hall = self.graph.nodes["south_quad"]
+        self.assertGreater(hall.occupancy, 1000 * 0.5)
+        self.assertGreaterEqual(hall.occupancy, 100)
+
+    def test_dark_building_keeps_what_transit_left_it_and_lit_ones_scale(self) -> None:
+        occupancy.apply_to_graph(self.graph, 14 * 60)
+        from graph import Status
+
+        angell, ross = self.graph.nodes["angell"], self.graph.nodes["south_quad"]
+        angell.status = Status.RED
+        angell.occupancy = 0
+        before = ross.occupancy
+        occupancy.apply_to_graph(self.graph, 20 * 60)
+        self.assertEqual(angell.occupancy, 0)
+        self.assertLess(angell.baseline_occupancy, 400)
+        self.assertNotEqual(ross.occupancy, before)
+
+    def test_flag_off_leaves_the_fixed_numbers(self) -> None:
+        os.environ["PEOPLE_DRIVES_SIM"] = "0"
+        self.assertFalse(occupancy.apply_to_graph(self.graph, 14 * 60))
+        self.assertEqual(self.graph.nodes["angell"].occupancy, 400)
+
+    def test_failure_moves_different_numbers_at_different_times(self) -> None:
+        from agents.logic import apply_transit
+        from graph import CampusGraph
+
+        moved = []
+        for hour in (14, 20):
+            graph = CampusGraph()
+            occupancy.apply_to_graph(graph, hour * 60)
+            graph.fail_node("angell")
+            graph.tick()
+            notes = apply_transit(graph)
+            moved.append(next(int(n.split()[3]) for n in notes if "moved" in n))
+        self.assertGreater(moved[0], moved[1] * 3)
+
+    def test_people_now_names_the_slot(self) -> None:
+        self.graph.set_clock(14 * 60)
+        now = occupancy.people_now(self.graph)
+        self.assertEqual(now["slot"], "Tue 14:00")
+        self.assertEqual(now["buildings"][0]["node_id"], "angell")
+        self.assertEqual(now["buildings"][0]["students"], 400)
+
+    def test_clock_runs_four_minutes_a_tick(self) -> None:
+        self.assertEqual(self.graph.sim_minutes(), 14 * 60)
+        self.graph.tick()
+        self.assertEqual(self.graph.sim_minutes(), 14 * 60 + 4)
+
+
 if __name__ == "__main__":
     unittest.main()

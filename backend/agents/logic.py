@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections import deque
 
-from graph import MEDICAL_TIE, CampusGraph, EdgeType, NodeType, Priority, Status, supply_for
+from graph import CLOCK_START_MINUTES, MEDICAL_TIE, CampusGraph, EdgeType, NodeType, Priority, Status, supply_for
 
 # Spoken names the keyword parser and the language model both might use.
 ALIASES: dict[str, str] = {
@@ -212,6 +212,7 @@ def apply_policy(graph: CampusGraph, policy: dict) -> list[str]:
         agent_runtime.forget_after(graph.tick_count)
         agent_runtime.begin_scenario("Heat wave, 95°F")
         graph.start_heat_wave()
+        graph.set_clock(CLOCK_START_MINUTES)
         return ["Coordinator: heat wave, 95°F. Plant output falls over the next 4 hours."]
     if action == "none":
         summary = str(policy.get("summary") or "no grid action")

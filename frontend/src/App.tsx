@@ -16,6 +16,7 @@ import { TopBar, type View } from './components/TopBar'
 import { fetchHazards, proposeBuilding, removeProposal, resetSim, type Branch, type Briefing, type LocationSurvey, type Hazard, type ProposalImpact } from './lib/api'
 import { useClassLoad } from './lib/classLoad'
 import { useSimClock } from './lib/simClock'
+import { usePeopleNow } from './lib/peopleNow'
 import { isDisrupted, isSupplier, loadTotals, useSim, zoneLoads } from './lib/sim'
 import { STATUS_COLOR } from './lib/status'
 import { buildSurvey, darkIds } from './lib/surveyGraph'
@@ -153,6 +154,16 @@ export default function App() {
     if (!runningRef.current) setScenario((current) => current ?? next)
   }
   const selected = useMemo(() => nodes.find((n) => n.id === selectedId), [nodes, selectedId])
+  // The engine's own count of who is in each building now, the one its agents work from.
+  const peopleNow = usePeopleNow(selected != null)
+  const selectedInClass = useMemo(() => {
+    if (!selected) return null
+    const row = peopleNow?.slot ? peopleNow.buildings.find((b) => b.node_id === selected.id) : undefined
+    if (peopleNow?.slot && row) return { students: row.students, when: peopleNow.slot }
+    // No engine count (offline, or a building without classes): the People tab's slot, as before.
+    if (classLoad.clock && selected.id in classLoad.byNode) return { students: classLoad.byNode[selected.id], when: classLoad.clock.label }
+    return null
+  }, [selected, peopleNow, classLoad.clock, classLoad.byNode])
   // Students in class in buildings that are dark now, at the People tab's time.
   const classDark = useMemo(() => {
     const names: string[] = []
@@ -379,11 +390,7 @@ export default function App() {
                 key={selected.id}
                 node={selected}
                 corner={view === 'map' ? 'top-right' : 'bottom-left'}
-                inClass={
-                  classLoad.clock && selected.id in classLoad.byNode
-                    ? { students: classLoad.byNode[selected.id], when: classLoad.clock.label }
-                    : null
-                }
+                inClass={selectedInClass}
                 onClose={() => setSelectedId(null)}
                 onToggled={(node, failed) => {
                   if (failed) offerLabel({ label: 'Manual override', detail: `${node.name} failed` })
