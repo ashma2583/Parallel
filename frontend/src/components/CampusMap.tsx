@@ -10,7 +10,7 @@ import {
 } from '@xyflow/react'
 import type { Edge as EdgeRow, Node as NodeRow } from '../module_bindings/types'
 import { CampusNode, type CampusFlowNode } from './CampusNode'
-import { statusColor } from '../lib/status'
+import { planLabel, statusColor } from '../lib/status'
 
 const nodeTypes: NodeTypes = { campus: CampusNode }
 
@@ -18,10 +18,18 @@ interface Props {
   nodes: readonly NodeRow[]
   edges: readonly EdgeRow[]
   coolingIds?: readonly string[]
+  shelterKind?: 'cooling' | 'warming'
+  preference?: string
   onNodeClick?: (node: NodeRow) => void
 }
 
-export function CampusMap({ nodes, edges, coolingIds = [], onNodeClick }: Props) {
+function movement(status: string, type: string, shelter: boolean): 'go' | 'leave' | undefined {
+  if (shelter && status !== 'Red') return 'go'
+  if (status === 'Red' && type !== 'substation') return 'leave'
+  return undefined
+}
+
+export function CampusMap({ nodes, edges, coolingIds = [], shelterKind = 'warming', preference = 'balanced', onNodeClick }: Props) {
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
 
   const flowNodes = useMemo<CampusFlowNode[]>(
@@ -30,11 +38,16 @@ export function CampusMap({ nodes, edges, coolingIds = [], onNodeClick }: Props)
         id: row.id,
         type: 'campus',
         position: { x: row.x, y: row.y },
-        data: { row, cooling: coolingIds.includes(row.id) },
+        data: {
+          row,
+          cooling: coolingIds.includes(row.id),
+          shelterKind,
+          flow: movement(row.status, row.type, coolingIds.includes(row.id)),
+        },
         draggable: false,
         connectable: false,
       })),
-    [nodes, coolingIds],
+    [nodes, coolingIds, shelterKind],
   )
 
   const flowEdges = useMemo<FlowEdge[]>(
@@ -75,6 +88,11 @@ export function CampusMap({ nodes, edges, coolingIds = [], onNodeClick }: Props)
   )
 
   return (
+    <div className="relative h-full">
+      <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-md border border-sky-400/50 bg-slate-950/90 px-3 py-1 text-[11px] font-semibold text-sky-200">
+        {planLabel(preference)}
+        <span className="ml-2 font-normal text-slate-400">pink = go here · orange = leave</span>
+      </div>
     <ReactFlow
       nodes={flowNodes}
       edges={flowEdges}
@@ -91,5 +109,6 @@ export function CampusMap({ nodes, edges, coolingIds = [], onNodeClick }: Props)
       <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="#1e293b" />
       <Controls showInteractive={false} position="bottom-right" />
     </ReactFlow>
+    </div>
   )
 }

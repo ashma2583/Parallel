@@ -227,6 +227,82 @@ async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def write_plans(facts: dict[str, Any]) -> dict[str, Any]:
+    """Five ranked response plans. Scores are relative. The facts stay the sim's."""
+    key = _xai_key()
+    if not key:
+        raise RuntimeError("XAI_API_KEY is not set")
+    model = os.getenv("GROK_MODEL", "grok-4")
+    prompt = (
+        "You are the coordinator for PARALLEL, the University of Michigan emergency desk.\n"
+        "A building or feed has already failed. Energy, transit, and infrastructure have reported in the facts.\n"
+        "Write exactly 5 different response plans for emergency staff and campus admins.\n"
+        "Each plan must say what the energy agent should do with scarce kilowatts, which buses to skip or keep, "
+        "what infrastructure bottleneck or cascade matters, and the one intervention to try.\n"
+        "Use only buildings, kilowatts, people, and bus lines that appear in the facts. Do not invent dollar costs.\n"
+        "University Hospital and Mott are never shed. If a feed has no supply left, changing who is protected cannot keep that feed's buildings on.\n"
+        "The season in the facts chooses the shelter: summer means cooling centers, every other season means warming centers.\n"
+        "Scores are integers from 1 to 10, and higher is better on every score. "
+        "cost 10 means cheapest to carry out. risk 10 means safest. energy 10 means the scarce kilowatts are used best. "
+        "people 10 means the fewest people are left in a dark or exposed building.\n"
+        "apply is balanced, dorms, academic, or none. Use none when the plan is not one of those three allocation choices.\n"
+        "Reply with JSON only:\n"
+        '{"plans":[{"title":str,"summary":str,"energy":str,"transit":str,"infrastructure":str,'
+        '"intervention":str,"analysis":str,"apply":str,'
+        '"scores":{"optimal":int,"energy":int,"feasibility":int,"cost":int,"risk":int,"people":int}}]}\n\n'
+        f"Facts:\n{json.dumps(facts)}"
+    )
+    async with httpx.AsyncClient(timeout=50) as client:
+        resp = await client.post(
+            CHAT_URL,
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+            },
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"grok {resp.status_code}: {resp.text[:300]}")
+    raw = resp.json()["choices"][0]["message"]["content"]
+    parsed = json.loads(_strip_fence(raw))
+    return {"season": str(facts.get("season") or "fall"), "plans": _rank_plans(parsed.get("plans") or [])}
+
+
+def _rank_plans(raw: list[Any]) -> list[dict[str, Any]]:
+    keys = ("optimal", "energy", "feasibility", "cost", "risk", "people")
+    plans = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        source = item.get("scores") if isinstance(item.get("scores"), dict) else {}
+        scores = {}
+        for key in keys:
+            try:
+                scores[key] = max(1, min(10, int(source.get(key))))
+            except (TypeError, ValueError):
+                scores[key] = 5
+        apply = str(item.get("apply") or "none")
+        if apply not in {"balanced", "dorms", "academic"}:
+            apply = None
+        plans.append({
+            "title": str(item.get("title") or "Plan"),
+            "summary": str(item.get("summary") or ""),
+            "energy": str(item.get("energy") or ""),
+            "transit": str(item.get("transit") or ""),
+            "infrastructure": str(item.get("infrastructure") or ""),
+            "intervention": str(item.get("intervention") or ""),
+            "analysis": str(item.get("analysis") or ""),
+            "apply": apply,
+            "scores": scores,
+            "total": round(sum(scores.values()) / len(keys), 1),
+        })
+    plans.sort(key=lambda plan: plan["total"], reverse=True)
+    for index, plan in enumerate(plans[:5], start=1):
+        plan["rank"] = index
+    return plans[:5]
+
+
 def _xai_key() -> str:
     return os.getenv("XAI_API_KEY", "").strip()
 

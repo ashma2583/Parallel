@@ -13,7 +13,7 @@ import time
 from collections import deque
 from typing import Any
 
-from graph import CampusGraph
+from graph import CampusGraph, Status, TickResult
 
 from agents.logic import apply_energy, apply_policy, apply_transit
 
@@ -28,6 +28,11 @@ graph: CampusGraph | None = None
 agent_status: dict[str, Any] = {"running": False, "address": {}}
 # balanced | dorms | academic. Dorms and academic change who is shed first.
 preference = "balanced"
+# summer opens cooling centers. fall, winter, and spring open warming centers.
+season = "fall"
+paused = False
+# One saved campus per tick, so the clock can move backward.
+frames: dict[int, dict[str, Any]] = {}
 
 policy_queue: deque = deque()
 
@@ -51,8 +56,84 @@ def run_cycle(sim: CampusGraph, *, force: bool = False) -> list[str]:
     notes.extend(apply_transit(sim))
     if notes:
         push(notes)
+    remember(sim)
     last_cycle = now
     return notes
+
+
+def remember(sim: CampusGraph) -> None:
+    """Save this tick and drop any future that a new action replaced."""
+    frames[sim.tick_count] = _capture(sim)
+    for tick in [tick for tick in frames if tick > sim.tick_count]:
+        del frames[tick]
+
+
+def forget() -> None:
+    frames.clear()
+
+
+def forget_after(tick: int) -> None:
+    for saved in [saved for saved in frames if saved > tick]:
+        del frames[saved]
+
+
+def recall(sim: CampusGraph, tick: int) -> bool:
+    frame = frames.get(tick)
+    if frame is None:
+        return False
+    sim.tick_count = frame["tick"]
+    for node_id in list(sim.proposals):
+        if node_id not in frame["nodes"]:
+            sim.remove_proposal(node_id)
+    for node_id, fields in frame["nodes"].items():
+        node = sim.nodes.get(node_id)
+        if node is None:
+            continue
+        node.current_power = fields["current_power"]
+        node.occupancy = fields["occupancy"]
+        node.status = Status(fields["status"])
+        node.failed = fields["failed"]
+        node.load_shed = fields["load_shed"]
+    summary = frame["summary"]
+    if summary:
+        sim.last_tick = TickResult(
+            tick=summary["tick"],
+            supply=summary["supply"],
+            demand=summary["demand"],
+            deficit=summary["deficit"],
+            power_ratio=summary["power_ratio"],
+            failed_nodes=list(summary["failed_nodes"]),
+            status_counts=dict(summary["status_counts"]),
+        )
+    return True
+
+
+def _capture(sim: CampusGraph) -> dict[str, Any]:
+    summary = None
+    if sim.last_tick is not None:
+        summary = {
+            "tick": sim.last_tick.tick,
+            "supply": sim.last_tick.supply,
+            "demand": sim.last_tick.demand,
+            "deficit": sim.last_tick.deficit,
+            "power_ratio": sim.last_tick.power_ratio,
+            "failed_nodes": list(sim.last_tick.failed_nodes),
+            "status_counts": dict(sim.last_tick.status_counts),
+        }
+    return {
+        "tick": sim.tick_count,
+        "nodes": {
+            node.id: {
+                "current_power": node.current_power,
+                "occupancy": node.occupancy,
+                "status": node.status.value,
+                "failed": node.failed,
+                "load_shed": node.load_shed,
+            }
+            for node in sim.nodes.values()
+        },
+        "summary": summary,
+    }
 
 
 def push(lines: list[str]) -> None:

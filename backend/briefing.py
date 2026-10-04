@@ -15,7 +15,7 @@ COOLING_TYPES = {NodeType.DINING, NodeType.LIBRARY}
 ROUTES_PATH = Path(__file__).resolve().parent / "data" / "bus_routes.json"
 
 
-def debrief_facts(graph: CampusGraph, preference: str, activity: list[str]) -> dict:
+def debrief_facts(graph: CampusGraph, preference: str, activity: list[str], season: str = "fall") -> dict:
     """Compact snapshot for the after-action summary. Numbers stay as the sim has them."""
     nodes = [
         {
@@ -34,26 +34,28 @@ def debrief_facts(graph: CampusGraph, preference: str, activity: list[str]) -> d
     ]
     return {
         "preference": preference,
+        "season": season,
         "tick": graph.tick_count,
         "scale": "Kilowatts are a demo scale, not the real megawatts. University Hospital and Mott are never shed. City Hall, Blake Transit Center, and Fire Station 1 are on the city grid.",
         "nodes": nodes,
-        "briefing": build_briefing(graph, preference),
+        "briefing": build_briefing(graph, preference, season),
         "activity": activity[-24:],
     }
 
 
-def build_briefing(graph: CampusGraph, preference: str) -> dict:
+def build_briefing(graph: CampusGraph, preference: str, season: str = "fall") -> dict:
     nodes = list(graph.nodes.values())
     disrupted = any(n.status != Status.GREEN or n.failed for n in nodes)
     displaced = sum(max(0, n.baseline_occupancy - n.occupancy) for n in nodes if n.status == Status.RED)
 
     return {
         "preference": preference,
+        "season": season if season in {"summer", "fall", "winter", "spring"} else "fall",
         "disrupted": disrupted,
         "displaced": displaced,
         "priority": _priority(nodes, preference, displaced),
         "buses": _buses(nodes),
-        "cooling": _cooling(nodes, displaced),
+        "shelter": _shelter(nodes, displaced, season),
         "systems": _systems(nodes),
     }
 
@@ -112,25 +114,38 @@ def _buses(nodes: list[Node]) -> dict:
     return {"answer": answer, "reroute": broken}
 
 
-def _cooling(nodes: list[Node], displaced: int) -> dict:
+def _shelter(nodes: list[Node], displaced: int, season: str) -> dict:
+    """Summer uses cooling centers. The rest of the school year uses warming centers."""
+    cooling = season == "summer"
+    kind = "cooling" if cooling else "warming"
     centers = [
         n for n in nodes
-        if n.status == Status.GREEN and not n.failed and (n.type in COOLING_TYPES or n.id == "city_hall")
+        if n.status == Status.GREEN and not n.failed and _is_shelter(n, cooling)
     ]
-    centers.sort(key=lambda n: n.occupancy)
+    centers.sort(key=lambda n: (0 if n.type == NodeType.DORM else 1, n.occupancy))
     picked = centers[:3]
     if displaced <= 0:
         answer = "Not for this outage. Nobody has been moved out of a dark building."
     elif not picked:
-        answer = "Nowhere left to open. The commons, libraries, and city buildings on this map are dark too."
+        answer = "Nowhere left to open. The powered commons and halls on this map are dark too."
     else:
         names = ", ".join(n.name for n in picked)
-        answer = f"Yes. Open {names}. They still have power and can take people who left a dark building."
+        if cooling:
+            answer = f"Yes. Open {names} as cooling centers. They still have power and can take people out of the heat."
+        else:
+            answer = f"Yes. Open {names} as warming centers. They still have power and heat, so people can get out of the cold."
     return {
+        "kind": kind,
         "answer": answer,
         "open": displaced > 0 and bool(picked),
         "places": [{"id": n.id, "name": n.name, "occupancy": n.occupancy} for n in picked],
     }
+
+
+def _is_shelter(node: Node, cooling: bool) -> bool:
+    if cooling:
+        return node.type in COOLING_TYPES or node.id == "city_hall"
+    return node.type in {NodeType.DORM, NodeType.DINING, NodeType.LIBRARY}
 
 
 def _systems(nodes: list[Node]) -> list[dict]:

@@ -10,7 +10,7 @@ import { BACKEND_URL } from '../config'
 import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
 
 setWorkerUrl(maplibreWorkerUrl)
-import { statusColor } from '../lib/status'
+import { planLabel, statusColor } from '../lib/status'
 
 interface BusFeature {
   type: 'Feature'
@@ -66,6 +66,9 @@ interface Props {
   nodes: readonly NodeRow[]
   edges: readonly EdgeRow[]
   coolingIds?: readonly string[]
+  shelterKind?: 'cooling' | 'warming'
+  preference?: string
+  useRouteIds?: readonly string[]
   reroutes?: Briefing['buses']['reroute']
   survey?: LocationSurvey | null
   surveyGraph?: SurveyGraphModel | null
@@ -82,6 +85,9 @@ export function GeoMap({
   nodes,
   edges,
   coolingIds = [],
+  shelterKind = 'warming',
+  preference = 'balanced',
+  useRouteIds = [],
   survey = null,
   surveyGraph = null,
   surveyDark,
@@ -101,6 +107,7 @@ export function GeoMap({
   const [threeD, setThreeD] = useState(false)
   const [basemap, setBasemap] = useState<'raster' | 'vector'>('raster')
   const [focus, setFocus] = useState<string | null>(null)
+  const [mapOpacity, setMapOpacity] = useState(1)
 
   useEffect(() => {
     let stop = false
@@ -164,10 +171,11 @@ export function GeoMap({
           color: routeColor(feature.properties.id),
           dashed: closed,
           skipped: false,
+          ...(useRouteIds.length > 0 ? { useful: useRouteIds.includes(feature.properties.id) } : {}),
         },
       }
     })
-  }, [buses, recommended, showBuses, showRecommended, darkPlaces])
+  }, [buses, recommended, showBuses, showRecommended, darkPlaces, useRouteIds])
 
   const drawnBuses = useMemo(
     () => catalog.flatMap((feature) => openAroundDarkStops(feature, darkPlaces)),
@@ -231,7 +239,7 @@ export function GeoMap({
         ...feature,
         properties: {
           ...feature.properties,
-          dim: focus && feature.properties?.id !== focus,
+          dim: (focus && feature.properties?.id !== focus) || feature.properties?.useful === false,
         },
       }))
     setGroundLines(map, 'sim-roads', ground(showRoads ? roads.features : []), {
@@ -251,7 +259,7 @@ export function GeoMap({
       ground(drawnBuses.filter((feature) => !feature.properties.skipped)),
       {
         'line-color': ['case', ['==', ['get', 'dim'], true], '#94a3b8', ['coalesce', ['get', 'color'], '#334155']],
-        'line-width': ['case', ['==', ['get', 'dim'], true], 1.5, 3],
+        'line-width': ['case', ['==', ['get', 'dim'], true], 1.5, ['==', ['get', 'useful'], true], 5, 3],
         'line-opacity': ['case', ['==', ['get', 'dim'], true], 0.35, 0.95],
       },
     )
@@ -269,13 +277,32 @@ export function GeoMap({
   }, [map, basemap, showRoads, showPower, roads, power, drawnBuses, focus])
 
   return (
-    <div className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : ''}`}>
+    <div
+      className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : ''}`}
+      style={{ ['--map-opacity' as string]: String(mapOpacity) }}
+    >
+      <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-md border border-sky-400/50 bg-slate-950/90 px-3 py-1 text-[11px] font-semibold text-sky-200">
+        {planLabel(preference)}
+        <span className="ml-2 font-normal text-slate-400">pink = go here · orange = leave</span>
+      </div>
       <div className="absolute left-3 top-14 z-10 flex flex-col gap-1 rounded-md border border-slate-700 bg-slate-950/90 p-2 text-[11px] text-slate-200">
         <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
         <Toggle label="Recommended routes" checked={showRecommended} onChange={setShowRecommended} />
         <Toggle label="3D view" checked={threeD} onChange={setThreeD} />
+        <label className="mt-1 flex items-center gap-2">
+          Map
+          <input
+            type="range"
+            min={0.15}
+            max={1}
+            step={0.05}
+            value={mapOpacity}
+            onChange={(event) => setMapOpacity(Number(event.target.value))}
+            className="w-16"
+          />
+        </label>
       </div>
       <Map
         mapStyle={threeD ? VECTOR_STYLE : MAP_STYLE}
@@ -295,6 +322,7 @@ export function GeoMap({
           if (!place || CITY.has(node.id)) return null
           const color = statusColor(node.status)
           const cooling = coolingIds.includes(node.id)
+          const flow = cooling && node.status !== 'Red' ? 'go' : node.status === 'Red' && node.type !== 'substation' ? 'leave' : undefined
           return (
             <Marker key={node.id} longitude={place.lng} latitude={place.lat} anchor="bottom">
               <button
@@ -304,18 +332,37 @@ export function GeoMap({
                   onNodeClick?.(node)
                 }}
                 className="flex flex-col items-center"
-                title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
+                title={`${node.name} · ${node.status}${flow === 'go' ? ' · go here' : flow === 'leave' ? ' · leave' : ''}`}
               >
-                {cooling && <span className="mb-0.5 text-[9px] font-bold tracking-wide text-cyan-300">COOLING</span>}
+                {flow === 'go' && <span className="mb-0.5 text-[9px] font-bold tracking-wide text-fuchsia-300">GO</span>}
+                {flow === 'leave' && <span className="mb-0.5 text-[9px] font-bold tracking-wide text-orange-300">LEAVE</span>}
+                {cooling && flow !== 'go' && (
+                  <span className={`mb-0.5 text-[9px] font-bold tracking-wide ${shelterKind === 'cooling' ? 'text-cyan-300' : 'text-orange-300'}`}>
+                    {shelterKind === 'cooling' ? 'COOLING' : 'WARMING'}
+                  </span>
+                )}
                 <span
                   className="max-w-36 truncate rounded bg-slate-950/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-100 shadow"
-                  style={{ border: `1px solid ${color}` }}
+                  style={{
+                    border: `1px solid ${color}`,
+                    boxShadow: flow === 'go' ? '0 0 0 3px #e879f9' : flow === 'leave' ? '0 0 0 2px #fb923c' : undefined,
+                  }}
                 >
                   {node.name}
                 </span>
                 <span
-                  className="mt-0.5 h-3 w-3 rounded-full border border-slate-950"
-                  style={{ background: color, boxShadow: `0 0 10px ${color}` }}
+                  className="mt-0.5 rounded-full border border-slate-950"
+                  style={{
+                    height: flow === 'go' ? 16 : 12,
+                    width: flow === 'go' ? 16 : 12,
+                    background: color,
+                    boxShadow:
+                      flow === 'go'
+                        ? '0 0 0 4px #e879f9, 0 0 14px #e879f9'
+                        : flow === 'leave'
+                          ? '0 0 0 3px #fb923c'
+                          : `0 0 10px ${color}`,
+                  }}
                 />
               </button>
             </Marker>
@@ -433,7 +480,7 @@ export function GeoMap({
               />
               <span className="truncate">
                 {route.agency} {route.name}
-                {route.dashed ? ' · reroute' : ''}
+                {useRouteIds.length > 0 && route.useful ? ' · use' : route.dashed ? ' · reroute' : ''}
               </span>
             </button>
           ))}
@@ -461,7 +508,7 @@ function LineOverlay({
   map: MaplibreMap | null
   features: {
     geometry: { coordinates: number[][] }
-    properties?: { id?: string; color?: string; dashed?: boolean }
+    properties?: { id?: string; color?: string; dashed?: boolean; useful?: boolean }
   }[]
   color?: string
   width: number
@@ -481,14 +528,16 @@ function LineOverlay({
           })
           if (points.length < 2) return []
           const id = feature.properties?.id
-          const selected = !focus || focus === id
+          const useful = feature.properties?.useful !== false
+          const guiding = features.some((item) => item.properties?.useful === false)
+          const selected = (!focus || focus === id) && (useful || focus === id)
           return [
             {
               d: `M ${points.join(' L ')}`,
               color: feature.properties?.color ?? color ?? '#e2e8f0',
               dash: feature.properties?.dashed ? '5 5' : dash,
               opacity: selected ? 1 : 0.15,
-              width: selected && focus === id ? width + 2 : width,
+              width: focus === id || (guiding && useful && selected) ? width + 2 : width,
             },
           ]
         }),

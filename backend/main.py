@@ -75,7 +75,8 @@ async def _sim_loop() -> None:
     while True:
         started = asyncio.get_running_loop().time()
         with runtime.lock:
-            runtime.run_cycle(graph, force=False)
+            if not runtime.paused:
+                runtime.run_cycle(graph, force=False)
         await publisher.publish(graph)
         elapsed = asyncio.get_running_loop().time() - started
         await asyncio.sleep(max(0.05, TICK_SECONDS - elapsed))
@@ -84,6 +85,7 @@ async def _sim_loop() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     runtime.bind(graph, asyncio.get_running_loop(), TICK_SECONDS)
+    runtime.remember(graph)
     await publisher.start()
     start_in_thread()
     task = asyncio.create_task(_sim_loop(), name="sim-loop")
@@ -122,6 +124,15 @@ class DisruptRequest(BaseModel):
 
 class PriorityRequest(BaseModel):
     mode: Literal["balanced", "dorms", "academic"]
+
+
+class SeasonRequest(BaseModel):
+    season: Literal["summer", "fall", "winter", "spring"]
+
+
+class ClockRequest(BaseModel):
+    paused: bool | None = None
+    until: int | None = Field(None, ge=1, le=100_000)
 
 
 class CommandRequest(BaseModel):
@@ -202,7 +213,7 @@ def get_bus_routes() -> dict:
 @app.get("/briefing")
 def get_briefing() -> dict:
     with runtime.lock:
-        return briefing.build_briefing(graph, runtime.preference)
+        return briefing.build_briefing(graph, runtime.preference, runtime.season)
 
 
 @app.get("/proposals")
@@ -227,6 +238,7 @@ async def post_proposal(req: ProposalRequest) -> dict:
             )
         except proposal.ProposalError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        runtime.forget_after(graph.tick_count)
         runtime.push([f"Planner: added {req.name.strip()} on the {placed['feeder_label']} feed"])
         runtime.run_cycle(graph, force=True)
         body = proposal.describe(graph, placed)
@@ -239,6 +251,7 @@ async def delete_proposal(node_id: str) -> dict:
     with runtime.lock:
         if node_id not in graph.proposals:
             raise HTTPException(status_code=404, detail="No planned building with that id.")
+        runtime.forget_after(graph.tick_count)
         name = graph.nodes[node_id].name
         graph.remove_proposal(node_id)
         runtime.push([f"Planner: removed {name}"])
@@ -263,23 +276,73 @@ async def post_location(req: LocationRequest) -> dict:
 async def post_debrief() -> dict:
     """Ask Grok for an after-action read of the scenario the director just ran."""
     with runtime.lock:
-        report = briefing.build_briefing(graph, runtime.preference)
+        report = briefing.build_briefing(graph, runtime.preference, runtime.season)
         if not report["disrupted"]:
             raise HTTPException(status_code=400, detail="Run a scenario before asking for a summary.")
-        facts = briefing.debrief_facts(graph, runtime.preference, runtime.snapshot()["lines"])
+        facts = briefing.debrief_facts(graph, runtime.preference, runtime.snapshot()["lines"], runtime.season)
     try:
         return await voice.write_debrief(facts)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@app.post("/plans")
+async def post_plans() -> dict:
+    """Five ranked response plans for the outage that is already on the grid."""
+    with runtime.lock:
+        report = briefing.build_briefing(graph, runtime.preference, runtime.season)
+        if not report["disrupted"]:
+            raise HTTPException(status_code=400, detail="Run a scenario before asking for plans.")
+        facts = briefing.debrief_facts(graph, runtime.preference, runtime.snapshot()["lines"], runtime.season)
+    try:
+        return await voice.write_plans(facts)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/season")
+async def post_season(req: SeasonRequest) -> dict:
+    with runtime.lock:
+        runtime.season = req.season
+        return briefing.build_briefing(graph, runtime.preference, runtime.season)
+
+
 @app.post("/priority")
 async def post_priority(req: PriorityRequest) -> dict:
     """Change who is shed first, then recompute power and where people go."""
     with runtime.lock:
+        runtime.forget_after(graph.tick_count)
         runtime.preference = req.mode
         runtime.run_cycle(graph, force=True)
-        body = briefing.build_briefing(graph, runtime.preference)
+        body = briefing.build_briefing(graph, runtime.preference, runtime.season)
+    await publisher.publish(graph)
+    return body
+
+
+@app.get("/clock")
+def get_clock() -> dict:
+    with runtime.lock:
+        return {"tick": graph.tick_count, "paused": runtime.paused}
+
+
+@app.post("/clock")
+async def post_clock(req: ClockRequest) -> dict:
+    """Pause the clock, or run it forward to a tick."""
+    with runtime.lock:
+        if req.paused is not None:
+            runtime.paused = req.paused
+        if req.until is not None:
+            if req.until < 1:
+                raise HTTPException(status_code=400, detail="Tick starts at 1.")
+            if not runtime.recall(graph, req.until):
+                if req.until < graph.tick_count:
+                    raise HTTPException(status_code=400, detail="That tick is no longer saved.")
+                steps = 0
+                while graph.tick_count < req.until and steps < 240:
+                    runtime.run_cycle(graph, force=True)
+                    steps += 1
+            runtime.paused = True
+        body = {"tick": graph.tick_count, "paused": runtime.paused}
     await publisher.publish(graph)
     return body
 
@@ -299,6 +362,7 @@ async def post_disrupt(req: DisruptRequest) -> dict:
     if unknown:
         raise HTTPException(status_code=404, detail=f"Unknown node id(s): {unknown}")
     with runtime.lock:
+        runtime.forget_after(graph.tick_count)
         for nid in req.node_ids:
             if req.action == "fail":
                 graph.fail_node(nid)
@@ -317,7 +381,9 @@ async def post_disrupt(req: DisruptRequest) -> dict:
 @app.post("/reset")
 async def post_reset() -> dict:
     with runtime.lock:
+        runtime.forget()
         graph.reset()
+        runtime.remember(graph)
         runtime.push(["Director: campus reset"])
         runtime.run_cycle(graph, force=True)
         body = _state()

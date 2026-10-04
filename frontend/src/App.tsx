@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSpacetimeDB, useTable } from 'spacetimedb/react'
 import { tables } from './module_bindings'
 import { CampusMap } from './components/CampusMap'
@@ -12,10 +12,13 @@ import {
   fetchProposals,
   proposeBuilding,
   removeProposal,
+  setClock,
   setPriority,
+  setSeason,
   type Briefing,
   type LocationSurvey,
   type PriorityMode,
+  type Season,
   type ProposalImpact,
   type ProposalPin,
 } from './lib/api'
@@ -44,6 +47,7 @@ export default function App() {
   const [proposals, setProposals] = useState<ProposalPin[]>([])
   const [proposalImpact, setProposalImpact] = useState<ProposalImpact | null>(null)
   const [planError, setPlanError] = useState<string | null>(null)
+  const [paused, setPaused] = useState(false)
   const surveyModel = useMemo(() => (survey ? buildSurvey(survey) : null), [survey])
   const surveyDark = useMemo(() => (surveyModel ? darkIds(surveyModel, surveyFailed) : new Set<string>()), [surveyModel, surveyFailed])
 
@@ -73,19 +77,46 @@ export default function App() {
   function toggleSurvey(id: string) {
     setSurveyFailed((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
   }
-  const coolingIds = briefing?.cooling.open ? briefing.cooling.places.map((place) => place.id) : []
+  const shelterIds = briefing?.shelter.open ? briefing.shelter.places.map((place) => place.id) : []
+  const shelterKind = briefing?.shelter.kind ?? 'warming'
+  const briefingEpoch = useRef(0)
 
   async function onPriority(mode: PriorityMode) {
+    const epoch = ++briefingEpoch.current
     const next = await setPriority(mode)
-    setBriefing(next)
+    if (epoch === briefingEpoch.current) setBriefing(next)
+  }
+
+  async function onPause(next: boolean) {
+    const clock = await setClock({ paused: next })
+    setPaused(clock.paused)
+  }
+
+  async function onGoTo(tick: number) {
+    try {
+      const clock = await setClock({ until: tick })
+      setPaused(clock.paused)
+      return null
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      const detail = message.match(/"detail":"([^"]+)"/)
+      return detail?.[1] ?? message
+    }
+  }
+
+  async function onSeason(season: Season) {
+    const epoch = ++briefingEpoch.current
+    const next = await setSeason(season)
+    if (epoch === briefingEpoch.current) setBriefing(next)
   }
 
   useEffect(() => {
     let stop = false
     const pull = async () => {
+      const epoch = briefingEpoch.current
       try {
         const [lines, nextBriefing, nextProposals] = await Promise.all([fetchActivity(), fetchBriefing(), fetchProposals()])
-        if (stop) return
+        if (stop || epoch !== briefingEpoch.current) return
         setActivity(lines)
         setBriefing(nextBriefing)
         setProposals(nextProposals)
@@ -105,7 +136,14 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <StatusBar sim={sim} connected={isActive} connectionError={connectionError} />
+      <StatusBar
+        sim={sim}
+        connected={isActive}
+        connectionError={connectionError}
+        paused={paused}
+        onPause={(next) => void onPause(next)}
+        onGoTo={onGoTo}
+      />
 
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">
@@ -130,7 +168,10 @@ export default function App() {
               <GeoMap
                 nodes={sortedNodes}
                 edges={edges}
-                coolingIds={coolingIds}
+                coolingIds={shelterIds}
+                shelterKind={shelterKind}
+                preference={briefing?.preference ?? 'balanced'}
+                useRouteIds={(briefing?.buses.reroute ?? []).filter((route) => route.keep.length > 0).map((route) => route.id)}
                 reroutes={briefing?.buses.reroute ?? []}
                 survey={survey}
                 surveyGraph={surveyModel}
@@ -145,7 +186,14 @@ export default function App() {
             ) : surveyModel ? (
               <SurveyGraph graph={surveyModel} dark={surveyDark} onToggle={toggleSurvey} />
             ) : (
-              <CampusMap nodes={sortedNodes} edges={edges} coolingIds={coolingIds} onNodeClick={(n) => setSelectedId(n.id)} />
+              <CampusMap
+                nodes={sortedNodes}
+                edges={edges}
+                coolingIds={shelterIds}
+                shelterKind={shelterKind}
+                preference={briefing?.preference ?? 'balanced'}
+                onNodeClick={(n) => setSelectedId(n.id)}
+              />
             )
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">
@@ -163,7 +211,8 @@ export default function App() {
           selected={selected}
           activity={activity}
           briefing={briefing}
-          onPriority={(mode) => void onPriority(mode)}
+          onPriority={onPriority}
+          onSeason={(season) => void onSeason(season)}
           onSurvey={(next) => {
             setSurvey(next)
             setSurveyFailed([])

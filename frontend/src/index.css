@@ -19,6 +19,10 @@ body,
 .react-flow {
   background: #0b1020;
 }
+.map-raster .maplibregl-canvas,
+.map-3d .maplibregl-canvas {
+  opacity: var(--map-opacity, 1);
+}
 .map-raster .maplibregl-canvas {
   filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.95);
 }

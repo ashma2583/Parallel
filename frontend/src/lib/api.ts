@@ -60,9 +60,11 @@ export async function sendVoice(blob: Blob): Promise<CommandResult> {
 }
 
 export type PriorityMode = 'balanced' | 'dorms' | 'academic'
+export type Season = 'summer' | 'fall' | 'winter' | 'spring'
 
 export interface Briefing {
   preference: PriorityMode
+  season: Season
   disrupted: boolean
   displaced: number
   priority: {
@@ -76,7 +78,8 @@ export interface Briefing {
     answer: string
     reroute: { id: string; name: string; agency: string; skip: string[]; keep: string[] }[]
   }
-  cooling: {
+  shelter: {
+    kind: 'cooling' | 'warming'
     answer: string
     open: boolean
     places: { id: string; name: string; occupancy: number }[]
@@ -92,6 +95,47 @@ export async function fetchBriefing(): Promise<Briefing | null> {
 
 export async function setPriority(mode: PriorityMode): Promise<Briefing> {
   return post('/priority', { mode }) as Promise<Briefing>
+}
+
+export async function fetchClock(): Promise<{ tick: number; paused: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/clock`)
+  if (!res.ok) return { tick: 0, paused: false }
+  return res.json()
+}
+
+export async function setClock(body: { paused?: boolean; until?: number }): Promise<{ tick: number; paused: boolean }> {
+  return post('/clock', body) as Promise<{ tick: number; paused: boolean }>
+}
+
+export async function setSeason(season: Season): Promise<Briefing> {
+  return post('/season', { season }) as Promise<Briefing>
+}
+
+export interface PlanScores {
+  optimal: number
+  energy: number
+  feasibility: number
+  cost: number
+  risk: number
+  people: number
+}
+
+export interface ResponsePlan {
+  rank: number
+  title: string
+  summary: string
+  energy: string
+  transit: string
+  infrastructure: string
+  intervention: string
+  analysis: string
+  apply: PriorityMode | null
+  scores: PlanScores
+  total: number
+}
+
+export async function fetchPlans(): Promise<{ season: Season; plans: ResponsePlan[] }> {
+  return post('/plans') as Promise<{ season: Season; plans: ResponsePlan[] }>
 }
 
 export interface Debrief {

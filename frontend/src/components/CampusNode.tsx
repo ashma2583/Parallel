@@ -3,7 +3,10 @@ import { Handle, Position, type Node as FlowNode, type NodeProps } from '@xyflow
 import type { Node as NodeRow } from '../module_bindings/types'
 import { PRIORITY_LABEL, TYPE_GLYPH, TYPE_LABEL, fmtKw, statusColor } from '../lib/status'
 
-export type CampusFlowNode = FlowNode<{ row: NodeRow; cooling?: boolean }, 'campus'>
+export type CampusFlowNode = FlowNode<
+  { row: NodeRow; cooling?: boolean; shelterKind?: 'cooling' | 'warming'; flow?: 'go' | 'leave' },
+  'campus'
+>
 
 /** Invisible centre handles so edges draw centre-to-centre. */
 const hiddenHandle: React.CSSProperties = {
@@ -33,16 +36,30 @@ function CampusNodeImpl({ data, selected }: NodeProps<CampusFlowNode>) {
         'rounded-xl border-2 bg-slate-900/95 text-slate-100 shadow-lg backdrop-blur transition-colors duration-300',
         compact ? 'w-[120px] px-2 py-1.5' : 'w-[168px] px-3 py-2',
         row.status === 'Red' ? 'status-red' : '',
-        selected ? 'ring-2 ring-sky-400' : '',
+        selected ? 'ring-2 ring-white' : '',
       ].join(' ')}
-      style={{ borderColor: color, boxShadow: row.status !== 'Red' ? `0 0 18px ${color}33` : undefined }}
+      style={{
+        borderColor: color,
+        boxShadow:
+          data.flow === 'go'
+            ? '0 0 0 4px #e879f9, 0 0 16px #e879f9'
+            : data.flow === 'leave'
+              ? '0 0 0 3px #fb923c'
+              : row.status !== 'Red'
+                ? `0 0 18px ${color}33`
+                : undefined,
+      }}
       title={`${row.name}\n${row.status} · ${fmtKw(row.currentPower)} / ${fmtKw(nominal)}`}
     >
       <Handle type="target" position={Position.Top} style={hiddenHandle} isConnectable={false} />
       <Handle type="source" position={Position.Bottom} style={hiddenHandle} isConnectable={false} />
 
+      {data.flow === 'go' && <div className="mb-1 text-[9px] font-bold tracking-wider text-fuchsia-300">GO HERE</div>}
+      {data.flow === 'leave' && <div className="mb-1 text-[9px] font-bold tracking-wider text-orange-300">LEAVE</div>}
       {data.cooling && (
-        <div className="mb-1 text-[9px] font-bold tracking-wider text-cyan-300">COOLING CENTER</div>
+        <div className={`mb-1 text-[9px] font-bold tracking-wider ${data.shelterKind === 'cooling' ? 'text-cyan-300' : 'text-orange-300'}`}>
+          {data.shelterKind === 'cooling' ? 'COOLING CENTER' : 'WARMING CENTER'}
+        </div>
       )}
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-slate-400">

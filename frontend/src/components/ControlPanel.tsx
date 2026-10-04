@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Node as NodeRow } from '../module_bindings/types'
-import { disrupt, resetSim, type Briefing, type PriorityMode } from '../lib/api'
+import { disrupt, resetSim, type Briefing, type PriorityMode, type Season } from '../lib/api'
 import { STATUS_COLOR, fmtKw } from '../lib/status'
 import { BriefingPanel } from './BriefingPanel'
 import { LocationPanel } from './LocationPanel'
@@ -29,6 +29,7 @@ interface Props {
   activity: readonly string[]
   briefing: Briefing | null
   onPriority: (mode: PriorityMode) => void
+  onSeason: (season: Season) => void
   onSurvey: (survey: LocationSurvey) => void
   onClearSurvey: () => void
   surveyGraph: SurveyGraphModel | null
@@ -53,6 +54,7 @@ export function ControlPanel({
   activity,
   briefing,
   onPriority,
+  onSeason,
   onSurvey,
   onClearSurvey,
   surveyGraph,
@@ -89,7 +91,7 @@ export function ControlPanel({
 
   return (
     <aside className="flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-l border-slate-800 bg-slate-950/80 p-4 text-sm backdrop-blur">
-      <BriefingPanel briefing={briefing} onChoose={onPriority} />
+      <BriefingPanel briefing={briefing} onChoose={onPriority} onSeason={onSeason} />
 
       <VoicePanel />
 
