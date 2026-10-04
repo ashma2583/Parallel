@@ -191,7 +191,8 @@ async def write_debrief(facts: dict[str, Any]) -> dict[str, Any]:
         "You are the after-action analyst for PARALLEL, the University of Michigan emergency desk.\n"
         "The director has already run a scenario. Write the debrief from the facts only.\n"
         "Do not invent buildings, bus lines, causes, or numbers that are not in the facts.\n"
-        "preference balanced means protect the hospital only. dorms means keep dorms. academic means keep classes.\n"
+        "preference is the response policy: tiered sheds the lowest priority tier first, residential keeps dorms, "
+        "academic keeps classes, people keeps the buildings with the most people per kilowatt, even rations every building equally.\n"
         "A bus listed under reroute no longer stops at the dark buildings in skip, and still stops at the lit buildings in keep.\n"
         "Reply with JSON only, no markdown, in this shape:\n"
         '{"headline": str, "grid": str, "options": [str], "buses": str, "solutions": [str], "watch": str}\n'

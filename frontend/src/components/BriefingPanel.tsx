@@ -1,32 +1,20 @@
-import { useEffect, useState } from 'react'
-import { fetchDebrief, type Briefing, type Debrief, type PriorityMode } from '../lib/api'
+import { useState } from 'react'
+import { fetchDebrief, type Briefing, type Debrief } from '../lib/api'
 
-const MODES: { id: PriorityMode; label: string }[] = [
-  { id: 'balanced', label: 'Hospital only' },
-  { id: 'dorms', label: 'Keep dorms' },
-  { id: 'academic', label: 'Keep classes' },
-]
+function Question({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="text-[13px] font-semibold">{title}</h3>
+      {children}
+    </div>
+  )
+}
 
-export function BriefingPanel({
-  briefing,
-  onChoose,
-}: {
-  briefing: Briefing | null
-  onChoose: (mode: PriorityMode) => void
-}) {
+/** The outage in plain language, from the engine's /briefing. */
+export function BriefingPanel({ briefing }: { briefing: Briefing | null }) {
   const [debrief, setDebrief] = useState<Debrief | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const disrupted = briefing?.disrupted ?? false
-
-  useEffect(() => {
-    if (!disrupted) {
-      setDebrief(null)
-      setError(null)
-    }
-  }, [disrupted])
-
-  if (!briefing) return null
 
   async function summarize() {
     setBusy(true)
@@ -41,83 +29,70 @@ export function BriefingPanel({
     }
   }
 
+  if (!briefing) return <p className="text-xs text-muted">Waiting for the engine&rsquo;s briefing.</p>
+
+  const { priority, buses, cooling, systems } = briefing
+
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
-      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">If this stays dark</h2>
+    <div className="flex flex-col gap-3.5 text-xs leading-[1.55]">
+      <Question title="Dorms or classrooms?">
+        <p className="mt-1">{priority.answer}</p>
+        <p className="mt-1 font-mono text-[11px] text-muted">
+          {priority.dorms_lit.toLocaleString()} in lit dorms · {priority.classrooms_lit.toLocaleString()} in lit classrooms
+          {briefing.displaced > 0 ? ` · ${briefing.displaced.toLocaleString()} moved` : ''}
+        </p>
+      </Question>
 
-      <p className="text-xs font-semibold text-slate-200">Dorms or classrooms?</p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-300">{briefing.priority.answer}</p>
-      <p className="mt-1 text-[11px] text-slate-500">
-        {briefing.priority.dorms_lit.toLocaleString()} people in lit dorms · {briefing.priority.classrooms_lit.toLocaleString()} in lit classrooms
-        {briefing.displaced > 0 ? ` · ${briefing.displaced.toLocaleString()} moved out of dark buildings` : ''}
-      </p>
-      <div className="mt-2 flex flex-wrap gap-1">
-        {MODES.map((mode) => (
-          <button
-            key={mode.id}
-            onClick={() => onChoose(mode.id)}
-            className={`rounded px-2 py-1 text-[11px] font-semibold ${
-              briefing.preference === mode.id ? 'bg-sky-400 text-slate-950' : 'bg-slate-800 text-slate-300'
-            }`}
-          >
-            {mode.label}
-          </button>
+      <Question title="Reroute buses?">
+        <p className="mt-1">{buses.answer}</p>
+        {buses.reroute.map((route) => (
+          <p key={`${route.agency}-${route.id}`} className="mt-1 text-muted">
+            <span className="text-text">{route.agency} {route.name}.</span> Skip {route.skip.join(', ')}
+            {route.keep.length > 0 ? `. Still stops at ${route.keep.join(', ')}` : ''}
+          </p>
         ))}
-      </div>
+      </Question>
 
-      <p className="mt-3 text-xs font-semibold text-slate-200">Reroute buses?</p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-300">{briefing.buses.answer}</p>
-      {briefing.buses.reroute.length > 0 && (
-        <ul className="mt-1 flex flex-col gap-1">
-          {briefing.buses.reroute.map((route) => (
-            <li key={`${route.agency}-${route.id}`} className="text-[11px] leading-relaxed text-slate-400">
-              <span className="text-slate-200">
-                {route.agency} {route.name}.
-              </span>{' '}
-              Skip {route.skip.join(', ')}
-              {route.keep.length > 0 ? `. Still stops at ${route.keep.join(', ')}` : ''}
-            </li>
-          ))}
-        </ul>
-      )}
+      <Question title="Open cooling centers?">
+        <p className="mt-1">{cooling.answer}</p>
+      </Question>
 
-      <p className="mt-3 text-xs font-semibold text-slate-200">Open cooling centers?</p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-300">{briefing.cooling.answer}</p>
-
-      <p className="mt-3 text-xs font-semibold text-slate-200">What else moves</p>
-      <ul className="mt-1 flex flex-col gap-1">
-        {briefing.systems.map((system) => (
-          <li key={system.system} className="text-[11px] leading-relaxed text-slate-400">
-            <span className={system.status === 'down' ? 'text-red-300' : 'text-emerald-300'}>{system.system}</span>
+      <Question title="What else moves">
+        {systems.map((system) => (
+          <p key={system.system} className="mt-1 text-muted">
+            <span className={system.status === 'down' ? 'text-down' : 'text-ok'}>{system.system}</span>
             {' · '}
             {system.detail}
-          </li>
+          </p>
         ))}
-      </ul>
+      </Question>
 
-      <button
-        type="button"
-        disabled={!briefing.disrupted || busy}
-        onClick={() => void summarize()}
-        className="mt-3 w-full rounded-md bg-sky-400 px-3 py-2 text-xs font-semibold text-slate-950 disabled:bg-slate-800 disabled:text-slate-500"
-      >
-        {busy ? 'Writing the summary…' : 'Summarize this scenario'}
-      </button>
-      {!briefing.disrupted && (
-        <p className="mt-1 text-[11px] text-slate-500">Run a scenario, then ask for the read on what happened.</p>
-      )}
-      {error && <p className="mt-2 text-[11px] leading-relaxed text-red-300">{error}</p>}
-      {debrief && (
-        <div className="mt-3 flex flex-col gap-2 border-t border-slate-800 pt-3">
-          <p className="text-xs font-semibold leading-relaxed text-slate-100">{debrief.headline}</p>
+      <div>
+        <button
+          type="button"
+          disabled={!briefing.disrupted || busy}
+          onClick={() => void summarize()}
+          className="w-full rounded-md border border-branch px-3 py-2 text-[13px] font-semibold text-branch disabled:border-line disabled:text-muted"
+        >
+          {busy ? 'Writing the summary…' : 'Summarize this scenario'}
+        </button>
+        {!briefing.disrupted && <p className="mt-1.5 text-[11px] text-muted">Run a scenario, then ask for the read on what happened.</p>}
+        {error && <p className="mt-2 text-down">{error}</p>}
+      </div>
+
+      {/* Only meaningful while the outage it describes is still on the map. */}
+      {debrief && briefing.disrupted && (
+        <div className="flex flex-col gap-2.5 border-t border-line pt-3">
+          <p className="text-[13px] font-semibold leading-normal">{debrief.headline}</p>
           <DebriefBlock title="Power grid" body={debrief.grid} />
           <DebriefList title="Options from here" items={debrief.options} />
           <DebriefBlock title="Bus routes" body={debrief.buses} />
           <DebriefList title="What to do next" items={debrief.solutions} />
-          {debrief.watch && <DebriefBlock title="Still watching" body={debrief.watch} />}
+          <DebriefBlock title="Still watching" body={debrief.watch} />
+          <p className="text-[11px] text-muted">Written by a language model from the simulation&rsquo;s own numbers.</p>
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -125,8 +100,8 @@ function DebriefBlock({ title, body }: { title: string; body: string }) {
   if (!body) return null
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-      <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{body}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">{title}</p>
+      <p className="mt-0.5">{body}</p>
     </div>
   )
 }
@@ -135,12 +110,10 @@ function DebriefList({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-      <ul className="mt-0.5 flex flex-col gap-1">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">{title}</p>
+      <ul className="mt-0.5 flex list-disc flex-col gap-1 pl-4">
         {items.map((item) => (
-          <li key={item} className="text-[11px] leading-relaxed text-slate-300">
-            {item}
-          </li>
+          <li key={item}>{item}</li>
         ))}
       </ul>
     </div>

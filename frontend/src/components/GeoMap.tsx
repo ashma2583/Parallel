@@ -3,11 +3,11 @@ import { Map, Marker, NavigationControl } from '@vis.gl/react-maplibre'
 import { setWorkerUrl, type Map as MaplibreMap } from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { Edge as EdgeRow, Node as NodeRow } from '../module_bindings/types'
 import type { Briefing, LocationSurvey, ProposalPin } from '../lib/api'
 import type { SurveyGraphModel } from '../lib/surveyGraph'
 import { BACKEND_URL } from '../config'
 import { MAP_STYLE, PLACES, VECTOR_STYLE } from '../lib/places'
+import type { SimEdge, SimNode } from '../lib/sim'
 
 setWorkerUrl(maplibreWorkerUrl)
 import { statusColor } from '../lib/status'
@@ -63,8 +63,9 @@ function routeColor(id: string): string {
 }
 
 interface Props {
-  nodes: readonly NodeRow[]
-  edges: readonly EdgeRow[]
+  nodes: readonly SimNode[]
+  edges: readonly SimEdge[]
+  selectedId?: string | null
   coolingIds?: readonly string[]
   reroutes?: Briefing['buses']['reroute']
   survey?: LocationSurvey | null
@@ -75,12 +76,13 @@ interface Props {
   proposals?: readonly ProposalPin[]
   draftPoint?: { lng: number; lat: number; name: string } | null
   onPlace?: (lng: number, lat: number) => void
-  onNodeClick?: (node: NodeRow) => void
+  onNodeClick?: (node: SimNode) => void
 }
 
 export function GeoMap({
   nodes,
   edges,
+  selectedId,
   coolingIds = [],
   survey = null,
   surveyGraph = null,
@@ -270,7 +272,7 @@ export function GeoMap({
 
   return (
     <div className={`relative h-full ${basemap === 'raster' ? 'map-raster' : 'map-3d'} ${placing ? 'cursor-crosshair' : ''}`}>
-      <div className="absolute left-3 top-14 z-10 flex flex-col gap-1 rounded-md border border-slate-700 bg-slate-950/90 p-2 text-[11px] text-slate-200">
+      <div className="absolute left-4 top-3.5 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
         <Toggle label="Power lines" checked={showPower} onChange={setShowPower} />
         <Toggle label="Roads" checked={showRoads} onChange={setShowRoads} />
         <Toggle label="U-M bus lines" checked={showBuses} onChange={setShowBuses} />
@@ -295,28 +297,31 @@ export function GeoMap({
           if (!place || CITY.has(node.id)) return null
           const color = statusColor(node.status)
           const cooling = coolingIds.includes(node.id)
+          const selected = node.id === selectedId
           return (
-            <Marker key={node.id} longitude={place.lng} latitude={place.lat} anchor="bottom">
+            <Marker key={node.id} longitude={place.lng} latitude={place.lat} anchor="center">
               <button
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation()
                   onNodeClick?.(node)
                 }}
-                className="flex flex-col items-center"
+                className="group flex flex-col items-center"
                 title={`${node.name} · ${node.status}${cooling ? ' · cooling center' : ''}`}
               >
-                {cooling && <span className="mb-0.5 text-[9px] font-bold tracking-wide text-cyan-300">COOLING</span>}
                 <span
-                  className="max-w-36 truncate rounded bg-slate-950/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-100 shadow"
-                  style={{ border: `1px solid ${color}` }}
-                >
-                  {node.name}
-                </span>
-                <span
-                  className="mt-0.5 h-3 w-3 rounded-full border border-slate-950"
-                  style={{ background: color, boxShadow: `0 0 10px ${color}` }}
+                  className={`h-3.5 w-3.5 rounded-full border-2 border-ink ${selected ? 'ring-1 ring-text' : ''}`}
+                  style={{ background: color, boxShadow: `0 0 12px ${color}` }}
                 />
+                {/* Central campus is dense: label only what needs attention, the rest on hover. */}
+                <span
+                  className={`mt-1 max-w-32 truncate rounded-sm bg-ink/85 px-1.5 py-0.5 text-[10px] font-medium text-text ${
+                    selected || cooling || node.status !== 'Green' ? '' : 'invisible group-hover:visible'
+                  }`}
+                >
+                  {place.short}
+                  {cooling && <span className="ml-1 text-transit">cooling</span>}
+                </span>
               </button>
             </Marker>
           )
@@ -324,11 +329,11 @@ export function GeoMap({
         {draftPoint && (
           <Marker longitude={draftPoint.lng} latitude={draftPoint.lat} anchor="bottom">
             <div className="flex flex-col items-center">
-              <span className="mb-0.5 text-[9px] font-bold tracking-wide text-amber-200">PIN</span>
-              <span className="max-w-36 truncate rounded border border-dashed border-amber-300 bg-slate-950/90 px-1.5 py-0.5 text-[10px] font-semibold text-amber-100">
+              <span className="mb-0.5 text-[9px] font-bold tracking-wide text-warn">PIN</span>
+              <span className="max-w-36 truncate rounded border border-dashed border-warn bg-ink/85 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
                 {draftPoint.name}
               </span>
-              <span className="mt-0.5 h-3 w-3 rounded-full border border-slate-950 bg-amber-300" />
+              <span className="mt-0.5 h-3 w-3 rounded-full border border-ink bg-warn" />
             </div>
           </Marker>
         )}
@@ -337,31 +342,31 @@ export function GeoMap({
           return (
             <Marker key={pin.id} longitude={pin.lng} latitude={pin.lat} anchor="bottom">
               <div className="flex flex-col items-center" title={`${pin.name} · planned · ${pin.status}`}>
-                <span className="mb-0.5 text-[9px] font-bold tracking-wide text-violet-300">PLANNED</span>
+                <span className="mb-0.5 text-[9px] font-bold tracking-wide text-branch">PLANNED</span>
                 <span
-                  className="max-w-36 truncate rounded bg-slate-950/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-100"
+                  className="max-w-36 truncate rounded bg-ink/85 px-1.5 py-0.5 text-[10px] font-semibold text-text"
                   style={{ border: `1px dashed ${color}` }}
                 >
                   {pin.name}
                 </span>
-                <span className="mt-0.5 h-3 w-3 rounded-full border border-slate-950" style={{ background: color }} />
+                <span className="mt-0.5 h-3 w-3 rounded-full border border-ink" style={{ background: color }} />
               </div>
             </Marker>
           )
         })}
         {surveyGraph?.nodes.map((building) => {
           const down = surveyDark?.has(building.id) ?? false
-          const color = down ? '#ef4444' : '#22c55e'
+          const color = down ? 'var(--color-down)' : 'var(--color-ok)'
           return (
             <Marker key={`survey-${building.id}`} longitude={building.lng} latitude={building.lat} anchor="bottom">
               <button type="button" className="flex flex-col items-center" title={building.why} onClick={() => onToggleSurvey?.(building.id)}>
                 <span
-                  className="max-w-36 truncate rounded bg-slate-950/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-100"
+                  className="max-w-36 truncate rounded bg-ink/85 px-1.5 py-0.5 text-[10px] font-semibold text-text"
                   style={{ border: `1px solid ${color}` }}
                 >
                   {building.name}
                 </span>
-                <span className="mt-0.5 h-3 w-3 rounded-full border border-slate-950" style={{ background: color }} />
+                <span className="mt-0.5 h-3 w-3 rounded-full border border-ink" style={{ background: color }} />
               </button>
             </Marker>
           )
@@ -406,7 +411,7 @@ export function GeoMap({
                 },
                 properties: {
                   id: edge.id,
-                  color: edge.kind === 'power' ? (down ? '#ef4444' : '#facc15') : down ? '#ef4444' : '#94a3b8',
+                  color: edge.kind === 'power' ? (down ? 'var(--color-down)' : 'var(--color-flow)') : down ? 'var(--color-down)' : 'var(--color-muted)',
                   dashed: edge.kind === 'road' || down,
                 },
               },
@@ -416,15 +421,15 @@ export function GeoMap({
         />
       )}
       {legend.length > 0 && !survey && (
-        <div className="absolute bottom-8 left-3 z-10 max-h-52 w-56 overflow-y-auto rounded-md border border-slate-700 bg-slate-950/90 p-2 text-[11px] text-slate-200">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Bus lines</div>
+        <div className="absolute bottom-8 left-4 z-10 max-h-52 w-56 overflow-y-auto rounded-md border border-line bg-panel/95 p-2 text-xs text-muted">
+          <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Bus lines</div>
           {legend.map((route) => (
             <button
               key={route.id}
               type="button"
               onClick={() => setFocus((current) => (current === route.id ? null : route.id))}
               className={`flex w-full items-center gap-2 rounded px-1 py-0.5 text-left ${
-                focus === route.id ? 'bg-slate-800' : 'hover:bg-slate-900'
+                focus === route.id ? 'bg-raised text-text' : 'hover:text-text'
               }`}
             >
               <span
@@ -668,14 +673,14 @@ function Toggle({
   onChange: (value: boolean) => void
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <label className="flex cursor-pointer items-center gap-2 hover:text-text">
+      <input type="checkbox" className="accent-branch" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       {label}
     </label>
   )
 }
 
-function links(edges: readonly EdgeRow[], kind: string) {
+function links(edges: readonly SimEdge[], kind: string) {
   return {
     type: 'FeatureCollection' as const,
     features: edges.flatMap((edge) => {

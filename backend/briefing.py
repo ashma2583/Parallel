@@ -64,13 +64,17 @@ def _priority(nodes: list[Node], preference: str, displaced: int) -> dict:
     dorms_lit = _count(nodes, lambda n: n.type == NodeType.DORM and n.status == Status.GREEN)
     class_lit = _count(nodes, lambda n: n.type in (NodeType.ACADEMIC, NodeType.LIBRARY) and n.status == Status.GREEN)
 
-    if preference == "dorms":
+    if preference == "residential":
         answer = "Keep the dorms lit. Classrooms and libraries on a short feed are shut first."
     elif preference == "academic":
         answer = "Keep classes lit. Residence halls on a short feed are shut first."
+    elif preference == "people":
+        answer = "Keep whichever buildings hold the most people per kilowatt. That can mean a full library stays lit while a lab goes dark."
+    elif preference == "even":
+        answer = "Neither. Nothing is shed, so every building on a short feed gets the same reduced share."
     else:
         answer = "Protect the hospital only. Libraries and commons go dark before dorms or classrooms. University Hospital and Mott are never shed."
-    if preference != "balanced" and dorms_dark and class_dark:
+    if preference != "tiered" and dorms_dark and class_dark:
         answer += " A feed with no power left still goes fully dark. The choice matters when a feed is short, not dead."
 
     return {

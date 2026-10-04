@@ -53,22 +53,51 @@ ALIASES: dict[str, str] = {
 }
 
 
-def _shed_key(node, preference: str):
-    """Lower sorts first, and those buildings are shed first. Critical is excluded by the caller."""
-    if preference == "dorms" and node.type == NodeType.DORM:
-        group = 1
-    elif preference == "academic" and node.type in (NodeType.ACADEMIC, NodeType.LIBRARY):
-        group = 1
-    else:
-        group = 0
-    return (group, -node.priority.value, -node.demand, node.id)
+# Response policies the energy agent can run. Branch Timeline compares them.
+STRATEGIES: dict[str, dict[str, str]] = {
+    "tiered": {
+        "label": "Priority tiers",
+        "description": "Shed the lowest priority tier first. Critical care is never shed.",
+    },
+    "residential": {
+        "label": "Protect residential",
+        "description": "Keep dorms powered. Academic and commons buildings go dark first.",
+    },
+    "academic": {
+        "label": "Protect classes",
+        "description": "Keep classrooms and libraries powered. Residence halls go dark first.",
+    },
+    "people": {
+        "label": "Most people per kW",
+        "description": "Shed the buildings that serve the fewest people per kilowatt first.",
+    },
+    "even": {
+        "label": "Ration evenly",
+        "description": "No load shedding. Every building on the feed gets the same share.",
+    },
+}
+DEFAULT_STRATEGY = "tiered"
 
 
-def apply_energy(graph: CampusGraph, preference: str = "balanced") -> list[str]:
+def _shed_order(consumers: list, strategy: str) -> list:
+    """Non-critical consumers in the order the strategy sheds them."""
+    pool = [n for n in consumers if n.priority != Priority.CRITICAL]
+    if strategy == "even":
+        return []
+    if strategy == "residential":
+        return sorted(pool, key=lambda n: (n.type == NodeType.DORM, -n.priority.value, -n.demand, n.id))
+    if strategy == "academic":
+        keep = (NodeType.ACADEMIC, NodeType.LIBRARY)
+        return sorted(pool, key=lambda n: (n.type in keep, -n.priority.value, -n.demand, n.id))
+    if strategy == "people":
+        return sorted(pool, key=lambda n: (n.occupancy / n.demand if n.demand > 0 else 0.0, n.id))
+    return sorted(pool, key=lambda n: (-n.priority.value, -n.demand, n.id))
+
+
+def apply_energy(graph: CampusGraph, strategy: str = DEFAULT_STRATEGY) -> list[str]:
     """
-    Per feeder: shed lowest priority first and never touch Critical.
-    preference "dorms" cuts classrooms before residence halls.
-    preference "academic" cuts residence halls before classrooms.
+    Per feeder: shed in the order the strategy sets and never touch Critical.
+    A deficit on north campus does not shed central campus.
     """
     before = {n.id: round(n.load_shed, 4) for n in graph.nodes.values()}
     plan: dict[str, float] = {n.id: 0.0 for n in graph.nodes.values()}
@@ -82,10 +111,7 @@ def apply_energy(graph: CampusGraph, preference: str = "balanced") -> list[str]:
         ]
         supply = supply_for(graph.nodes, feeder)
         deficit = max(0.0, sum(n.demand for n in consumers) - supply)
-        order = sorted(
-            (n for n in consumers if n.priority != Priority.CRITICAL),
-            key=lambda n: _shed_key(n, preference),
-        )
+        order = _shed_order(consumers, strategy)
         remaining = deficit
         for node in order:
             if remaining <= 1e-6 or node.demand <= 0:
