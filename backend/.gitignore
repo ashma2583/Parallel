@@ -11,3 +11,4 @@ spacetimedb/dist/
 
 # Phase 5: engine identity for SpacetimeDB (stdb_actions.py)
 .stdb_engine_token
+.smoke_engine.log
