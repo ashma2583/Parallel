@@ -3,9 +3,9 @@
 export type Status = 'Green' | 'Amber' | 'Red'
 
 export const STATUS_COLOR: Record<Status, string> = {
-  Green: '#3ddc97',
-  Amber: '#ffb224',
-  Red: '#ff5d5d',
+  Green: 'var(--color-ok)',
+  Amber: 'var(--color-warn)',
+  Red: 'var(--color-down)',
 }
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -15,7 +15,7 @@ export const STATUS_LABEL: Record<Status, string> = {
 }
 
 export function statusColor(status: string): string {
-  return STATUS_COLOR[status as Status] ?? '#596070'
+  return STATUS_COLOR[status as Status] ?? 'var(--color-muted)'
 }
 
 export const TYPE_LABEL: Record<string, string> = {

@@ -145,6 +145,7 @@ class CommandRequest(BaseModel):
 def _state() -> dict:
     body = graph.to_dict()
     body["activity"] = list(runtime.activity)
+    body["activity_ticks"] = list(runtime.activity_ticks)
     body["strategy"] = runtime.strategy
     return body
 
