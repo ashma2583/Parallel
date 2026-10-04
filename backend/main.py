@@ -19,6 +19,10 @@ Environment (all optional):
     GROK_MODEL      default "grok-4"
     GEMINI_API_KEY  optional; used first when POLICY_PARSER=auto
     GEMINI_MODEL    default "gemini-2.5-flash"
+    UM_CLIENT_ID    Schedule of Classes API client id
+    UM_CLIENT_SECRET
+    UM_TERM         optional term code, default from today's date
+    SOC_CSV         optional registrar CSV path or URL
 """
 
 from __future__ import annotations
@@ -46,6 +50,7 @@ from pydantic import BaseModel, Field
 
 from agents import runtime
 import briefing
+import occupancy
 from agents.logic import STRATEGIES
 import location_agent
 import proposal
@@ -256,6 +261,20 @@ def get_activity() -> dict:
 @app.get("/bus-routes")
 def get_bus_routes() -> dict:
     return briefing.route_collection()
+
+
+@app.get("/occupancy")
+async def get_occupancy(weekday: str | None = None, turnup: float = 0.75) -> dict:
+    """Students in class, by building, across the class day.
+
+    turnup is the share of class capacity assumed to be in the room.
+    """
+    try:
+        return await occupancy.snapshot(weekday=weekday, turnup=turnup)
+    except occupancy.ScheduleError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/briefing")

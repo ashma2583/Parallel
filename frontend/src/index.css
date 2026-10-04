@@ -10,6 +10,7 @@
  *   ok / warn / down  building state only, never decoration
  *   flow              energized power lines
  *   branch            anything that forks or adopts a timeline
+ *   people            students in class (occupancy), display only
  */
 @theme {
   --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
@@ -30,6 +31,7 @@
   --color-branch: #a48bff;
   --color-onbranch: #090b0f;
   --color-transit: #7cc4ff;
+  --color-people: #f2c230;
 }
 
 :root {
@@ -43,6 +45,7 @@
     --color-text: #12151a; --color-muted: #5a616d; --color-faint: #7a808a;
     --color-ok: #0f9d63; --color-warn: #d9650d; --color-down: #d93a3a; --color-flow: #3b5b8c;
     --color-branch: #5b3fd6; --color-onbranch: #fbfbf9; --color-transit: #2a6fb0;
+    --color-people: #a87b00;
     color-scheme: light;
   }
   :root:not([data-theme='dark']) .map-raster .maplibregl-canvas {
@@ -54,6 +57,7 @@
   --color-text: #12151a; --color-muted: #5a616d; --color-faint: #7a808a;
   --color-ok: #0f9d63; --color-warn: #d9650d; --color-down: #d93a3a; --color-flow: #3b5b8c;
   --color-branch: #5b3fd6; --color-onbranch: #fbfbf9; --color-transit: #2a6fb0;
+    --color-people: #a87b00;
   color-scheme: light;
 }
 :root[data-theme='light'] .map-raster .maplibregl-canvas {

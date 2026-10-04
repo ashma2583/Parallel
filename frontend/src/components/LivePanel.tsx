@@ -178,6 +178,7 @@ const TABS = [
   { id: 'feed', label: 'Agent feed' },
   { id: 'briefing', label: 'Briefing' },
   { id: 'plan', label: 'Plan' },
+  { id: 'people', label: 'People' },
 ] as const
 
 interface Props {
@@ -191,12 +192,14 @@ interface Props {
   onCommand: (result: CommandResult) => void
   /** Planning tools: add a building to the campus, or research another place. */
   plan: React.ReactNode
+  /** Students in class by time of day. */
+  people: React.ReactNode
   /** The hazard that started this scenario, if one did. */
   hazard: Hazard | null
 }
 
 /** Right panel while watching the live campus: current policy, feed and briefing, director's order. */
-export function LivePanel({ sim, disrupted, running = false, demo = false, onBranch, onCommand, plan, hazard }: Props) {
+export function LivePanel({ sim, disrupted, running = false, demo = false, onBranch, onCommand, plan, people, hazard }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('briefing')
   const [cue, setCue] = useState(demo)
   const policy = strategyFor(sim.strategy)
@@ -259,6 +262,7 @@ export function LivePanel({ sim, disrupted, running = false, demo = false, onBra
           {tab === 'briefing' && <BriefingPanel briefing={sim.briefing} hazard={hazard} onChanged={sim.refresh} />}
           {/* Kept mounted so a half-filled form or a research result survives a tab switch. */}
           <div hidden={tab !== 'plan'} className="flex flex-col gap-6">{plan}</div>
+          {tab === 'people' && people}
         </div>
       </div>
 
